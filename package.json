@@ -10,20 +10,20 @@
     "eject": "react-scripts eject"
   },
   "dependencies": {
-    "@socket.io/component-emitter": "^3.1.2",
+    "@craco/craco": "^7.1.0",
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
+    "@socket.io/component-emitter": "^3.1.2",
+    "autoprefixer": "^10.5.4",
     "axios": "^1.19.0",
+    "postcss": "^8.4.49",
+    "potpack": "^1.0.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-scripts": "^5.0.1",
     "socket.io-client": "^4.8.3",
-    "three": "^0.185.1",
-    "@craco/craco": "^7.1.0",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.49",
-    "potpack": "^1.0.2",
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^3.4.17",
+    "three": "^0.185.1"
   },
   "browserslist": {
     "production": [
