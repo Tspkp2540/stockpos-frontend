@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "npm start",
     "start": "node scripts/start.js",
-    "build": "node ./node_modules/@craco/craco/dist/bin/craco.js build",
+    "build": "craco build",
     "test": "craco test",
     "eject": "react-scripts eject"
   },
