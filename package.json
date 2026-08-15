@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "start": "node scripts/start.js",
-    "build": "node ./node_modules/react-scripts/bin/react-scripts.js build",
-    "test": "react-scripts test",
+    "build": "node ./node_modules/@craco/craco/dist/bin/craco.js build",
+    "test": "craco test",
     "eject": "react-scripts eject"
   },
   "dependencies": {
@@ -18,7 +18,12 @@
     "socket.io-client": "^4.8.3",
     "three": "^0.185.1"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@craco/craco": "^7.1.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17"
+  },
   "browserslist": {
     "production": [
       ">0.2%",
