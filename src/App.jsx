@@ -34,7 +34,8 @@ function App() {
   const [products, setProducts] = useState(fallbackProducts);
   const [inventoryRows, setInventoryRows] = useState(inventory);
   const [expenses, setExpenses] = useState(0);
-  const [metrics, setMetrics] = useState({ gross: 0, gp: 0, cogs: 0, profit: 0 });
+  const [expenseRows, setExpenseRows] = useState([]);
+  const [metrics, setMetrics] = useState({ gross: 0, net: 0, gp: 0, cogs: 0, profit: 0 });
 
   useEffect(() => {
     let mounted = true;
@@ -49,22 +50,24 @@ function App() {
     const fetchDashboardData = async () => {
       const responses = await Promise.allSettled([
         axios.get(`${API_BASE}/api/channels`), axios.get(`${API_BASE}/api/products`),
-        axios.get(`${API_BASE}/api/inventory`), axios.get(`${API_BASE}/api/financial-summary`),
+        axios.get(`${API_BASE}/api/inventory`), axios.get(`${API_BASE}/api/financial-summary`), axios.get(`${API_BASE}/api/expenses`),
       ]);
       if (!mounted) return;
-      const [channelResult, productResult, inventoryResult, summaryResult] = responses;
+      const [channelResult, productResult, inventoryResult, summaryResult, expensesResult] = responses;
       const channelResponse = channelResult.status === 'fulfilled' ? channelResult.value : null;
       const productResponse = productResult.status === 'fulfilled' ? productResult.value : null;
       const inventoryResponse = inventoryResult.status === 'fulfilled' ? inventoryResult.value : null;
       const summaryResponse = summaryResult.status === 'fulfilled' ? summaryResult.value : null;
+      const expensesResponse = expensesResult.status === 'fulfilled' ? expensesResult.value : null;
       if (channelResponse?.data?.success && Array.isArray(channelResponse.data.data)) setChannels(channelResponse.data.data);
       if (productResponse?.data?.success && Array.isArray(productResponse.data.data)) setProducts(productResponse.data.data.map((product) => ({ ...product, icon: product.icon || '▦' })));
       if (inventoryResponse?.data?.success && Array.isArray(inventoryResponse.data.data)) setInventoryRows(inventoryResponse.data.data);
       if (summaryResponse?.data?.success) {
         const data = summaryResponse.data.data || {};
-        setMetrics({ gross: Number(data.total_gross || 0), gp: Number(data.total_gp || 0), cogs: Number(data.total_cogs || 0), profit: Number(data.total_net_profit || 0) });
+        setMetrics({ gross: Number(data.total_gross || 0), net: Number(data.total_net_revenue || data.total_net || 0), gp: Number(data.total_gp || 0), cogs: Number(data.total_cogs || 0), profit: Number(data.total_net_profit || 0) });
         setExpenses(Number(data.total_expenses ?? data.expenses ?? 0));
       }
+      if (expensesResponse?.data?.success && Array.isArray(expensesResponse.data.data)) setExpenseRows(expensesResponse.data.data);
     };
     fetchOrders();
     fetchDashboardData();
@@ -85,9 +88,12 @@ function App() {
   const createMenu = async (menu) => { try { const response = await axios.post(`${API_BASE}/api/products`, { ...menu, price_retail: Number(menu.price_retail), price_wholesale: menu.price_wholesale ? Number(menu.price_wholesale) : null, recipe: menu.recipe.map((item) => ({ ingredient_id: Number(item.ingredient_id), quantity_used: Number(item.quantity_used) })) }); if (response.data?.success) { const refreshed = await axios.get(`${API_BASE}/api/products`); setProducts(refreshed.data.data.map((product) => ({ ...product, icon: product.icon || '▦' }))); setNotice('MENU CREATED · RECIPE SAVED'); return true; } } catch (error) { console.warn('Menu create API unavailable.', error); } return false; };
   const updateMenu = async (id, menu) => { try { const response = await axios.put(`${API_BASE}/api/products/${id}`, { ...menu, price_retail: Number(menu.price_retail), price_wholesale: menu.price_wholesale ? Number(menu.price_wholesale) : null, recipe: menu.recipe.map((item) => ({ ingredient_id: Number(item.ingredient_id), quantity_used: Number(item.quantity_used) })) }); if (response.data?.success) { const refreshed = await axios.get(`${API_BASE}/api/products`); setProducts(refreshed.data.data.map((product) => ({ ...product, icon: product.icon || '▦' }))); setNotice('MENU UPDATED · RECIPE SAVED'); return true; } } catch (error) { console.warn('Menu update API unavailable.', error); } return false; };
   const deleteMenu = async (menu) => { if (!menu?.id || !window.confirm(`Delete menu ${menu.name}?`)) return; try { const response = await axios.delete(`${API_BASE}/api/products/${menu.id}`); if (response.data?.success) { setProducts((current) => current.filter((product) => product.id !== menu.id)); setNotice('MENU DELETED · CATALOG UPDATED'); } } catch (error) { console.warn('Menu delete API unavailable.', error); } };
+  const createExpense = async (amount, category, description) => { try { const response = await axios.post(`${API_BASE}/api/expenses`, { amount: Number(amount), category, description }); if (response.data?.success) { setExpenseRows((current) => [response.data.data, ...current]); setExpenses((current) => current + Number(amount)); setNotice('EXPENSE CREATED · LEDGER UPDATED'); return true; } } catch (error) { console.warn('Expense create API unavailable.', error); } return false; };
+  const updateExpense = async (id, amount, category, description) => { try { const previous = expenseRows.find((row) => row.id === id); const response = await axios.put(`${API_BASE}/api/expenses/${id}`, { amount: Number(amount), category, description }); if (response.data?.success) { setExpenseRows((current) => current.map((row) => row.id === id ? response.data.data : row)); setExpenses((current) => current + Number(amount) - Number(previous?.amount || 0)); setNotice('EXPENSE UPDATED · LEDGER UPDATED'); return true; } } catch (error) { console.warn('Expense update API unavailable.', error); } return false; };
+  const deleteExpense = async (item) => { if (!item?.id || !window.confirm(`Delete expense ${money(item.amount)}?`)) return; try { const response = await axios.delete(`${API_BASE}/api/expenses/${item.id}`); if (response.data?.success) { setExpenseRows((current) => current.filter((row) => row.id !== item.id)); setExpenses((current) => current - Number(item.amount)); setNotice('EXPENSE DELETED · LEDGER UPDATED'); } } catch (error) { console.warn('Expense delete API unavailable.', error); } };
   const recordExpense = async (amount, category) => { try { const response = await axios.post(`${API_BASE}/api/expenses`, { amount, category }); if (response.data?.success) { setExpenses((current) => current + amount); setNotice(`EXPENSE RECORDED · ${money(amount)} MOVED TO SAFE`); } } catch (error) { console.warn('Expense API unavailable; expense was not recorded.', error); } };
 
-  return <GlassLayout activeView={activeView} setActiveView={setActiveView} orders={orders} channels={channels} products={products} inventoryRows={inventoryRows} metrics={metrics} expenses={expenses} notice={notice} onAdd={addOrder} onUpdate={updateOrder} onRestock={handleRestock} onCreateInventory={createInventory} onUpdateInventory={updateInventory} onDeleteInventory={deleteInventory} onCreateMenu={createMenu} onUpdateMenu={updateMenu} onDeleteMenu={deleteMenu} onExpense={recordExpense} />;
+  return <GlassLayout activeView={activeView} setActiveView={setActiveView} orders={orders} channels={channels} products={products} inventoryRows={inventoryRows} metrics={metrics} expenses={expenses} expenseRows={expenseRows} notice={notice} onAdd={addOrder} onUpdate={updateOrder} onRestock={handleRestock} onCreateInventory={createInventory} onUpdateInventory={updateInventory} onDeleteInventory={deleteInventory} onCreateMenu={createMenu} onUpdateMenu={updateMenu} onDeleteMenu={deleteMenu} onExpense={recordExpense} onCreateExpense={createExpense} onUpdateExpense={updateExpense} onDeleteExpense={deleteExpense} />;
 }
 
 export default App;
