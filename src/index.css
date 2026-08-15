@@ -19,7 +19,8 @@ body,
 
 body {
   overflow: hidden;
-  background: #0f172a;
+  color: #e2e8f0;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 52%, #1e3a4a 100%);
 }
 
 button {
