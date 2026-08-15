@@ -23,7 +23,16 @@ const fallbackChannels = [{ id: 1, name: 'Front Store' }, { id: 2, name: 'GrabFo
 const fallbackProducts = [{ id: 1, name: 'ชานมไข่มุก', price_retail: 55, icon: '🧋' }, { id: 2, name: 'กาแฟเย็น', price_retail: 60, icon: '☕' }, { id: 3, name: 'เค้กช็อกโกแลต', price_retail: 85, icon: '🍰' }];
 const money = (amount) => `฿${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 const formatItems = (items) => Array.isArray(items) ? items.map((item) => `${item.name || `Product #${item.product_id}`} x ${item.quantity || item.qty}`).join(' · ') : String(items || 'Order items');
-const normalizeOrder = (order) => ({ ...order, channel_name: order.channel_name || `Channel #${order.channel_id}`, net_revenue: Number(order.net_revenue || 0), items: formatItems(order.items) });
+const normalizeOrder = (order) => {
+  const rawItems = Array.isArray(order.items) ? order.items : (order.rawItems || []);
+  return {
+    ...order,
+    rawItems,
+    channel_name: order.channel_name || `Channel #${order.channel_id}`,
+    net_revenue: Number(order.net_revenue || 0),
+    items: formatItems(rawItems.length ? rawItems : order.items),
+  };
+};
 
 function App() {
   const [activeView, setActiveView] = useState('pos');
@@ -81,6 +90,55 @@ function App() {
 
   const addOrder = async (payload = {}) => { const nextNumber = 1049 + orders.length - initialOrders.length; try { const response = await axios.post(`${API_BASE}/api/orders`, { order_no: `POS-${nextNumber}`, channel_id: payload.channel_id || channels[0]?.id, items: payload.items || [{ product_id: products[0]?.id, qty: 1, price: products[0]?.price_retail || 55 }] }); if (response.data?.success) setOrders((current) => [normalizeOrder({ ...response.data.data, channel_name: payload.channel_name, items: payload.items }), ...current]); } catch (error) { setOrders((current) => [{ id: Date.now(), order_no: `POS-${nextNumber}`, channel_name: payload.channel_name || 'Front Store', status: 'COOKING', net_revenue: payload.total || 0, items: formatItems(payload.items) }, ...current]); console.warn('Order API unavailable; kept local order.', error); } setNotice('NEW ORDER RECEIVED · ACCOUNTANT PRINTING'); };
   const updateOrder = async (id, status) => { try { if (status === 'CANCELLED') await axios.put(`${API_BASE}/api/orders/${id}/cancel`); else await axios.put(`${API_BASE}/api/orders/${id}/status`, { status }); } catch (error) { console.warn('Order status API unavailable; updated locally.', error); } setOrders((current) => current.map((order) => order.id === id ? { ...order, status } : order)); setNotice(status === 'COMPLETED' ? 'PAYMENT RECEIVED · SECURE CASH DROP' : 'ORDER CANCELLED'); };
+  const refreshFinancialSummary = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/financial-summary`);
+      if (response.data?.success) {
+        const data = response.data.data || {};
+        setMetrics({ gross: Number(data.total_gross || 0), net: Number(data.total_net_revenue || data.total_net || 0), gp: Number(data.total_gp || 0), cogs: Number(data.total_cogs || 0), profit: Number(data.total_net_profit || 0) });
+        setExpenses(Number(data.total_expenses ?? data.expenses ?? 0));
+      }
+    } catch (error) { console.warn('Financial summary refresh unavailable.', error); }
+  };
+  const createSalesRecord = async (record) => {
+    try {
+      const response = await axios.post(`${API_BASE}/api/orders`, record);
+      if (response.data?.success) {
+        const channel = channels.find((item) => Number(item.id) === Number(record.channel_id));
+        const created = normalizeOrder({ ...response.data.data, channel_name: channel?.name, items: record.items });
+        if (record.status && record.status !== 'COOKING') await axios.put(`${API_BASE}/api/orders/${created.id}/status`, { status: record.status });
+        setOrders((current) => [{ ...created, status: record.status || created.status }, ...current]);
+        await refreshFinancialSummary();
+        setNotice('SALES RECORD CREATED · FINANCIAL HUD UPDATED');
+        return true;
+      }
+    } catch (error) { console.warn('Sales record create failed.', error); }
+    return false;
+  };
+  const updateSalesRecord = async (id, record) => {
+    try {
+      const response = await axios.put(`${API_BASE}/api/orders/${id}`, record);
+      if (response.data?.success) {
+        const channel = channels.find((item) => Number(item.id) === Number(record.channel_id));
+        setOrders((current) => current.map((order) => order.id === id ? normalizeOrder({ ...response.data.data, channel_name: channel?.name, items: record.items }) : order));
+        await refreshFinancialSummary();
+        setNotice('SALES RECORD UPDATED · FINANCIAL HUD UPDATED');
+        return true;
+      }
+    } catch (error) { console.warn('Sales record update failed.', error); }
+    return false;
+  };
+  const deleteSalesRecord = async (order) => {
+    if (!order?.id || !window.confirm(`Delete sales record #${order.order_no}?`)) return;
+    try {
+      const response = await axios.delete(`${API_BASE}/api/orders/${order.id}`);
+      if (response.data?.success) {
+        setOrders((current) => current.filter((item) => item.id !== order.id));
+        await refreshFinancialSummary();
+        setNotice('SALES RECORD DELETED · STOCK RESTORED');
+      }
+    } catch (error) { console.warn('Sales record delete failed.', error); }
+  };
   const handleRestock = async (item) => { if (!item) return; setNotice(`RESTOCK REQUEST SENT · WAREHOUSE MANAGER MOVING ${item.name.toUpperCase()}`); try { const response = await axios.post(`${API_BASE}/api/inventory/restock`, { ingredient_id: item.id, qty_to_add: item.level === 'low' ? 12 : 6 }); if (response.data?.success) { setRestocked((current) => [...current, item.code || item.id]); setInventoryRows((current) => current.map((row) => row.id === item.id ? response.data.data : row)); } } catch (error) { console.warn('Restock API unavailable; request was not recorded.', error); } };
   const createInventory = async (item) => { try { const response = await axios.post(`${API_BASE}/api/inventory`, item); if (response.data?.success) { setInventoryRows((current) => [...current, response.data.data]); setNotice('INVENTORY ITEM CREATED · WAREHOUSE UPDATED'); return true; } } catch (error) { console.warn('Inventory create API unavailable.', error); } return false; };
   const updateInventory = async (id, item) => { try { const response = await axios.put(`${API_BASE}/api/inventory/${id}`, item); if (response.data?.success) { setInventoryRows((current) => current.map((row) => row.id === id ? response.data.data : row)); setNotice('INVENTORY ITEM UPDATED · WAREHOUSE UPDATED'); return true; } } catch (error) { console.warn('Inventory update API unavailable.', error); } return false; };
@@ -93,7 +151,7 @@ function App() {
   const deleteExpense = async (item) => { if (!item?.id || !window.confirm(`Delete expense ${money(item.amount)}?`)) return; try { const response = await axios.delete(`${API_BASE}/api/expenses/${item.id}`); if (response.data?.success) { setExpenseRows((current) => current.filter((row) => row.id !== item.id)); setExpenses((current) => current - Number(item.amount)); setNotice('EXPENSE DELETED · LEDGER UPDATED'); } } catch (error) { console.warn('Expense delete API unavailable.', error); } };
   const recordExpense = async (amount, category) => { try { const response = await axios.post(`${API_BASE}/api/expenses`, { amount, category }); if (response.data?.success) { setExpenses((current) => current + amount); setNotice(`EXPENSE RECORDED · ${money(amount)} MOVED TO SAFE`); } } catch (error) { console.warn('Expense API unavailable; expense was not recorded.', error); } };
 
-  return <GlassLayout activeView={activeView} setActiveView={setActiveView} orders={orders} channels={channels} products={products} inventoryRows={inventoryRows} metrics={metrics} expenses={expenses} expenseRows={expenseRows} notice={notice} onAdd={addOrder} onUpdate={updateOrder} onRestock={handleRestock} onCreateInventory={createInventory} onUpdateInventory={updateInventory} onDeleteInventory={deleteInventory} onCreateMenu={createMenu} onUpdateMenu={updateMenu} onDeleteMenu={deleteMenu} onExpense={recordExpense} onCreateExpense={createExpense} onUpdateExpense={updateExpense} onDeleteExpense={deleteExpense} />;
+  return <GlassLayout activeView={activeView} setActiveView={setActiveView} orders={orders} channels={channels} products={products} inventoryRows={inventoryRows} metrics={metrics} expenses={expenses} expenseRows={expenseRows} notice={notice} onAdd={addOrder} onUpdate={updateOrder} onRestock={handleRestock} onCreateInventory={createInventory} onUpdateInventory={updateInventory} onDeleteInventory={deleteInventory} onCreateMenu={createMenu} onUpdateMenu={updateMenu} onDeleteMenu={deleteMenu} onExpense={recordExpense} onCreateExpense={createExpense} onUpdateExpense={updateExpense} onDeleteExpense={deleteExpense} onCreateSales={createSalesRecord} onUpdateSales={updateSalesRecord} onDeleteSales={deleteSalesRecord} />;
 }
 
 export default App;

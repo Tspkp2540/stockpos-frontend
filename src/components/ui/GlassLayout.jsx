@@ -400,7 +400,7 @@ function InventoryPanel({
             <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">
               {editingId ? "Edit ingredient" : "New ingredient"}
             </p>
-            <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-3">
+            <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
               <label className="grid min-w-0 gap-1 text-[10px] text-slate-400">
                 <span>ชื่อวัตถุดิบ</span>
                 <small className="text-[9px] text-slate-600">
@@ -649,7 +649,7 @@ function MenuManager({
         <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-amber-200">
           {editingId ? "Edit menu" : "New menu"}
         </p>
-        <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-4">
           <input
             className="w-full min-w-0 rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100"
             placeholder="ชื่อเมนู"
@@ -800,6 +800,11 @@ function FinancePanel({
   onCreateExpense,
   onUpdateExpense,
   onDeleteExpense,
+  channels = [],
+  products = [],
+  onCreateSales,
+  onUpdateSales,
+  onDeleteSales,
 }) {
   const dashboardMetrics = [
     ["ยอดขายรวม", metrics.gross],
@@ -816,6 +821,37 @@ function FinancePanel({
   const [form, setForm] = useState(emptyExpense);
   const [editingId, setEditingId] = useState(null);
   const [salesDate, setSalesDate] = useState("");
+  const newSalesForm = () => ({
+    order_no: `MAN-${Date.now()}`,
+    channel_id: channels[0]?.id || "",
+    status: "COMPLETED",
+    items: [{ product_id: products[0]?.id || "", qty: 1, price: products[0]?.price_retail || "" }],
+  });
+  const [salesForm, setSalesForm] = useState(newSalesForm);
+  const [editingSalesId, setEditingSalesId] = useState(null);
+  const updateSalesItem = (index, field, value) => setSalesForm((current) => ({ ...current, items: current.items.map((item, itemIndex) => {
+    if (itemIndex !== index) return item;
+    if (field === "product_id") {
+      const product = products.find((row) => String(row.id) === String(value));
+      return { ...item, product_id: value, price: product?.price_retail ?? item.price };
+    }
+    return { ...item, [field]: value };
+  }) }));
+  const addSalesItem = () => setSalesForm((current) => ({ ...current, items: [...current.items, { product_id: products[0]?.id || "", qty: 1, price: products[0]?.price_retail || "" }] }));
+  const removeSalesItem = (index) => setSalesForm((current) => ({ ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) }));
+  const submitSales = async (event) => {
+    event.preventDefault();
+    const items = salesForm.items.map((item) => ({ product_id: Number(item.product_id), qty: Number(item.qty), price: Number(item.price) }));
+    if (!salesForm.order_no.trim() || !salesForm.channel_id || !items.length || items.some((item) => !item.product_id || item.qty <= 0 || item.price < 0)) return;
+    const record = { ...salesForm, channel_id: Number(salesForm.channel_id), order_no: salesForm.order_no.trim(), items };
+    const saved = editingSalesId ? await onUpdateSales(editingSalesId, record) : await onCreateSales(record);
+    if (saved) { setEditingSalesId(null); setSalesForm(newSalesForm()); }
+  };
+  const editSales = (order) => {
+    setEditingSalesId(order.id);
+    setSalesForm({ order_no: order.order_no || "", channel_id: order.channel_id || "", status: order.status || "COMPLETED", items: (order.rawItems || []).map((item) => ({ product_id: item.product_id, qty: item.quantity ?? item.qty, price: item.unit_price ?? item.price })) });
+  };
+  const cancelSalesEdit = () => { setEditingSalesId(null); setSalesForm(newSalesForm()); };
   const submitExpense = async (event) => {
     event.preventDefault();
     if (!Number(form.amount) || Number(form.amount) <= 0) return;
@@ -940,8 +976,14 @@ function FinancePanel({
           </label>
           <button className="rounded-md border border-cyan-300/30 px-2 py-2 text-[10px] text-cyan-100 hover:bg-cyan-300/10" type="button" onClick={exportSales}>Export Sales Excel</button>
         </div>
+        <form className="grid gap-2 rounded-lg border border-slate-200/15 bg-slate-800/30 p-2" onSubmit={submitSales}>
+          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-200">{editingSalesId ? "Edit sales record" : "Add sales record"}</p>
+          <div className="grid gap-2 md:grid-cols-3"><input className="rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100" value={salesForm.order_no} onChange={(event) => setSalesForm((current) => ({ ...current, order_no: event.target.value }))} placeholder="Order number" required /><select className="rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100" value={salesForm.channel_id} onChange={(event) => setSalesForm((current) => ({ ...current, channel_id: event.target.value }))} required>{channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}</select><select className="rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100" value={salesForm.status} onChange={(event) => setSalesForm((current) => ({ ...current, status: event.target.value }))}><option value="COOKING">Cooking</option><option value="COMPLETED">Completed</option></select></div>
+          {salesForm.items.map((item, index) => <div className="grid gap-2 md:grid-cols-[1fr_100px_120px_auto]" key={index}><select className="rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100" value={item.product_id} onChange={(event) => updateSalesItem(index, "product_id", event.target.value)} required>{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select><input className="rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100" type="number" min="1" step="1" value={item.qty} onChange={(event) => updateSalesItem(index, "qty", event.target.value)} required /><input className="rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100" type="number" min="0" step="0.01" value={item.price} onChange={(event) => updateSalesItem(index, "price", event.target.value)} required />{salesForm.items.length > 1 && <button className="rounded-md border border-rose-300/30 px-2 text-[10px] text-rose-200" type="button" onClick={() => removeSalesItem(index)}>Remove</button>}</div>)}
+          <div className="flex flex-wrap gap-2"><button className="rounded-md border border-cyan-300/30 px-2 py-2 text-[10px] text-cyan-100 hover:bg-cyan-300/10" type="button" onClick={addSalesItem}>Add item</button><button className="rounded-md bg-cyan-300 px-3 py-2 text-[10px] font-semibold text-slate-950" type="submit">{editingSalesId ? "Save sales record" : "Create sales record"}</button>{editingSalesId && <button className="rounded-md border border-slate-200/20 px-3 py-2 text-[10px] text-slate-300" type="button" onClick={cancelSalesEdit}>Cancel</button>}</div>
+        </form>
         <div className="max-h-44 space-y-2 overflow-y-auto">
-          {filteredSalesRows.length ? filteredSalesRows.map((order) => <div className="flex items-center gap-2 rounded-lg border border-slate-200/15 bg-slate-700/30 p-2" key={order.id}><div className="min-w-0 flex-1"><p className="font-mono text-xs text-cyan-100">#{order.order_no} · {money(order.net_revenue)}</p><p className="truncate text-[10px] text-slate-400">{order.channel_name} · {order.status} · {order.items || "ไม่มีรายการ"}</p></div></div>) : <p className="rounded-md border border-dashed border-slate-200/15 p-3 text-center text-[10px] text-slate-500">ไม่มีรายการขายในวันที่เลือก</p>}
+          {filteredSalesRows.length ? filteredSalesRows.map((order) => <div className="flex items-center gap-2 rounded-lg border border-slate-200/15 bg-slate-700/30 p-2" key={order.id}><div className="min-w-0 flex-1"><p className="font-mono text-xs text-cyan-100">#{order.order_no} · {money(order.net_revenue)}</p><p className="truncate text-[10px] text-slate-400">{order.channel_name} · {order.status} · {order.items || "ไม่มีรายการ"}</p></div><button className="rounded-md border border-cyan-300/30 px-2 py-1 text-[10px] text-cyan-100" type="button" onClick={() => editSales(order)}>Edit</button><button className="rounded-md border border-rose-300/30 px-2 py-1 text-[10px] text-rose-200" type="button" onClick={() => onDeleteSales(order)}>Delete</button></div>) : <p className="rounded-md border border-dashed border-slate-200/15 p-3 text-center text-[10px] text-slate-500">ไม่มีรายการขายในวันที่เลือก</p>}
         </div>
       </div>
       <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -952,7 +994,7 @@ function FinancePanel({
         <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-200">
           {editingId ? "Edit expense" : "Add expense"}
         </p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <label className="grid gap-1 text-[10px] text-slate-400">
             จำนวนเงิน
             <input
@@ -1099,6 +1141,9 @@ export default function GlassLayout({
   onCreateExpense,
   onUpdateExpense,
   onDeleteExpense,
+  onCreateSales,
+  onUpdateSales,
+  onDeleteSales,
 }) {
   const sceneMode =
     activeView === "inventory"
@@ -1110,9 +1155,9 @@ export default function GlassLayout({
     <div className="fixed inset-0 h-screen w-screen overflow-hidden bg-slate-800 text-slate-100">
       <div className="pointer-events-none absolute inset-0 z-20">
         <aside
-          className={`absolute top-20 bottom-14 flex flex-col ${activeView === "inventory" ? "left-4 right-4 overflow-x-hidden overflow-y-auto md:left-6 md:right-6" : activeView === "pos" ? "left-4 right-[60%] overflow-y-auto max-md:right-4 md:left-6 md:top-24" : "left-4 right-4 overflow-y-auto md:left-6 md:right-6 md:top-24"}`}
+          className={`absolute top-20 bottom-14 flex flex-col ${activeView === "inventory" ? "left-4 right-4 overflow-x-hidden overflow-y-auto md:left-6 md:right-6" : activeView === "pos" ? "bottom-[52%] left-4 right-4 overflow-y-auto md:bottom-14 md:left-6 md:right-[60%] md:top-24" : "left-4 right-4 overflow-y-auto md:left-6 md:right-6 md:top-24"}`}
         >
-          <div className="flex min-h-0 flex-1">
+          <div className={`flex min-h-0 flex-1 ${activeView === "inventory" ? "flex-col gap-4 md:flex-row" : ""}`}>
             {activeView === "pos" && (
               <OrdersPanel orders={orders} onUpdate={onUpdate} />
             )}
@@ -1138,12 +1183,17 @@ export default function GlassLayout({
                 onCreateExpense={onCreateExpense}
                 onUpdateExpense={onUpdateExpense}
                 onDeleteExpense={onDeleteExpense}
+                channels={channels}
+                products={products}
+                onCreateSales={onCreateSales}
+                onUpdateSales={onUpdateSales}
+                onDeleteSales={onDeleteSales}
               />
             )}
           </div>
         </aside>
         {activeView === "pos" && (
-          <aside className="pointer-events-auto absolute bottom-14 left-[40%] right-4 top-20 overflow-y-auto md:top-24 max-md:left-4">
+          <aside className="pointer-events-auto absolute bottom-14 left-4 right-4 top-[52%] overflow-y-auto md:left-[40%] md:right-4 md:top-24">
             <QuickPOSPanel
               channels={channels}
               products={products}
@@ -1152,7 +1202,7 @@ export default function GlassLayout({
           </aside>
         )}
       </div>
-      <header className="pointer-events-auto absolute left-0 right-0 top-0 z-30 flex h-14 items-center gap-4 border-b border-slate-200/15 bg-slate-800/85 px-4 backdrop-blur-xl md:px-6">
+      <header className="pointer-events-auto absolute left-0 right-0 top-0 z-30 flex h-14 items-center gap-2 border-b border-slate-200/15 bg-slate-800/85 px-3 backdrop-blur-xl sm:gap-4 sm:px-4 md:px-6">
         <div className="flex items-center gap-2">
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-cyan-300 font-black text-slate-950 shadow-neon">
             S
@@ -1165,7 +1215,7 @@ export default function GlassLayout({
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              className={`rounded-lg px-3 py-2 text-[10px] font-medium transition ${activeView === tab.id ? "bg-cyan-300/20 text-cyan-100 shadow-neon" : "text-slate-300 hover:bg-slate-700/70 hover:text-white"}`}
+              className={`whitespace-nowrap rounded-lg px-2 py-2 text-[9px] font-medium transition sm:px-3 sm:text-[10px] ${activeView === tab.id ? "bg-cyan-300/20 text-cyan-100 shadow-neon" : "text-slate-300 hover:bg-slate-700/70 hover:text-white"}`}
               onClick={() => setActiveView(tab.id)}
             >
               {tab.label}
