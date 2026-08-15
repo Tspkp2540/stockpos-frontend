@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "npm start",
-    "start": "node scripts/start.js",
+    "start": "serve -s build -l $PORT",
     "build": "craco build",
     "test": "craco test",
     "eject": "react-scripts eject"
