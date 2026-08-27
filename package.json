@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "craco start",
-    "start": "craco start",
-    "preview": "serve -s build -l 3000",
+    "dev": "node ./node_modules/@craco/craco/dist/bin/craco.js start",
+    "start": "node scripts/serve.js",
+    "preview": "node scripts/serve.js",
     "build": "node ./node_modules/@craco/craco/dist/bin/craco.js build",
-    "test": "craco test",
+    "test": "node ./node_modules/@craco/craco/dist/bin/craco.js test",
     "eject": "react-scripts eject"
   },
   "dependencies": {
