@@ -2,14 +2,22 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import GlassLayout from './components/ui/GlassLayout';
+import LoginScreen from './components/ui/LoginScreen';
+import StaffWorkspace from './components/ui/StaffWorkspace';
+import UserOrderStatus from './components/ui/UserOrderStatus';
+import AnonymousOrderStatus from './components/ui/AnonymousOrderStatus';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'https://stockpos-production-d146.up.railway.app';
+const SESSION_KEY = 'stockpos-session';
+const roles = new Set(['admin', 'staff', 'user']);
+const loadSession = () => {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(SESSION_KEY) || 'null');
+    return saved?.token && roles.has(saved.role) ? saved : null;
+  } catch (error) { return null; }
+};
 
-const initialOrders = [
-  { id: 1, order_no: 'POS-1048', channel_name: 'Front store', status: 'COOKING', net_revenue: 185, items: 'Brown sugar latte x 2' },
-  { id: 2, order_no: 'GRB-7721', channel_name: 'GrabFood', status: 'COOKING', net_revenue: 320, items: 'Thai tea · Matcha latte' },
-  { id: 3, order_no: 'LIN-3910', channel_name: 'LINE MAN', status: 'COMPLETED', net_revenue: 240, items: 'Cocoa frappe x 2' },
-];
+const initialOrders = [];
 
 const inventory = [
   { name: 'Fresh milk', code: 'MLK-001', stock: 18, unit: 'bottles', expiry: '18 Aug 2026', level: 'healthy' },
@@ -35,6 +43,8 @@ const normalizeOrder = (order) => {
 };
 
 function App() {
+  const [session, setSession] = useState(loadSession);
+  const [anonymousMode, setAnonymousMode] = useState(true);
   const [activeView, setActiveView] = useState('pos');
   const [orders, setOrders] = useState(initialOrders);
   const [restocked, setRestocked] = useState([]);
@@ -46,7 +56,50 @@ function App() {
   const [expenseRows, setExpenseRows] = useState([]);
   const [metrics, setMetrics] = useState({ gross: 0, net: 0, gp: 0, cogs: 0, profit: 0 });
 
+  const startSession = (data) => {
+    const account = { ...data.user, token: data.token, role: String(data.user.role).toLowerCase() };
+    window.localStorage.setItem(SESSION_KEY, JSON.stringify(account));
+    setSession(account);
+    setActiveView('pos');
+  };
+  const login = async (credentials) => {
+    try {
+      const response = await axios.post(`${API_BASE}/api/auth/login`, credentials);
+      if (!response.data?.success) throw new Error(response.data?.error || 'เข้าสู่ระบบไม่สำเร็จ');
+      startSession(response.data.data);
+    } catch (error) { throw new Error(error.response?.data?.error || error.message || 'เข้าสู่ระบบไม่สำเร็จ'); }
+  };
+  const register = async (details) => {
+    try {
+      const response = await axios.post(`${API_BASE}/api/auth/register`, details);
+      if (!response.data?.success) throw new Error(response.data?.error || 'สมัครใช้งานไม่สำเร็จ');
+      startSession(response.data.data);
+    } catch (error) { throw new Error(error.response?.data?.error || error.message || 'สมัครใช้งานไม่สำเร็จ'); }
+  };
+  const logout = () => { window.localStorage.removeItem(SESSION_KEY); delete axios.defaults.headers.common.Authorization; setSession(null); setAnonymousMode(true); setActiveView('pos'); };
+
   useEffect(() => {
+    if (session?.token) axios.defaults.headers.common.Authorization = `Bearer ${session.token}`;
+    else delete axios.defaults.headers.common.Authorization;
+  }, [session]);
+
+  useEffect(() => {
+    if (!session?.token) return undefined;
+    let active = true;
+    axios.get(`${API_BASE}/api/auth/me`).then((response) => {
+      if (!active || !response.data?.success) return;
+      setSession((current) => current ? { ...current, ...response.data.data, role: String(response.data.data.role).toLowerCase() } : current);
+    }).catch(() => {
+      if (!active) return;
+      window.localStorage.removeItem(SESSION_KEY);
+      delete axios.defaults.headers.common.Authorization;
+      setSession(null);
+    });
+    return () => { active = false; };
+  }, [session?.token]);
+
+  useEffect(() => {
+    if (!session?.token) return undefined;
     let mounted = true;
     const fetchOrders = async () => {
       try {
@@ -81,15 +134,15 @@ function App() {
     fetchOrders();
     fetchDashboardData();
     const interval = window.setInterval(fetchOrders, 15000);
-    const socket = io(API_BASE, { transports: ['websocket', 'polling'] });
+    const socket = io(API_BASE, { auth: { token: session.token }, transports: ['websocket', 'polling'] });
     socket.on('new_order_created', (event) => { if (event?.order) { setOrders((current) => [normalizeOrder({ ...event.order, channel_name: event.channel, items: event.order.items || [] }), ...current.filter((order) => order.id !== event.order.id)]); setNotice(`NEW ORDER RECEIVED · #${event.order.order_no}`); } });
     socket.on('order_status_updated', (event) => { setOrders((current) => current.map((order) => order.id === event.orderId ? { ...order, status: event.status } : order)); setNotice(`ORDER STATUS UPDATED · ${event.orderNo || event.orderId}`); });
     socket.on('order_cancelled', (event) => { setOrders((current) => current.map((order) => order.id === event.orderId ? { ...order, status: 'CANCELLED' } : order)); setNotice('ORDER CANCELLED · STOCK RESTORED'); });
     return () => { mounted = false; window.clearInterval(interval); socket.disconnect(); };
-  }, []);
+  }, [session]);
 
-  const addOrder = async (payload = {}) => { const nextNumber = 1049 + orders.length - initialOrders.length; try { const response = await axios.post(`${API_BASE}/api/orders`, { order_no: `POS-${nextNumber}`, channel_id: payload.channel_id || channels[0]?.id, items: payload.items || [{ product_id: products[0]?.id, qty: 1, price: products[0]?.price_retail || 55 }] }); if (response.data?.success) setOrders((current) => [normalizeOrder({ ...response.data.data, channel_name: payload.channel_name, items: payload.items }), ...current]); } catch (error) { setOrders((current) => [{ id: Date.now(), order_no: `POS-${nextNumber}`, channel_name: payload.channel_name || 'Front Store', status: 'COOKING', net_revenue: payload.total || 0, items: formatItems(payload.items) }, ...current]); console.warn('Order API unavailable; kept local order.', error); } setNotice('NEW ORDER RECEIVED · ACCOUNTANT PRINTING'); };
-  const updateOrder = async (id, status) => { try { if (status === 'CANCELLED') await axios.put(`${API_BASE}/api/orders/${id}/cancel`); else await axios.put(`${API_BASE}/api/orders/${id}/status`, { status }); } catch (error) { console.warn('Order status API unavailable; updated locally.', error); } setOrders((current) => current.map((order) => order.id === id ? { ...order, status } : order)); setNotice(status === 'COMPLETED' ? 'PAYMENT RECEIVED · SECURE CASH DROP' : 'ORDER CANCELLED'); };
+  const addOrder = async (payload = {}) => { const nextNumber = 1049 + orders.length; try { const response = await axios.post(`${API_BASE}/api/orders`, { order_no: `POS-${nextNumber}`, channel_id: payload.channel_id || channels[0]?.id, items: payload.items || [{ product_id: products[0]?.id, qty: 1, price: products[0]?.price_retail || 55 }], customer_nickname: payload.customer_nickname || undefined, customer_phone: payload.customer_phone || undefined }); if (response.data?.success) { setOrders((current) => [normalizeOrder({ ...response.data.data, channel_name: payload.channel_name, items: payload.items }), ...current]); setNotice('NEW ORDER RECEIVED · ACCOUNTANT PRINTING'); return true; } } catch (error) { window.alert(error.response?.data?.error || 'ไม่สามารถบันทึกออเดอร์ได้'); console.warn('Order API failed.', error); } return false; };
+  const updateOrder = async (id, status) => { try { const response = status === 'CANCELLED' ? await axios.put(`${API_BASE}/api/orders/${id}/cancel`) : await axios.put(`${API_BASE}/api/orders/${id}/status`, { status }); if (response.data?.success) { setOrders((current) => current.map((order) => order.id === id ? { ...order, status } : order)); setNotice(status === 'COMPLETED' ? 'PAYMENT RECEIVED · SECURE CASH DROP' : 'ORDER CANCELLED'); return true; } } catch (error) { window.alert(error.response?.data?.error || 'ไม่สามารถอัปเดตออเดอร์ได้'); console.warn('Order update failed.', error); } return false; };
   const refreshFinancialSummary = async () => {
     try {
       const response = await axios.get(`${API_BASE}/api/financial-summary`);
@@ -151,7 +204,11 @@ function App() {
   const deleteExpense = async (item) => { if (!item?.id || !window.confirm(`Delete expense ${money(item.amount)}?`)) return; try { const response = await axios.delete(`${API_BASE}/api/expenses/${item.id}`); if (response.data?.success) { setExpenseRows((current) => current.filter((row) => row.id !== item.id)); setExpenses((current) => current - Number(item.amount)); setNotice('EXPENSE DELETED · LEDGER UPDATED'); } } catch (error) { console.warn('Expense delete API unavailable.', error); } };
   const recordExpense = async (amount, category) => { try { const response = await axios.post(`${API_BASE}/api/expenses`, { amount, category }); if (response.data?.success) { setExpenses((current) => current + amount); setNotice(`EXPENSE RECORDED · ${money(amount)} MOVED TO SAFE`); } } catch (error) { console.warn('Expense API unavailable; expense was not recorded.', error); } };
 
-  return <GlassLayout activeView={activeView} setActiveView={setActiveView} orders={orders} channels={channels} products={products} inventoryRows={inventoryRows} metrics={metrics} expenses={expenses} expenseRows={expenseRows} notice={notice} onAdd={addOrder} onUpdate={updateOrder} onRestock={handleRestock} onCreateInventory={createInventory} onUpdateInventory={updateInventory} onDeleteInventory={deleteInventory} onCreateMenu={createMenu} onUpdateMenu={updateMenu} onDeleteMenu={deleteMenu} onExpense={recordExpense} onCreateExpense={createExpense} onUpdateExpense={updateExpense} onDeleteExpense={deleteExpense} onCreateSales={createSalesRecord} onUpdateSales={updateSalesRecord} onDeleteSales={deleteSalesRecord} />;
+  if (!session && anonymousMode) return <AnonymousOrderStatus apiBase={API_BASE} onBack={() => setAnonymousMode(false)} />;
+  if (!session) return <LoginScreen onLogin={login} onRegister={register} onAnonymous={() => setAnonymousMode(true)} onHome={() => setAnonymousMode(true)} />;
+  if (session.role === 'user') return <UserOrderStatus user={session} orders={orders} onLogout={logout} />;
+  if (session.role === 'staff') return <StaffWorkspace user={session} orders={orders} channels={channels} products={products} onAdd={addOrder} onUpdate={updateOrder} onLogout={logout} />;
+  return <><div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl border border-sky-100 bg-white/95 p-2 shadow-sm backdrop-blur"><span className="hidden px-1 text-xs font-semibold text-slate-600 sm:inline">{session.name}</span><button className="rounded-lg px-2 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-50" onClick={logout}>ออกจากระบบ</button></div><GlassLayout activeView={activeView} setActiveView={setActiveView} orders={orders} channels={channels} products={products} inventoryRows={inventoryRows} metrics={metrics} expenses={expenses} expenseRows={expenseRows} notice={notice} onAdd={addOrder} onUpdate={updateOrder} onRestock={handleRestock} onCreateInventory={createInventory} onUpdateInventory={updateInventory} onDeleteInventory={deleteInventory} onCreateMenu={createMenu} onUpdateMenu={updateMenu} onDeleteMenu={deleteMenu} onExpense={recordExpense} onCreateExpense={createExpense} onUpdateExpense={updateExpense} onDeleteExpense={deleteExpense} onCreateSales={createSalesRecord} onUpdateSales={updateSalesRecord} onDeleteSales={deleteSalesRecord} /></>;
 }
 
 export default App;
