@@ -1,4 +1,5 @@
 import { useState } from "react";
+import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
 
 const inputClass = "w-full rounded-xl border border-sky-200 px-3 py-2.5 text-sm outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-100";
 
@@ -27,17 +28,15 @@ export default function LoginScreen({ onLogin, onRegister, onAnonymous, onHome }
   };
 
   return <main className="grid min-h-screen place-items-center bg-sky-50 p-4 sm:p-8">
-    <section className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-sky-100 bg-white shadow-xl shadow-sky-100/70 lg:grid-cols-[1fr_420px]">
-      <div className="hidden bg-gradient-to-br from-sky-600 to-cyan-500 p-10 text-white lg:block">
-        <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/20 text-xl font-black">S</span>
-        <p className="mt-10 text-sm font-bold uppercase tracking-[0.2em] text-sky-100">Stockpos</p>
-        <h1 className="mt-3 text-4xl font-bold leading-tight">จัดการร้าน<br />อย่างมีสิทธิ์</h1>
-        <p className="mt-5 max-w-sm text-sm leading-6 text-sky-50">ทุกบัญชีได้รับสิทธิ์จากระบบ และ API จะตรวจสอบสิทธิ์ก่อนตอบข้อมูลหรือบันทึกรายการ</p>
-        <div className="mt-12 space-y-3 text-sm"><p>✓ Admin จัดการระบบทั้งหมด</p><p>✓ Staff ดูแลขายและออเดอร์</p><p>✓ User ติดตามสถานะของตนเอง</p></div>
+    <section className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-sky-100 bg-white shadow-xl shadow-sky-100/70 md:grid-cols-[1fr_420px]">
+      <div className="relative hidden min-h-[640px] overflow-hidden bg-gradient-to-br from-sky-800 via-sky-600 to-cyan-400 md:flex md:items-center md:justify-center">
+        <div className="mx-6 h-[620px] w-[420px] max-w-[calc(100%-3rem)] overflow-hidden rounded-[2rem] border border-white/40 bg-white/10 p-2 shadow-[0_28px_60px_rgba(2,68,120,0.42)] ring-1 ring-sky-100/20 backdrop-blur-sm">
+          <img className="h-full w-full rounded-[1.5rem] object-contain shadow-inner" src={coffeeBarista} alt="ตัวละครบาริสต้า KIN CHA KAN ชูแก้วกาแฟ" />
+        </div>
       </div>
       <div className="p-6 sm:p-10"><button className="mb-6 inline-flex items-center gap-1 rounded-lg px-1 py-1.5 text-sm font-bold text-sky-700 transition hover:text-sky-900 hover:underline focus:outline-none focus:ring-4 focus:ring-sky-100" type="button" onClick={onHome}>← หน้าหลัก</button>
-        <div className="flex items-center gap-3 lg:hidden"><span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-600 font-black text-white">S</span><strong className="text-slate-900">STOCKPOS</strong></div>
-        <p className="mt-8 text-xs font-bold uppercase tracking-[0.14em] text-sky-600 lg:mt-0">Secure access</p>
+        <div className="flex items-center gap-3 md:hidden"><span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-600 font-black text-white">S</span><strong className="text-slate-900">STOCKPOS</strong></div>
+        <p className="mt-8 text-xs font-bold uppercase tracking-[0.14em] text-sky-600 md:mt-0">Secure access</p>
         <h2 className="mt-2 text-2xl font-bold text-slate-900">{mode === "login" ? "เข้าสู่ระบบ" : "สมัครบัญชีผู้ใช้งาน"}</h2>
         <p className="mt-1 text-sm text-slate-500">{mode === "login" ? "ใช้ชื่อผู้ใช้และรหัสผ่านที่ผู้ดูแลกำหนดไว้ในฐานข้อมูล" : "กรอกชื่อและเบอร์โทร เพื่อผูกออเดอร์กับบัญชีของคุณ"}</p>
         <form className="mt-6 grid gap-4" onSubmit={submit}>
