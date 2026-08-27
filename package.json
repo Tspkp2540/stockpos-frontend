@@ -6,7 +6,7 @@
     "dev": "craco start",
     "start": "craco start",
     "preview": "serve -s build -l 3000",
-    "build": "craco build",
+    "build": "node ./node_modules/@craco/craco/dist/bin/craco.js build",
     "test": "craco test",
     "eject": "react-scripts eject"
   },
