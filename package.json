@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node ./node_modules/@craco/craco/dist/bin/craco.js start",
-    "start": "node ./node_modules/@craco/craco/dist/bin/craco.js start",
+    "start": "node scripts/serve.js",
     "preview": "node scripts/serve.js",
     "build": "node ./node_modules/@craco/craco/dist/bin/craco.js build",
     "test": "node ./node_modules/@craco/craco/dist/bin/craco.js test",
