@@ -1,835 +1,125 @@
-import { useState } from "react";
-import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Sky } from "@react-three/drei";
-import StoreScene from "../3d/StoreScene";
+import { useMemo, useState } from "react";
 
-const tabs = [
-  { id: "pos", label: "3D POS & Orders" },
-  { id: "inventory", label: "Warehouse" },
-  { id: "finance", label: "Financial HUD" },
+const navigation = [
+  { id: "pos", icon: "▣", label: "ขายและออเดอร์" },
+  { id: "inventory", icon: "□", label: "วัตถุดิบ" },
+  { id: "menu", icon: "☷", label: "เมนูสินค้า" },
+  { id: "finance", icon: "฿", label: "การเงิน" },
 ];
 
-const money = (amount) =>
-  `฿${Number(amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+const money = (amount) => `฿${Number(amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+const inputClass = "w-full min-w-0 rounded-xl border border-sky-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100";
+const labelClass = "grid min-w-0 gap-1.5 text-xs font-semibold text-slate-600";
 
-function GlassCard({ className = "", children }) {
-  return (
-    <section
-      className={`pointer-events-auto rounded-2xl border border-slate-200/20 bg-slate-800/60 p-4 shadow-2xl shadow-slate-950/25 backdrop-blur-2xl ${className}`}
-    >
-      {children}
-    </section>
-  );
+function Card({ children, className = "" }) {
+  return <section className={`rounded-2xl border border-sky-100 bg-white p-4 shadow-sm sm:p-5 ${className}`}>{children}</section>;
 }
 
-function OrdersPanel({ orders, onUpdate }) {
-  return (
-    <GlassCard className="flex min-h-0 w-full flex-col">
-      <div className="mb-4 flex items-start justify-between">
-        <div>
-          <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-cyan-400">
-            Live queue
-          </p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-100">Orders</h2>
-        </div>
-        <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-[10px] font-mono text-cyan-300">
-          {orders.length} LIVE
-        </span>
-      </div>
-      <div className="mb-3 overflow-hidden rounded-xl border border-cyan-200/30 bg-slate-600/45">
-        <div className="flex items-center justify-between border-b border-slate-100/20 px-3 py-2">
-          <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-cyan-100">
-            3D live floor
-          </span>
-          <span className="text-[9px] font-mono text-emerald-200">● LIVE</span>
-        </div>
-        <div className="h-32">
-          <Canvas camera={{ position: [5, 4, 6], fov: 42 }}>
-            <color attach="background" args={["#64748b"]} />
-            <ambientLight intensity={0.8} />
-            <directionalLight position={[4, 8, 5]} intensity={2} />
-            <StoreScene mode="store" orders={orders} onHotspot={() => {}} />
-            <OrbitControls enablePan={false} minDistance={5} maxDistance={12} />
-            <Sky sunPosition={[5, 4, 2]} turbidity={8} />
-          </Canvas>
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-        {orders.map((order) => {
-          const statusClass =
-            order.status === "COOKING"
-              ? "border-amber-400/40 bg-amber-400/10 text-amber-300"
-              : order.status === "CANCELLED"
-                ? "border-rose-400/40 bg-rose-400/10 text-rose-300"
-                : "border-emerald-400/40 bg-emerald-400/10 text-emerald-300";
-          return (
-            <article
-              key={order.id}
-              className="rounded-xl border border-slate-200/15 bg-slate-800/65 p-3"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <strong className="text-sm text-slate-100">
-                  #{order.order_no}
-                </strong>
-                <span
-                  className={`rounded-md border px-2 py-1 text-[9px] font-mono ${statusClass}`}
-                >
-                  {order.status}
-                </span>
-              </div>
-              <p className="mt-2 truncate text-xs text-slate-400">
-                {order.channel_name}
-              </p>
-              <p className="mt-1 truncate text-xs text-slate-300">
-                {order.items}
-              </p>
-              <div className="mt-3 flex items-center justify-between">
-                <strong className="font-mono text-sm text-cyan-300">
-                  {money(order.net_revenue)}
-                </strong>
-                {order.status === "COOKING" ? (
-                  <div className="flex gap-1">
-                    <button
-                      className="rounded-md bg-cyan-400 px-2 py-1 text-[10px] font-semibold text-slate-950 transition hover:bg-cyan-300"
-                      onClick={() => onUpdate(order.id, "COMPLETED")}
-                    >
-                      Done
-                    </button>
-                    <button
-                      className="rounded-md border border-rose-400/40 px-2 py-1 text-[10px] text-rose-300 transition hover:bg-rose-400/10"
-                      onClick={() => onUpdate(order.id, "CANCELLED")}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <span className="text-[10px] text-slate-500">No action</span>
-                )}
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </GlassCard>
-  );
+function Button({ children, className = "", variant = "primary", ...props }) {
+  const styles = {
+    primary: "bg-sky-600 text-white hover:bg-sky-700 focus:ring-sky-200",
+    secondary: "border border-sky-200 bg-white text-sky-700 hover:bg-sky-50 focus:ring-sky-100",
+    danger: "border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 focus:ring-rose-100",
+    quiet: "text-slate-600 hover:bg-slate-100 focus:ring-slate-100",
+  };
+  return <button className={`rounded-xl px-3 py-2 text-sm font-semibold transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]} ${className}`} {...props}>{children}</button>;
 }
 
-function QuickPOSPanel({ channels, products, onAdd }) {
-  const [channelId, setChannelId] = useState(channels[0]?.id);
+function Status({ status }) {
+  const styles = status === "COMPLETED" ? "bg-emerald-50 text-emerald-700" : status === "CANCELLED" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700";
+  return <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${styles}`}>{status}</span>;
+}
+
+function Heading({ eyebrow, title, description, action }) {
+  return <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">{eyebrow}</p><h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{title}</h1>{description && <p className="mt-1 text-sm text-slate-500">{description}</p>}</div>{action}</div>;
+}
+
+function Empty({ children }) {
+  return <div className="rounded-xl border border-dashed border-sky-200 bg-sky-50/50 p-5 text-center text-sm text-slate-500">{children}</div>;
+}
+
+function OrdersPage({ orders, onUpdate }) {
+  return <div className="space-y-5"><Heading eyebrow="Order management" title="รายการขายและออเดอร์" description="ติดตามสถานะออเดอร์ทั้งหมดจากจุดเดียว" /><div className="grid gap-4 xl:grid-cols-2">{orders.length ? orders.map((order) => <article className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm" key={order.id}><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-bold text-slate-900">#{order.order_no}</p><p className="mt-1 text-sm text-slate-500">{order.channel_name}</p></div><Status status={order.status} /></div><p className="mt-3 line-clamp-2 text-sm text-slate-600">{order.items || "ไม่มีรายการสินค้า"}</p><div className="mt-4 flex flex-wrap items-center justify-between gap-3"><strong className="text-lg text-sky-700">{money(order.net_revenue)}</strong>{order.status === "COOKING" ? <div className="flex gap-2"><Button className="text-xs" onClick={() => onUpdate(order.id, "COMPLETED")}>เสร็จสิ้น</Button><Button className="text-xs" variant="danger" onClick={() => onUpdate(order.id, "CANCELLED")}>ยกเลิก</Button></div> : <span className="text-xs text-slate-400">ไม่มีการดำเนินการ</span>}</div></article>) : <Empty>ยังไม่มีออเดอร์</Empty>}</div></div>;
+}
+
+function PosPage({ channels, products, onAdd }) {
+  const [channelId, setChannelId] = useState(channels[0]?.id || "");
   const [cart, setCart] = useState([]);
-  const selectedChannel =
-    channels.find((channel) => channel.id === channelId) || channels[0];
-  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const addProduct = (product) =>
-    setCart((current) => {
-      const found = current.find((item) => item.product_id === product.id);
-      return found
-        ? current.map((item) =>
-            item.product_id === product.id
-              ? { ...item, quantity: item.quantity + 1 }
-              : item,
-          )
-        : [
-            ...current,
-            {
-              product_id: product.id,
-              name: product.name,
-              price: Number(product.price_retail || product.price || 0),
-              quantity: 1,
-            },
-          ];
-    });
-  const changeQuantity = (productId, delta) =>
-    setCart((current) =>
-      current.flatMap((item) => {
-        if (item.product_id !== productId) return [item];
-        const quantity = item.quantity + delta;
-        return quantity > 0 ? [{ ...item, quantity }] : [];
-      }),
-    );
-  const removeProduct = (productId) =>
-    setCart((current) =>
-      current.filter((item) => item.product_id !== productId),
-    );
-  const submit = () => {
-    if (!cart.length) return;
-    onAdd({
-      channel_id: selectedChannel?.id,
-      channel_name: selectedChannel?.name,
-      items: cart.map((item) => ({
-        product_id: item.product_id,
-        qty: item.quantity,
-        price: item.price,
-      })),
-      total,
-    });
-    setCart([]);
-  };
-
-  return (
-    <GlassCard className="w-full">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-cyan-400">
-            Counter terminal
-          </p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-100">
-            Quick POS
-          </h2>
-        </div>
-        <span className="text-xs font-mono text-emerald-400">● READY</span>
-      </div>
-      <div className="mt-5">
-        <p className="mb-2 text-xs font-medium text-slate-400">Sales channel</p>
-        <div className="grid gap-2">
-          {channels.map((channel) => (
-            <label
-              key={channel.id}
-              className={`flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2 text-xs transition ${channel.id === channelId ? "border-cyan-300/60 bg-cyan-300/15 text-cyan-100" : "border-slate-200/15 bg-slate-700/40 text-slate-300 hover:border-slate-200/30"}`}
-            >
-              <span>{channel.name}</span>
-              <input
-                className="accent-cyan-400"
-                type="radio"
-                name="glass-channel"
-                checked={channel.id === channelId}
-                onChange={() => setChannelId(channel.id)}
-              />
-            </label>
-          ))}
-        </div>
-      </div>
-      <div className="mt-5">
-        <p className="mb-2 text-xs font-medium text-slate-400">Menu</p>
-        <div className="grid gap-2">
-          {products.map((product) => (
-            <button
-              key={product.id}
-              className="flex items-center gap-3 rounded-lg border border-slate-200/15 bg-slate-700/40 p-3 text-left transition hover:border-cyan-300/50 hover:bg-cyan-300/10"
-              onClick={() => addProduct(product)}
-            >
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-cyan-300/15 text-xl">
-                {product.icon || "▦"}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-xs text-slate-100">
-                {product.name}
-              </span>
-              <strong className="font-mono text-xs text-cyan-200">
-                {money(product.price_retail || product.price)}
-              </strong>
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="mt-5 border-t border-slate-800 pt-4">
-        <p className="mb-2 text-xs font-medium text-slate-400">
-          รายการที่เลือก
-        </p>
-        {cart.length ? (
-          <div className="grid gap-2">
-            {cart.map((item) => (
-              <div
-                key={item.product_id}
-                className="flex items-center gap-2 rounded-lg border border-slate-200/15 bg-slate-700/40 p-2"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs text-slate-100">{item.name}</p>
-                  <p className="mt-1 font-mono text-[10px] text-cyan-200">
-                    {money(item.price)} / ชิ้น
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    className="grid h-6 w-6 place-items-center rounded border border-slate-200/25 text-xs text-slate-200 hover:border-cyan-300/60"
-                    aria-label={`ลดจำนวน ${item.name}`}
-                    onClick={() => changeQuantity(item.product_id, -1)}
-                  >
-                    -
-                  </button>
-                  <span className="w-5 text-center font-mono text-xs text-slate-100">
-                    {item.quantity}
-                  </span>
-                  <button
-                    className="grid h-6 w-6 place-items-center rounded border border-slate-200/25 text-xs text-slate-200 hover:border-cyan-300/60"
-                    aria-label={`เพิ่มจำนวน ${item.name}`}
-                    onClick={() => changeQuantity(item.product_id, 1)}
-                  >
-                    +
-                  </button>
-                </div>
-                <button
-                  className="rounded border border-rose-300/40 px-2 py-1 text-[10px] text-rose-200 hover:bg-rose-300/15"
-                  aria-label={`ลบ ${item.name}`}
-                  onClick={() => removeProduct(item.product_id)}
-                >
-                  ลบ
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="rounded-lg border border-dashed border-slate-200/20 px-3 py-3 text-center text-[10px] text-slate-400">
-            ยังไม่มีรายการในตะกร้า
-          </p>
-        )}
-      </div>
-      <div className="mt-5 flex items-center justify-between border-t border-slate-800 pt-4">
-        <span className="text-xs text-slate-400">
-          Cart · {cart.reduce((sum, item) => sum + item.quantity, 0)} items
-        </span>
-        <strong className="font-mono text-lg text-slate-100">
-          {money(total)}
-        </strong>
-      </div>
-      <button
-        className="mt-3 w-full rounded-lg bg-cyan-400 py-3 text-xs font-bold uppercase tracking-wider text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
-        disabled={!cart.length}
-        onClick={submit}
-      >
-        Submit order
-      </button>
-    </GlassCard>
-  );
+  const total = useMemo(() => cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0), [cart]);
+  const addItem = (product) => setCart((current) => { const found = current.find((item) => item.product_id === product.id); return found ? current.map((item) => item.product_id === product.id ? { ...item, qty: item.qty + 1 } : item) : [...current, { product_id: product.id, name: product.name, price: Number(product.price_retail || 0), qty: 1 }]; });
+  const changeQty = (id, qty) => setCart((current) => current.map((item) => item.product_id === id ? { ...item, qty: Math.max(1, Number(qty) || 1) } : item));
+  const submit = () => { if (!cart.length) return; const channel = channels.find((item) => String(item.id) === String(channelId)); onAdd({ channel_id: Number(channelId), channel_name: channel?.name, total, items: cart.map(({ product_id, qty, price }) => ({ product_id, qty, price })) }); setCart([]); };
+  return <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]"><div><Heading eyebrow="Point of sale" title="เปิดรายการขาย" description="เลือกช่องทางและเมนู แล้วส่งออเดอร์ได้ทันที" /><Card><fieldset><legend className="mb-3 text-sm font-bold text-slate-800">ช่องทางการขาย</legend><div className="grid gap-2 sm:grid-cols-2">{channels.map((channel) => <label className={`flex cursor-pointer items-center justify-between rounded-xl border px-3 py-3 transition ${String(channel.id) === String(channelId) ? "border-sky-500 bg-sky-50" : "border-sky-100 hover:border-sky-300"}`} key={channel.id}><span className="text-sm font-semibold text-slate-700">{channel.name}</span><input className="h-4 w-4 accent-sky-600" type="radio" name="channel" checked={String(channel.id) === String(channelId)} onChange={() => setChannelId(channel.id)} /></label>)}</div></fieldset></Card><Card className="mt-5"><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-slate-900">เมนูขาย</h2><span className="text-sm text-slate-500">{products.length} รายการ</span></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{products.map((product) => <button className="min-w-0 rounded-2xl border border-sky-100 bg-sky-50/40 p-4 text-left transition hover:border-sky-400 hover:bg-sky-50 focus:outline-none focus:ring-4 focus:ring-sky-100" key={product.id} onClick={() => addItem(product)}><span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-lg shadow-sm">{product.icon || "▦"}</span><p className="mt-3 truncate font-bold text-slate-800">{product.name}</p><p className="mt-1 text-sm font-semibold text-sky-700">{money(product.price_retail)}</p></button>)}</div></Card></div><aside className="xl:sticky xl:top-5 xl:self-start"><Card><div className="flex items-center justify-between"><h2 className="text-lg font-bold text-slate-900">ตะกร้าสินค้า</h2><span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700">{cart.length} รายการ</span></div><div className="my-4 space-y-3">{cart.length ? cart.map((item) => <div className="rounded-xl border border-sky-100 p-3" key={item.product_id}><div className="flex gap-3"><div className="min-w-0 flex-1"><p className="truncate font-semibold text-slate-800">{item.name}</p><p className="text-sm text-sky-700">{money(item.price)}</p></div><Button className="px-2 py-1 text-xs" variant="danger" onClick={() => setCart((current) => current.filter((row) => row.product_id !== item.product_id))}>ลบ</Button></div><label className="mt-2 grid gap-1 text-xs font-medium text-slate-500">จำนวน<input className={inputClass} type="number" min="1" value={item.qty} onChange={(event) => changeQty(item.product_id, event.target.value)} /></label></div>) : <Empty>เลือกเมนูจากรายการด้านซ้าย</Empty>}</div><div className="border-t border-sky-100 pt-4"><div className="mb-4 flex items-center justify-between"><span className="font-semibold text-slate-600">ยอดรวม</span><strong className="text-2xl text-sky-700">{money(total)}</strong></div><Button className="w-full" disabled={!cart.length} onClick={submit}>ยืนยันออเดอร์</Button></div></Card></aside></div>;
 }
 
-function InventoryPanel({
-  rows,
-  products,
-  onRestock,
-  onCreate,
-  onUpdate,
-  onDelete,
-  onCreateMenu,
-  onUpdateMenu,
-  onDeleteMenu,
-}) {
-  const emptyForm = {
-    name: "",
-    unit: "",
-    stock_qty: 0,
-    cost_per_unit: 0,
-    min_stock_alert: 0,
-    expiry_date: "",
-  };
-  const [form, setForm] = useState(emptyForm);
+function IngredientsPage({ rows, onCreate, onUpdate, onDelete, onRestock }) {
+  const initial = { name: "", unit: "", stock_qty: "", cost_per_unit: "", min_stock_alert: "", expiry_date: "" };
+  const [form, setForm] = useState(initial);
   const [editingId, setEditingId] = useState(null);
-
-  const beginCreate = () => {
-    setEditingId(null);
-    setForm(emptyForm);
-  };
-  const beginEdit = (item) => {
-    setEditingId(item.id);
-    setForm({
-      name: item.name || "",
-      unit: item.unit || "",
-      stock_qty: item.stock_qty ?? item.stock ?? 0,
-      cost_per_unit: item.cost_per_unit || 0,
-      min_stock_alert: item.min_stock_alert || 0,
-      expiry_date: item.expiry_date || item.expiry || "",
-    });
-  };
-  const submit = async (event) => {
-    event.preventDefault();
-    const saved = editingId
-      ? await onUpdate(editingId, form)
-      : await onCreate(form);
-    if (saved) {
-      setEditingId(null);
-      setForm(emptyForm);
-    }
-  };
-  const setField = (field) => (event) =>
-    setForm((current) => ({ ...current, [field]: event.target.value }));
-
-  return (
-    <>
-      <GlassCard className="w-full">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-cyan-400">
-              Warehouse
-            </p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-100">
-              Stock health
-            </h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500">{rows.length} SKUs</span>
-            <button
-              className="rounded-md bg-cyan-400 px-2 py-1 text-[10px] font-semibold text-slate-950 hover:bg-cyan-300"
-              onClick={beginCreate}
-            >
-              + Add
-            </button>
-          </div>
-        </div>
-        <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="mb-4 overflow-hidden rounded-xl border border-cyan-400/20 bg-slate-950/70 md:col-span-2 md:col-start-1 md:row-start-1">
-            <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2">
-              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">
-                3D warehouse monitor
-              </span>
-              <span className="text-[9px] font-mono text-emerald-400">
-                ● LIVE VIEW
-              </span>
-            </div>
-            <div className="h-48">
-              <Canvas camera={{ position: [6, 5, 7], fov: 42 }}>
-                <color attach="background" args={["#0f172a"]} />
-                <ambientLight intensity={0.8} />
-                <directionalLight position={[4, 8, 5]} intensity={2} />
-                <StoreScene
-                  mode="warehouse"
-                  inventoryRows={rows}
-                  onHotspot={() => {}}
-                />
-                <OrbitControls
-                  enablePan={false}
-                  minDistance={5}
-                  maxDistance={12}
-                />
-                <Sky sunPosition={[5, 4, 2]} turbidity={8} />
-              </Canvas>
-            </div>
-          </div>
-          <form
-            className="mb-4 grid gap-2 rounded-lg border border-cyan-400/20 bg-cyan-400/5 p-3 md:col-start-2 md:row-start-2"
-            onSubmit={submit}
-          >
-            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">
-              {editingId ? "Edit ingredient" : "New ingredient"}
-            </p>
-            <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
-              <label className="grid min-w-0 gap-1 text-[10px] text-slate-400">
-                <span>ชื่อวัตถุดิบ</span>
-                <small className="text-[9px] text-slate-600">
-                  ชื่อที่ใช้แสดงในคลัง
-                </small>
-                <input
-                  className="w-full min-w-0 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-2 text-xs text-slate-200"
-                  placeholder="เช่น นมสด"
-                  value={form.name}
-                  onChange={setField("name")}
-                  required
-                />
-              </label>
-              <label className="grid min-w-0 gap-1 text-[10px] text-slate-400">
-                <span>หน่วยนับ</span>
-                <small className="text-[9px] text-slate-600">
-                  เช่น กรัม, มล., ใบ
-                </small>
-                <input
-                  className="w-full min-w-0 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-2 text-xs text-slate-200"
-                  placeholder="เช่น กรัม"
-                  value={form.unit}
-                  onChange={setField("unit")}
-                  required
-                />
-              </label>
-              <label className="grid min-w-0 gap-1 text-[10px] text-slate-400">
-                <span>จำนวนคงเหลือ</span>
-                <small className="text-[9px] text-slate-600">
-                  ปริมาณที่มีอยู่ตอนนี้
-                </small>
-                <input
-                  className="w-full min-w-0 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-2 text-xs text-slate-200"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={form.stock_qty}
-                  onChange={setField("stock_qty")}
-                  required
-                />
-              </label>
-              <label className="grid min-w-0 gap-1 text-[10px] text-slate-400">
-                <span>ต้นทุนต่อหน่วย</span>
-                <small className="text-[9px] text-slate-600">
-                  ต้นทุนของ 1 หน่วย
-                </small>
-                <input
-                  className="w-full min-w-0 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-2 text-xs text-slate-200"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={form.cost_per_unit}
-                  onChange={setField("cost_per_unit")}
-                />
-              </label>
-              <label className="grid min-w-0 gap-1 text-[10px] text-slate-400">
-                <span>จุดแจ้งเตือนสต็อกต่ำ</span>
-                <small className="text-[9px] text-slate-600">
-                  แจ้งเตือนเมื่อเหลือต่ำกว่าค่านี้
-                </small>
-                <input
-                  className="w-full min-w-0 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-2 text-xs text-slate-200"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={form.min_stock_alert}
-                  onChange={setField("min_stock_alert")}
-                />
-              </label>
-              <label className="grid min-w-0 gap-1 text-[10px] text-slate-400">
-                <span>วันหมดอายุ</span>
-                <small className="text-[9px] text-slate-600">
-                  วันที่ควรใช้ให้หมด
-                </small>
-                <input
-                  className="w-full min-w-0 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-2 text-xs text-slate-200"
-                  type="date"
-                  value={form.expiry_date}
-                  onChange={setField("expiry_date")}
-                />
-              </label>
-            </div>
-            <div className="flex gap-2">
-              <button
-                className="flex-1 rounded-md bg-cyan-400 py-2 text-[10px] font-bold text-slate-950 hover:bg-cyan-300"
-                type="submit"
-              >
-                {editingId ? "Save changes" : "Create item"}
-              </button>
-              {editingId && (
-                <button
-                  className="rounded-md border border-slate-700 px-3 text-[10px] text-slate-400 hover:text-slate-200"
-                  type="button"
-                  onClick={beginCreate}
-                >
-                  Cancel
-                </button>
-              )}
-            </div>
-          </form>
-          <div className="max-h-[calc(100vh-390px)] space-y-2 overflow-y-auto md:col-start-1 md:row-start-2">
-            {rows.map((item) => {
-              const low = item.level === "low" || item.is_low_stock;
-              return (
-                <div
-                  key={item.id || item.code}
-                  className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/50 p-3"
-                >
-                  <span
-                    className={`h-2 w-2 rounded-full ${low ? "bg-rose-400 shadow-[0_0_10px_#fb7185]" : "bg-emerald-400"}`}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs text-slate-200">
-                      {item.name}
-                    </p>
-                    <p className="mt-1 text-[10px] text-slate-500">
-                      {item.stock_qty ?? item.stock} {item.unit}
-                    </p>
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      className="rounded-md border border-slate-700 px-2 py-1 text-[10px] text-slate-300 hover:border-cyan-400/40"
-                      onClick={() => beginEdit(item)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="rounded-md border border-rose-400/30 px-2 py-1 text-[10px] text-rose-300 hover:bg-rose-400/10"
-                      onClick={() => onDelete(item)}
-                    >
-                      Delete
-                    </button>
-                    <button
-                      className="rounded-md border border-cyan-400/30 px-2 py-1 text-[10px] text-cyan-300 hover:bg-cyan-400/10"
-                      onClick={() => onRestock(item)}
-                    >
-                      Restock
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </GlassCard>
-      <MenuManager
-        products={products}
-        ingredients={rows}
-        onCreate={onCreateMenu}
-        onUpdate={onUpdateMenu}
-        onDelete={onDeleteMenu}
-      />
-    </>
-  );
+  const save = async (event) => { event.preventDefault(); const saved = editingId ? await onUpdate(editingId, form) : await onCreate(form); if (saved) { setForm(initial); setEditingId(null); } };
+  const edit = (item) => { setEditingId(item.id); setForm({ name: item.name || "", unit: item.unit || "", stock_qty: item.stock_qty ?? item.stock ?? "", cost_per_unit: item.cost_per_unit || "", min_stock_alert: item.min_stock_alert || "", expiry_date: String(item.expiry_date || "").slice(0, 10) }); };
+  const updateField = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
+  return <div className="space-y-5"><Heading eyebrow="Inventory" title="วัตถุดิบ" description="เพิ่ม แก้ไข และติดตามสต็อกวัตถุดิบ" action={<Button variant="secondary" onClick={() => { setForm(initial); setEditingId(null); }}>+ เพิ่มวัตถุดิบ</Button>} /><div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]"><Card><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-slate-900">รายการวัตถุดิบ</h2><span className="text-sm text-slate-500">{rows.length} รายการ</span></div><div className="space-y-3">{rows.length ? rows.map((item) => { const qty = Number(item.stock_qty ?? item.stock ?? 0); const low = item.is_low_stock || item.level === "low" || (item.min_stock_alert && qty <= Number(item.min_stock_alert)); return <article className="flex flex-col gap-3 rounded-2xl border border-sky-100 p-4 sm:flex-row sm:items-center" key={item.id || item.code}><span className={`h-3 w-3 rounded-full ${low ? "bg-amber-400" : "bg-emerald-400"}`} /><div className="min-w-0 flex-1"><p className="truncate font-bold text-slate-800">{item.name}</p><p className="mt-1 text-sm text-slate-500">คงเหลือ {qty} {item.unit || "หน่วย"}{item.expiry_date && ` · หมดอายุ ${String(item.expiry_date).slice(0, 10)}`}</p></div><div className="flex flex-wrap gap-2"><Button className="text-xs" variant="secondary" onClick={() => onRestock(item)}>เติมสต็อก</Button><Button className="text-xs" variant="secondary" onClick={() => edit(item)}>แก้ไข</Button><Button className="text-xs" variant="danger" onClick={() => onDelete(item)}>ลบ</Button></div></article>; }) : <Empty>ยังไม่มีวัตถุดิบ</Empty>}</div></Card><aside className="order-first xl:order-none xl:sticky xl:top-5 xl:self-start"><Card><h2 className="text-lg font-bold text-slate-900">{editingId ? "แก้ไขวัตถุดิบ" : "เพิ่มวัตถุดิบ"}</h2><p className="mt-1 text-sm text-slate-500">กรอกข้อมูลให้ครบเพื่อบันทึกเข้าคลัง</p><form className="mt-5 grid gap-4" onSubmit={save}><label className={labelClass}>ชื่อวัตถุดิบ<input className={inputClass} value={form.name} onChange={updateField("name")} placeholder="เช่น นมสด" required /></label><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1"><label className={labelClass}>หน่วยนับ<input className={inputClass} value={form.unit} onChange={updateField("unit")} placeholder="เช่น ขวด" required /></label><label className={labelClass}>จำนวนคงเหลือ<input className={inputClass} type="number" min="0" value={form.stock_qty} onChange={updateField("stock_qty")} required /></label><label className={labelClass}>ต้นทุนต่อหน่วย<input className={inputClass} type="number" min="0" step="0.01" value={form.cost_per_unit} onChange={updateField("cost_per_unit")} /></label><label className={labelClass}>แจ้งเตือนเมื่อเหลือ<input className={inputClass} type="number" min="0" value={form.min_stock_alert} onChange={updateField("min_stock_alert")} /></label></div><label className={labelClass}>วันหมดอายุ<input className={inputClass} type="date" value={form.expiry_date} onChange={updateField("expiry_date")} /></label><div className="flex gap-2"><Button className="flex-1" type="submit">{editingId ? "บันทึกการแก้ไข" : "เพิ่มวัตถุดิบ"}</Button>{editingId && <Button type="button" variant="secondary" onClick={() => { setForm(initial); setEditingId(null); }}>ยกเลิก</Button>}</div></form></Card></aside></div></div>;
 }
 
-function MenuManager({
-  products = [],
-  ingredients = [],
-  onCreate,
-  onUpdate,
-  onDelete,
-}) {
-  const emptyForm = {
-    name: "",
-    category: "",
-    price_retail: 0,
-    price_wholesale: "",
-    recipe: [],
-  };
-  const [form, setForm] = useState(emptyForm);
+function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete }) {
+  const initial = { name: "", category: "", price_retail: "", price_wholesale: "", recipe: [] };
+  const [form, setForm] = useState(initial);
   const [editingId, setEditingId] = useState(null);
-  const setField = (field) => (event) =>
-    setForm((current) => ({ ...current, [field]: event.target.value }));
-  const beginCreate = () => {
-    setEditingId(null);
-    setForm(emptyForm);
-  };
-  const beginEdit = (product) => {
-    setEditingId(product.id);
-    setForm({
-      name: product.name || "",
-      category: product.category || "",
-      price_retail: product.price_retail || 0,
-      price_wholesale: product.price_wholesale || "",
-      recipe: (product.recipe || []).map((item) => ({
-        ingredient_id: item.ingredient_id,
-        quantity_used: item.quantity_used,
-      })),
-    });
-  };
-  const addRecipeRow = () =>
-    setForm((current) => ({
-      ...current,
-      recipe: [
-        ...current.recipe,
-        { ingredient_id: ingredients[0]?.id || "", quantity_used: 1 },
-      ],
-    }));
-  const updateRecipe = (index, field, value) =>
-    setForm((current) => ({
-      ...current,
-      recipe: current.recipe.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, [field]: value } : item,
-      ),
-    }));
-  const removeRecipe = (index) =>
-    setForm((current) => ({
-      ...current,
-      recipe: current.recipe.filter((_, itemIndex) => itemIndex !== index),
-    }));
-  const submit = async (event) => {
-    event.preventDefault();
-    if (!form.recipe.length) {
-      window.alert("กรุณาเลือกวัตถุดิบอย่างน้อย 1 รายการต่อเมนู");
-      return;
-    }
-    const saved = editingId
-      ? await onUpdate(editingId, form)
-      : await onCreate(form);
-    if (saved) beginCreate();
-  };
-  return (
-    <GlassCard className="w-full">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-amber-300">
-            Menu catalog
-          </p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-100">
-            Menus & recipes
-          </h2>
-        </div>
-        <button
-          className="rounded-md border border-amber-300/40 px-2 py-1 text-[10px] text-amber-200 hover:bg-amber-300/10"
-          onClick={beginCreate}
-        >
-          + Add menu
-        </button>
-      </div>
-      <form
-        className="grid gap-2 rounded-lg border border-amber-300/20 bg-amber-300/5 p-3"
-        onSubmit={submit}
-      >
-        <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-amber-200">
-          {editingId ? "Edit menu" : "New menu"}
-        </p>
-        <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-4">
-          <input
-            className="w-full min-w-0 rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100"
-            placeholder="ชื่อเมนู"
-            value={form.name}
-            onChange={setField("name")}
-            required
-          />
-          <input
-            className="w-full min-w-0 rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100"
-            placeholder="หมวดหมู่"
-            value={form.category}
-            onChange={setField("category")}
-          />
-          <input
-            className="w-full min-w-0 rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100"
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="ราคาขาย"
-            value={form.price_retail}
-            onChange={setField("price_retail")}
-            required
-          />
-          <input
-            className="w-full min-w-0 rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100"
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="ราคาส่ง"
-            value={form.price_wholesale}
-            onChange={setField("price_wholesale")}
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <p className="text-[10px] text-slate-400">วัตถุดิบต่อ 1 เมนู</p>
-          <button
-            className="rounded-md border border-cyan-300/30 px-2 py-1 text-[10px] text-cyan-200 hover:bg-cyan-300/10"
-            type="button"
-            onClick={addRecipeRow}
-          >
-            + วัตถุดิบ
-          </button>
-        </div>
-        {form.recipe.length ? (
-          <div className="grid gap-2">
-            {form.recipe.map((item, index) => (
-              <div
-                className="grid grid-cols-[minmax(0,1fr)_90px_auto] gap-2"
-                key={`${item.ingredient_id}-${index}`}
-              >
-                <select
-                  className="min-w-0 rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100"
-                  value={item.ingredient_id}
-                  onChange={(event) =>
-                    updateRecipe(index, "ingredient_id", event.target.value)
-                  }
-                >
-                  {ingredients.map((ingredient) => (
-                    <option
-                      className="bg-slate-800"
-                      key={ingredient.id}
-                      value={ingredient.id}
-                    >
-                      {ingredient.name} ({ingredient.unit})
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className="min-w-0 rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100"
-                  type="number"
-                  min="0.001"
-                  step="0.001"
-                  value={item.quantity_used}
-                  onChange={(event) =>
-                    updateRecipe(index, "quantity_used", event.target.value)
-                  }
-                />
-                <button
-                  className="rounded-md border border-rose-300/30 px-2 text-[10px] text-rose-200"
-                  type="button"
-                  onClick={() => removeRecipe(index)}
-                >
-                  ลบ
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="rounded-md border border-dashed border-slate-200/15 px-2 py-2 text-[10px] text-slate-500">
-            ยังไม่ได้เลือกวัตถุดิบ ระบบจะไม่หัก stock สำหรับเมนูนี้
-          </p>
-        )}
-        <div className="flex gap-2">
-          <button
-            className="flex-1 rounded-md bg-amber-300 py-2 text-[10px] font-bold text-slate-950 hover:bg-amber-200"
-            type="submit"
-          >
-            {editingId ? "Save menu" : "Create menu"}
-          </button>
-          {editingId && (
-            <button
-              className="rounded-md border border-slate-700 px-3 text-[10px] text-slate-400"
-              type="button"
-              onClick={beginCreate}
-            >
-              Cancel
-            </button>
-          )}
-        </div>
-      </form>
-      <div className="mt-3 grid gap-2">
-        {products.map((product) => (
-          <div
-            className="flex items-center gap-2 rounded-lg border border-slate-200/15 bg-slate-700/30 p-2"
-            key={product.id}
-          >
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs text-slate-100">{product.name}</p>
-              <p className="text-[10px] text-slate-400">
-                ฿{Number(product.price_retail || 0).toFixed(2)} ·{" "}
-                {(product.recipe || []).length} วัตถุดิบ
-              </p>
-            </div>
-            <button
-              className="rounded-md border border-slate-200/20 px-2 py-1 text-[10px] text-slate-200"
-              onClick={() => beginEdit(product)}
-            >
-              Edit
-            </button>
-            <button
-              className="rounded-md border border-rose-300/30 px-2 py-1 text-[10px] text-rose-200"
-              onClick={() => onDelete(product)}
-            >
-              Delete
-            </button>
-          </div>
-        ))}
-      </div>
-    </GlassCard>
-  );
+  const addRecipe = () => setForm((current) => ({ ...current, recipe: [...current.recipe, { ingredient_id: ingredients[0]?.id || "", quantity_used: 1 }] }));
+  const updateRecipe = (index, field, value) => setForm((current) => ({ ...current, recipe: current.recipe.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
+  const save = async (event) => { event.preventDefault(); if (!form.recipe.length) return window.alert("กรุณาเลือกวัตถุดิบอย่างน้อย 1 รายการ"); const saved = editingId ? await onUpdate(editingId, form) : await onCreate(form); if (saved) { setForm(initial); setEditingId(null); } };
+  const edit = (product) => { setEditingId(product.id); setForm({ name: product.name || "", category: product.category || "", price_retail: product.price_retail || "", price_wholesale: product.price_wholesale || "", recipe: (product.recipe || []).map((item) => ({ ingredient_id: item.ingredient_id, quantity_used: item.quantity_used })) }); };
+  return <div className="space-y-5"><Heading eyebrow="Catalog" title="เมนูสินค้า" description="จัดการเมนูขายและสูตรวัตถุดิบ แยกจากหน้าคลังสินค้า" action={<Button variant="secondary" onClick={() => { setForm(initial); setEditingId(null); }}>+ เพิ่มเมนู</Button>} /><div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]"><Card><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-slate-900">รายการเมนู</h2><span className="text-sm text-slate-500">{products.length} รายการ</span></div><div className="grid gap-3 sm:grid-cols-2">{products.length ? products.map((product) => <article className="rounded-2xl border border-sky-100 p-4" key={product.id}><div className="flex items-start justify-between gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl bg-sky-50 text-xl">{product.icon || "▦"}</span><strong className="text-sky-700">{money(product.price_retail)}</strong></div><h3 className="mt-4 truncate font-bold text-slate-900">{product.name}</h3><p className="mt-1 text-sm text-slate-500">{product.category || "ไม่มีหมวดหมู่"}</p><p className="mt-2 text-xs text-slate-500">สูตร {product.recipe?.length || 0} วัตถุดิบ</p><div className="mt-4 flex gap-2"><Button className="flex-1 text-xs" variant="secondary" onClick={() => edit(product)}>แก้ไข</Button><Button className="text-xs" variant="danger" onClick={() => onDelete(product)}>ลบ</Button></div></article>) : <Empty>ยังไม่มีเมนูสินค้า</Empty>}</div></Card><aside className="order-first xl:order-none xl:sticky xl:top-5 xl:self-start"><Card><h2 className="text-lg font-bold text-slate-900">{editingId ? "แก้ไขเมนู" : "เพิ่มเมนู"}</h2><form className="mt-5 grid gap-4" onSubmit={save}><label className={labelClass}>ชื่อเมนู<input className={inputClass} value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="เช่น ชานมไข่มุก" required /></label><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1"><label className={labelClass}>หมวดหมู่<input className={inputClass} value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} placeholder="เช่น เครื่องดื่ม" /></label><label className={labelClass}>ราคาขาย<input className={inputClass} type="number" min="0" step="0.01" value={form.price_retail} onChange={(event) => setForm((current) => ({ ...current, price_retail: event.target.value }))} required /></label><label className={labelClass}>ราคาส่ง<input className={inputClass} type="number" min="0" step="0.01" value={form.price_wholesale} onChange={(event) => setForm((current) => ({ ...current, price_wholesale: event.target.value }))} /></label></div><div className="rounded-xl border border-sky-100 bg-sky-50/60 p-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-bold text-slate-700">สูตรวัตถุดิบ</p><Button className="text-xs" type="button" variant="secondary" onClick={addRecipe}>+ เพิ่ม</Button></div><div className="mt-3 space-y-3">{form.recipe.map((item, index) => <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_100px_auto]" key={index}><select className={inputClass} value={item.ingredient_id} onChange={(event) => updateRecipe(index, "ingredient_id", event.target.value)} required><option value="">เลือกวัตถุดิบ</option>{ingredients.map((ingredient) => <option value={ingredient.id} key={ingredient.id}>{ingredient.name} ({ingredient.unit})</option>)}</select><input className={inputClass} type="number" min="0.01" step="0.01" value={item.quantity_used} onChange={(event) => updateRecipe(index, "quantity_used", event.target.value)} required /><Button className="sm:px-2" type="button" variant="danger" onClick={() => setForm((current) => ({ ...current, recipe: current.recipe.filter((_, itemIndex) => itemIndex !== index) }))}>ลบ</Button></div>)}{!form.recipe.length && <p className="text-sm text-slate-500">กด “เพิ่ม” เพื่อระบุวัตถุดิบ</p>}</div></div><div className="flex gap-2"><Button className="flex-1" type="submit">{editingId ? "บันทึกการแก้ไข" : "เพิ่มเมนู"}</Button>{editingId && <Button type="button" variant="secondary" onClick={() => { setForm(initial); setEditingId(null); }}>ยกเลิก</Button>}</div></form></Card></aside></div></div>;
 }
 
-function FinancePanel({
-  metrics,
-  expenses,
-  orders,
-  expenseRows = [],
-  onCreateExpense,
-  onUpdateExpense,
-  onDeleteExpense,
-  channels = [],
-  products = [],
-  onCreateSales,
-  onUpdateSales,
-  onDeleteSales,
-}) {
-  const dashboardMetrics = [
-    ["ยอดขายรวม", metrics.gross],
-    ["ยอดสุทธิ", metrics.net],
-    ["ต้นทุนสินค้า", metrics.cogs],
-    ["GP fee", metrics.gp],
-    ["ค่าใช้จ่าย", expenses],
-    ["กำไรสุทธิ", metrics.profit],
-  ];
-  const emptyExpense = {
-    category: "OPERATING_EXPENSE",
-    description: "",
-  };
-  const [form, setForm] = useState(emptyExpense);
-  const [editingId, setEditingId] = useState(null);
-  const [salesDate, setSalesDate] = useState("");
-  const newSalesForm = () => ({
-    order_no: `MAN-${Date.now()}`,
-    channel_id: channels[0]?.id || "",
-    status: "COMPLETED",
-    items: [{ product_id: products[0]?.id || "", qty: 1, price: products[0]?.price_retail || "" }],
-  });
-  const [salesForm, setSalesForm] = useState(newSalesForm);
-  const [editingSalesId, setEditingSalesId] = useState(null);
-  const updateSalesItem = (index, field, value) => setSalesForm((current) => ({ ...current, items: current.items.map((item, itemIndex) => {
+function LegacyFinancePage({ metrics, expenses, expenseRows, orders, channels, products, onCreateExpense, onUpdateExpense, onDeleteExpense, onCreateSales, onUpdateSales, onDeleteSales }) {
+  const newSales = () => ({ order_no: `MAN-${Date.now()}`, channel_id: channels[0]?.id || "", status: "COMPLETED", items: [{ product_id: products[0]?.id || "", qty: 1, price: products[0]?.price_retail || "" }] });
+  const [sales, setSales] = useState(newSales);
+  const [salesEditingId, setSalesEditingId] = useState(null);
+  const [expense, setExpense] = useState({ amount: "", category: "OPERATING_EXPENSE", description: "" });
+  const [expenseEditingId, setExpenseEditingId] = useState(null);
+  const statCards = [["ยอดขายรวม", metrics.gross], ["ยอดสุทธิ", metrics.net], ["ต้นทุนสินค้า", metrics.cogs], ["ค่าใช้จ่าย", expenses], ["กำไรสุทธิ", metrics.profit]];
+  const updateSalesItem = (index, field, value) => setSales((current) => ({ ...current, items: current.items.map((item, itemIndex) => { if (itemIndex !== index) return item; if (field === "product_id") { const product = products.find((row) => String(row.id) === String(value)); return { ...item, product_id: value, price: product?.price_retail ?? item.price }; } return { ...item, [field]: value }; }) }));
+  const saveSales = async (event) => { event.preventDefault(); const record = { ...sales, channel_id: Number(sales.channel_id), items: sales.items.map((item) => ({ product_id: Number(item.product_id), qty: Number(item.qty), price: Number(item.price) })) }; const saved = salesEditingId ? await onUpdateSales(salesEditingId, record) : await onCreateSales(record); if (saved) { setSalesEditingId(null); setSales(newSales()); } };
+  const editSales = (order) => { const rawItems = order.rawItems || []; if (!rawItems.length) return; setSalesEditingId(order.id); setSales({ order_no: order.order_no, channel_id: order.channel_id, status: order.status === "CANCELLED" ? "COMPLETED" : order.status, items: rawItems.map((item) => ({ product_id: item.product_id, qty: item.quantity ?? item.qty, price: item.unit_price ?? item.price })) }); };
+  const saveExpense = async (event) => { event.preventDefault(); const saved = expenseEditingId ? await onUpdateExpense(expenseEditingId, expense.amount, expense.category, expense.description) : await onCreateExpense(expense.amount, expense.category, expense.description); if (saved) { setExpense({ amount: "", category: "OPERATING_EXPENSE", description: "" }); setExpenseEditingId(null); } };
+  return <div className="space-y-5"><Heading eyebrow="Finance" title="การเงินและบันทึกยอดขาย" description="ติดตามยอดขาย เพิ่มรายการขาย และจัดการค่าใช้จ่าย" /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{statCards.map(([label, value]) => <Card className="p-4" key={label}><p className="text-xs font-semibold text-slate-500">{label}</p><strong className="mt-2 block text-xl text-sky-700">{money(value)}</strong></Card>)}</div><div className="grid gap-5 2xl:grid-cols-2"><Card><h2 className="text-lg font-bold text-slate-900">{salesEditingId ? "แก้ไขรายการขาย" : "เพิ่มรายการขาย"}</h2><form className="mt-4 grid gap-4" onSubmit={saveSales}><div className="grid gap-3 sm:grid-cols-3"><label className={labelClass}>เลขที่ออเดอร์<input className={inputClass} value={sales.order_no} onChange={(event) => setSales((current) => ({ ...current, order_no: event.target.value }))} required /></label><label className={labelClass}>ช่องทาง<select className={inputClass} value={sales.channel_id} onChange={(event) => setSales((current) => ({ ...current, channel_id: event.target.value }))}>{channels.map((channel) => <option value={channel.id} key={channel.id}>{channel.name}</option>)}</select></label><label className={labelClass}>สถานะ<select className={inputClass} value={sales.status} onChange={(event) => setSales((current) => ({ ...current, status: event.target.value }))}><option value="COMPLETED">สำเร็จ</option><option value="COOKING">กำลังดำเนินการ</option></select></label></div><div className="space-y-3">{sales.items.map((item, index) => <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_92px_120px_auto]" key={index}><select className={inputClass} value={item.product_id} onChange={(event) => updateSalesItem(index, "product_id", event.target.value)} required>{products.map((product) => <option value={product.id} key={product.id}>{product.name}</option>)}</select><input className={inputClass} type="number" min="1" value={item.qty} onChange={(event) => updateSalesItem(index, "qty", event.target.value)} required /><input className={inputClass} type="number" min="0" step="0.01" value={item.price} onChange={(event) => updateSalesItem(index, "price", event.target.value)} required />{sales.items.length > 1 && <Button type="button" variant="danger" onClick={() => setSales((current) => ({ ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) }))}>ลบ</Button>}</div>)}</div><div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => setSales((current) => ({ ...current, items: [...current.items, { product_id: products[0]?.id || "", qty: 1, price: products[0]?.price_retail || "" }] }))}>+ เพิ่มสินค้า</Button><Button type="submit">{salesEditingId ? "บันทึกรายการ" : "เพิ่มยอดขาย"}</Button>{salesEditingId && <Button type="button" variant="secondary" onClick={() => { setSalesEditingId(null); setSales(newSales()); }}>ยกเลิก</Button>}</div></form></Card><Card><h2 className="text-lg font-bold text-slate-900">{expenseEditingId ? "แก้ไขค่าใช้จ่าย" : "เพิ่มค่าใช้จ่าย"}</h2><form className="mt-4 grid gap-4" onSubmit={saveExpense}><div className="grid gap-3 sm:grid-cols-2"><label className={labelClass}>จำนวนเงิน<input className={inputClass} type="number" min="0.01" step="0.01" value={expense.amount} onChange={(event) => setExpense((current) => ({ ...current, amount: event.target.value }))} required /></label><label className={labelClass}>ประเภท<select className={inputClass} value={expense.category} onChange={(event) => setExpense((current) => ({ ...current, category: event.target.value }))}><option value="OPERATING_EXPENSE">ค่าใช้จ่ายดำเนินงาน</option><option value="DELIVERY_COST">ค่าขนส่ง</option></select></label></div><label className={labelClass}>รายละเอียด<textarea className={`${inputClass} min-h-24 resize-y`} value={expense.description} onChange={(event) => setExpense((current) => ({ ...current, description: event.target.value }))} placeholder="เช่น ค่าขนส่งวัตถุดิบ" /></label><div className="flex gap-2"><Button type="submit">{expenseEditingId ? "บันทึกการแก้ไข" : "เพิ่มค่าใช้จ่าย"}</Button>{expenseEditingId && <Button type="button" variant="secondary" onClick={() => { setExpenseEditingId(null); setExpense({ amount: "", category: "OPERATING_EXPENSE", description: "" }); }}>ยกเลิก</Button>}</div></form></Card></div><div className="grid gap-5 xl:grid-cols-2"><Card><h2 className="text-lg font-bold text-slate-900">Sales records</h2><div className="mt-4 space-y-3">{orders.length ? orders.map((order) => <div className="flex flex-col gap-3 rounded-xl border border-sky-100 p-3 sm:flex-row sm:items-center" key={order.id}><div className="min-w-0 flex-1"><p className="font-bold text-slate-800">#{order.order_no} · <span className="text-sky-700">{money(order.net_revenue)}</span></p><p className="mt-1 truncate text-sm text-slate-500">{order.channel_name} · {order.items}</p></div><div className="flex items-center gap-2"><Status status={order.status} />{order.rawItems?.length > 0 && <Button className="text-xs" variant="secondary" onClick={() => editSales(order)}>แก้ไข</Button>}<Button className="text-xs" variant="danger" onClick={() => onDeleteSales(order)}>ลบ</Button></div></div>) : <Empty>ยังไม่มีรายการขาย</Empty>}</div></Card><Card><h2 className="text-lg font-bold text-slate-900">Expense ledger</h2><div className="mt-4 space-y-3">{expenseRows.length ? expenseRows.map((item) => <div className="flex flex-col gap-3 rounded-xl border border-sky-100 p-3 sm:flex-row sm:items-center" key={item.id}><div className="min-w-0 flex-1"><p className="font-bold text-slate-800">{money(item.amount)}</p><p className="text-sm text-slate-500">{item.category === "DELIVERY_COST" ? "ค่าขนส่ง" : "ค่าใช้จ่ายดำเนินงาน"}{item.description ? ` · ${item.description}` : ""}</p></div><div className="flex gap-2"><Button className="text-xs" variant="secondary" onClick={() => { setExpenseEditingId(item.id); setExpense({ amount: item.amount, category: item.category, description: item.description || "" }); }}>แก้ไข</Button><Button className="text-xs" variant="danger" onClick={() => onDeleteExpense(item)}>ลบ</Button></div></div>) : <Empty>ยังไม่มีรายการค่าใช้จ่าย</Empty>}</div></Card></div></div>;
+}
+
+const bangkokDate = (value = new Date()) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
+  const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
+const todayInBangkok = () => bangkokDate(new Date());
+const dateLabel = (date) => new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${date}T00:00:00Z`));
+const rowMatchesDate = (row, selectedDate) => !row?.created_at ? selectedDate === todayInBangkok() : bangkokDate(row.created_at) === selectedDate;
+
+function FinancePage({ expenseRows, orders, channels, products, onCreateExpense, onUpdateExpense, onDeleteExpense, onCreateSales, onUpdateSales, onDeleteSales }) {
+  const [selectedDate, setSelectedDate] = useState(todayInBangkok);
+  const newSales = () => ({ order_no: `MAN-${Date.now()}`, channel_id: channels[0]?.id || "", status: "COMPLETED", items: [{ product_id: products[0]?.id || "", qty: 1, price: products[0]?.price_retail || "" }] });
+  const [sales, setSales] = useState(newSales);
+  const [salesEditingId, setSalesEditingId] = useState(null);
+  const [expense, setExpense] = useState({ amount: "", category: "OPERATING_EXPENSE", description: "" });
+  const [expenseEditingId, setExpenseEditingId] = useState(null);
+  const filteredOrders = useMemo(() => orders.filter((order) => rowMatchesDate(order, selectedDate)), [orders, selectedDate]);
+  const filteredExpenses = useMemo(() => expenseRows.filter((item) => rowMatchesDate(item, selectedDate)), [expenseRows, selectedDate]);
+  const summary = useMemo(() => {
+    const salesTotals = filteredOrders.reduce((totals, order) => ({
+      gross: totals.gross + Number(order.gross_amount ?? order.net_revenue ?? 0),
+      net: totals.net + Number(order.net_revenue || 0),
+      cogs: totals.cogs + Number(order.total_cogs || 0),
+      profit: totals.profit + Number(order.net_profit ?? order.net_revenue ?? 0),
+    }), { gross: 0, net: 0, cogs: 0, profit: 0 });
+    const expenseTotal = filteredExpenses.reduce((total, item) => total + Number(item.amount || 0), 0);
+    return { ...salesTotals, expenses: expenseTotal, profit: salesTotals.profit - expenseTotal };
+  }, [filteredExpenses, filteredOrders]);
+  const statCards = [["ยอดขายรวม", summary.gross], ["ยอดสุทธิ", summary.net], ["ต้นทุนสินค้า", summary.cogs], ["ค่าใช้จ่าย", summary.expenses], ["กำไรสุทธิ", summary.profit]];
+  const updateSalesItem = (index, field, value) => setSales((current) => ({ ...current, items: current.items.map((item, itemIndex) => {
     if (itemIndex !== index) return item;
     if (field === "product_id") {
       const product = products.find((row) => String(row.id) === String(value));
@@ -837,400 +127,43 @@ function FinancePanel({
     }
     return { ...item, [field]: value };
   }) }));
-  const addSalesItem = () => setSalesForm((current) => ({ ...current, items: [...current.items, { product_id: products[0]?.id || "", qty: 1, price: products[0]?.price_retail || "" }] }));
-  const removeSalesItem = (index) => setSalesForm((current) => ({ ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) }));
-  const submitSales = async (event) => {
+  const saveSales = async (event) => {
     event.preventDefault();
-    const items = salesForm.items.map((item) => ({ product_id: Number(item.product_id), qty: Number(item.qty), price: Number(item.price) }));
-    if (!salesForm.order_no.trim() || !salesForm.channel_id || !items.length || items.some((item) => !item.product_id || item.qty <= 0 || item.price < 0)) return;
-    const record = { ...salesForm, channel_id: Number(salesForm.channel_id), order_no: salesForm.order_no.trim(), items };
-    const saved = editingSalesId ? await onUpdateSales(editingSalesId, record) : await onCreateSales(record);
-    if (saved) { setEditingSalesId(null); setSalesForm(newSalesForm()); }
+    const record = { ...sales, record_date: selectedDate, channel_id: Number(sales.channel_id), items: sales.items.map((item) => ({ product_id: Number(item.product_id), qty: Number(item.qty), price: Number(item.price) })) };
+    const saved = salesEditingId ? await onUpdateSales(salesEditingId, record) : await onCreateSales(record);
+    if (saved) { setSalesEditingId(null); setSales(newSales()); }
   };
   const editSales = (order) => {
-    setEditingSalesId(order.id);
-    setSalesForm({ order_no: order.order_no || "", channel_id: order.channel_id || "", status: order.status || "COMPLETED", items: (order.rawItems || []).map((item) => ({ product_id: item.product_id, qty: item.quantity ?? item.qty, price: item.unit_price ?? item.price })) });
+    const rawItems = order.rawItems || [];
+    if (!rawItems.length) return;
+    setSalesEditingId(order.id);
+    setSales({ order_no: order.order_no, channel_id: order.channel_id, status: order.status === "CANCELLED" ? "COMPLETED" : order.status, items: rawItems.map((item) => ({ product_id: item.product_id, qty: item.quantity ?? item.qty, price: item.unit_price ?? item.price })) });
   };
-  const cancelSalesEdit = () => { setEditingSalesId(null); setSalesForm(newSalesForm()); };
-  const submitExpense = async (event) => {
+  const saveExpense = async (event) => {
     event.preventDefault();
-    if (!Number(form.amount) || Number(form.amount) <= 0) return;
-    const saved = editingId
-      ? await onUpdateExpense(
-          editingId,
-          form.amount,
-          form.category,
-          form.description,
-        )
-      : await onCreateExpense(form.amount, form.category, form.description);
-    if (saved) {
-      setEditingId(null);
-      setForm(emptyExpense);
-    }
+    const saved = expenseEditingId
+      ? await onUpdateExpense(expenseEditingId, expense.amount, expense.category, expense.description, selectedDate)
+      : await onCreateExpense(expense.amount, expense.category, expense.description, selectedDate);
+    if (saved) { setExpense({ amount: "", category: "OPERATING_EXPENSE", description: "" }); setExpenseEditingId(null); }
   };
-  const editExpense = (item) => {
-    setEditingId(item.id);
-    setForm({
-      amount: item.amount,
-      category: item.category,
-      description: item.description || "",
-    });
-  };
-  const cancelEdit = () => {
-    setEditingId(null);
-    setForm(emptyExpense);
-  };
-  const operatingTotal = expenseRows
-    .filter((item) => item.category !== "DELIVERY_COST")
-    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const deliveryTotal = expenseRows
-    .filter((item) => item.category === "DELIVERY_COST")
-    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const filteredSalesRows = orders.filter((order) => !salesDate || String(order.created_at || "").slice(0, 10) === salesDate);
-  const exportSales = () => {
-    const rows = filteredSalesRows.map((order) => [order.order_no, order.created_at || "", order.channel_name || "", order.status || "", order.items || "", order.net_revenue || 0]);
-    const csv = [["Order", "Date", "Channel", "Status", "Items", "Net revenue"], ...rows]
-      .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))
-      .join("\r\n");
-    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `stockpos-sales${salesDate ? `-${salesDate}` : "-all"}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-  const [expenseDate, setExpenseDate] = useState("");
-  const filteredExpenseRows = expenseRows.filter((item) => !expenseDate || String(item.created_at || "").slice(0, 10) === expenseDate);
-  const exportExpenses = () => {
-    const rows = filteredExpenseRows.map((item) => [item.id, item.created_at || "", item.category === "DELIVERY_COST" ? "Delivery cost" : "Operating expense", item.amount, item.description || ""]);
-    const csv = [["ID", "Date", "Category", "Amount", "Description"], ...rows]
-      .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))
-      .join("\r\n");
-    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `stockpos-expenses${expenseDate ? `-${expenseDate}` : "-all"}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-  return (
-    <GlassCard className="w-full">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-cyan-300">
-            Financial HUD
-          </p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-100">
-            Sales dashboard
-          </h2>
-        </div>
-        <span className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-[10px] font-mono text-emerald-200">
-          LIVE TOTALS
-        </span>
-      </div>
-      <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
-        {dashboardMetrics.map(([label, value]) => (
-          <div
-            key={label}
-            className="rounded-xl border border-slate-200/15 bg-slate-700/40 p-3"
-          >
-            <p className="text-[10px] text-slate-400">{label}</p>
-            <strong
-              className={`mt-2 block font-mono text-base ${label === "กำไรสุทธิ" ? "text-emerald-200" : label === "ต้นทุนสินค้า" || label === "ค่าใช้จ่าย" ? "text-amber-200" : "text-cyan-200"}`}
-            >
-              {money(value)}
-            </strong>
-          </div>
-        ))}
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-slate-200/15 bg-slate-700/30 p-3">
-          <p className="text-[10px] text-slate-400">ออเดอร์ทั้งหมด</p>
-          <strong className="mt-2 block font-mono text-lg text-slate-100">
-            {orders.length}
-          </strong>
-        </div>
-        <div className="rounded-xl border border-slate-200/15 bg-slate-700/30 p-3">
-          <p className="text-[10px] text-slate-400">ออเดอร์ที่สำเร็จ</p>
-          <strong className="mt-2 block font-mono text-lg text-emerald-200">
-            {orders.filter((order) => order.status === "COMPLETED").length}
-          </strong>
-        </div>
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-slate-200/15 bg-slate-700/30 p-3">
-          <p className="text-[10px] text-slate-400">Operating expense ทั้งหมด</p>
-          <strong className="mt-2 block font-mono text-sm text-amber-200">{money(operatingTotal)}</strong>
-        </div>
-        <div className="rounded-xl border border-slate-200/15 bg-slate-700/30 p-3">
-          <p className="text-[10px] text-slate-400">Delivery cost ทั้งหมด</p>
-          <strong className="mt-2 block font-mono text-sm text-amber-200">{money(deliveryTotal)}</strong>
-        </div>
-      </div>
-      <div className="mt-4 grid min-w-0 gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/5 p-3">
-        <div className="flex items-end justify-between gap-2">
-          <label className="grid flex-1 gap-1 text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-200">Sales records
-            <input className="mt-1 rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs font-sans normal-case tracking-normal text-slate-100" type="date" value={salesDate} onChange={(event) => setSalesDate(event.target.value)} />
-          </label>
-          <button className="rounded-md border border-cyan-300/30 px-2 py-2 text-[10px] text-cyan-100 hover:bg-cyan-300/10" type="button" onClick={exportSales}>Export Sales Excel</button>
-        </div>
-        <form className="grid gap-2 rounded-lg border border-slate-200/15 bg-slate-800/30 p-2" onSubmit={submitSales}>
-          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-200">{editingSalesId ? "Edit sales record" : "Add sales record"}</p>
-          <div className="grid gap-2 md:grid-cols-3"><input className="rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100" value={salesForm.order_no} onChange={(event) => setSalesForm((current) => ({ ...current, order_no: event.target.value }))} placeholder="Order number" required /><select className="rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100" value={salesForm.channel_id} onChange={(event) => setSalesForm((current) => ({ ...current, channel_id: event.target.value }))} required>{channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}</select><select className="rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100" value={salesForm.status} onChange={(event) => setSalesForm((current) => ({ ...current, status: event.target.value }))}><option value="COOKING">Cooking</option><option value="COMPLETED">Completed</option></select></div>
-          {salesForm.items.map((item, index) => <div className="grid gap-2 md:grid-cols-[1fr_100px_120px_auto]" key={index}><select className="rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100" value={item.product_id} onChange={(event) => updateSalesItem(index, "product_id", event.target.value)} required>{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select><input className="rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100" type="number" min="1" step="1" value={item.qty} onChange={(event) => updateSalesItem(index, "qty", event.target.value)} required /><input className="rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100" type="number" min="0" step="0.01" value={item.price} onChange={(event) => updateSalesItem(index, "price", event.target.value)} required />{salesForm.items.length > 1 && <button className="rounded-md border border-rose-300/30 px-2 text-[10px] text-rose-200" type="button" onClick={() => removeSalesItem(index)}>Remove</button>}</div>)}
-          <div className="flex flex-wrap gap-2"><button className="rounded-md border border-cyan-300/30 px-2 py-2 text-[10px] text-cyan-100 hover:bg-cyan-300/10" type="button" onClick={addSalesItem}>Add item</button><button className="rounded-md bg-cyan-300 px-3 py-2 text-[10px] font-semibold text-slate-950" type="submit">{editingSalesId ? "Save sales record" : "Create sales record"}</button>{editingSalesId && <button className="rounded-md border border-slate-200/20 px-3 py-2 text-[10px] text-slate-300" type="button" onClick={cancelSalesEdit}>Cancel</button>}</div>
-        </form>
-        <div className="max-h-44 space-y-2 overflow-y-auto">
-          {filteredSalesRows.length ? filteredSalesRows.map((order) => <div className="flex items-center gap-2 rounded-lg border border-slate-200/15 bg-slate-700/30 p-2" key={order.id}><div className="min-w-0 flex-1"><p className="font-mono text-xs text-cyan-100">#{order.order_no} · {money(order.net_revenue)}</p><p className="truncate text-[10px] text-slate-400">{order.channel_name} · {order.status} · {order.items || "ไม่มีรายการ"}</p></div><button className="rounded-md border border-cyan-300/30 px-2 py-1 text-[10px] text-cyan-100" type="button" onClick={() => editSales(order)}>Edit</button><button className="rounded-md border border-rose-300/30 px-2 py-1 text-[10px] text-rose-200" type="button" onClick={() => onDeleteSales(order)}>Delete</button></div>) : <p className="rounded-md border border-dashed border-slate-200/15 p-3 text-center text-[10px] text-slate-500">ไม่มีรายการขายในวันที่เลือก</p>}
-        </div>
-      </div>
-      <div className="mt-5 grid gap-4 md:grid-cols-2">
-      <form
-        className="grid min-w-0 content-start gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/5 p-3"
-        onSubmit={submitExpense}
-      >
-        <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-200">
-          {editingId ? "Edit expense" : "Add expense"}
-        </p>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <label className="grid gap-1 text-[10px] text-slate-400">
-            จำนวนเงิน
-            <input
-              className="rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100"
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={form.amount}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  amount: event.target.value,
-                }))
-              }
-              required
-            />
-          </label>
-          <label className="grid gap-1 text-[10px] text-slate-400">
-            ประเภท
-            <select
-              className="rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100"
-              value={form.category}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  category: event.target.value,
-                }))
-              }
-            >
-              <option className="bg-slate-800" value="OPERATING_EXPENSE">
-                Operating expense
-              </option>
-              <option className="bg-slate-800" value="DELIVERY_COST">
-                Delivery cost
-              </option>
-            </select>
-          </label>
-          <label className="col-span-2 grid gap-1 text-[10px] text-slate-400">
-            รายละเอียด
-            <textarea
-              className="min-h-20 w-full resize-y rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs text-slate-100"
-              placeholder="เช่น ค่าขนส่งวัตถุดิบรอบเช้า"
-              value={form.description}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  description: event.target.value,
-                }))
-              }
-            />
-          </label>
-        </div>
-        <div className="flex gap-2">
-          <button
-            className="flex-1 rounded-lg bg-cyan-300 py-2 text-xs font-bold text-slate-950"
-            type="submit"
-          >
-            {editingId ? "Save changes" : "Add expense"}
-          </button>
-          {editingId && (
-            <button
-              className="rounded-lg border border-slate-200/20 px-3 text-xs text-slate-200"
-              type="button"
-              onClick={cancelEdit}
-            >
-              Cancel
-            </button>
-          )}
-        </div>
-      </form>
-      <div className="grid min-w-0 content-start gap-2">
-        <div className="flex items-end justify-between gap-2">
-          <label className="grid flex-1 gap-1 text-[10px] font-mono uppercase tracking-[0.18em] text-slate-400">Expense ledger
-            <input className="mt-1 rounded-md border border-slate-200/15 bg-slate-700/40 px-2 py-2 text-xs font-sans normal-case tracking-normal text-slate-100" type="date" value={expenseDate} onChange={(event) => setExpenseDate(event.target.value)} />
-          </label>
-          <button className="rounded-md border border-emerald-300/30 px-2 py-2 text-[10px] text-emerald-200 hover:bg-emerald-300/10" type="button" onClick={exportExpenses}>Export Excel</button>
-        </div>
-        {filteredExpenseRows.length ? (
-          filteredExpenseRows.map((item) => (
-            <div
-              className="flex items-center gap-2 rounded-lg border border-slate-200/15 bg-slate-700/30 p-2"
-              key={item.id}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="font-mono text-xs text-cyan-100">
-                  {money(item.amount)}
-                </p>
-                <p className="text-[10px] text-slate-400">
-                  {item.category === "DELIVERY_COST"
-                    ? "Delivery cost"
-                    : "Operating expense"}
-                </p>
-                {item.description && (
-                  <p className="mt-1 truncate text-[10px] text-slate-500">
-                    {item.description}
-                  </p>
-                )}
-              </div>
-              <button
-                className="rounded-md border border-slate-200/20 px-2 py-1 text-[10px] text-slate-200"
-                onClick={() => editExpense(item)}
-              >
-                Edit
-              </button>
-              <button
-                className="rounded-md border border-rose-300/30 px-2 py-1 text-[10px] text-rose-200"
-                onClick={() => onDeleteExpense(item)}
-              >
-                Delete
-              </button>
-            </div>
-          ))
-        ) : (
-          <p className="rounded-lg border border-dashed border-slate-200/15 p-3 text-center text-[10px] text-slate-500">
-            ยังไม่มีรายการค่าใช้จ่าย
-          </p>
-        )}
-      </div>
-      </div>
-    </GlassCard>
-  );
+  const resetSales = () => { setSalesEditingId(null); setSales(newSales()); };
+  const resetExpense = () => { setExpenseEditingId(null); setExpense({ amount: "", category: "OPERATING_EXPENSE", description: "" }); };
+  return <div className="space-y-5">
+    <Heading eyebrow="Finance" title="การเงินและบันทึกยอดขาย" description={`รายการและยอดสรุปของวันที่ ${dateLabel(selectedDate)}`} action={<div className="flex items-end gap-2"><label className={labelClass}>กรองวันที่<input className={inputClass} type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value || todayInBangkok())} /></label><Button type="button" variant="secondary" onClick={() => setSelectedDate(todayInBangkok())}>วันนี้</Button></div>} />
+    <Card className="border-sky-200 bg-sky-50/60 p-4"><p className="text-sm font-semibold text-sky-900">เพิ่มรายการขายและค่าใช้จ่ายจะบันทึกเป็นวันที่ <span className="font-bold">{dateLabel(selectedDate)}</span></p><p className="mt-1 text-xs text-sky-700">หากไม่ได้เลือกวันที่ ระบบจะใช้วันปัจจุบันอัตโนมัติ</p></Card>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{statCards.map(([label, value]) => <Card className="p-4" key={label}><p className="text-xs font-semibold text-slate-500">{label}</p><strong className="mt-2 block text-xl text-sky-700">{money(value)}</strong></Card>)}</div>
+    <div className="grid gap-5 2xl:grid-cols-2">
+      <Card><h2 className="text-lg font-bold text-slate-900">{salesEditingId ? "แก้ไขรายการขาย" : "เพิ่มรายการขาย"}</h2><p className="mt-1 text-sm text-slate-500">บันทึกในวันที่ {dateLabel(selectedDate)}</p><form className="mt-4 grid gap-4" onSubmit={saveSales}><div className="grid gap-3 sm:grid-cols-3"><label className={labelClass}>เลขที่ออเดอร์<input className={inputClass} value={sales.order_no} onChange={(event) => setSales((current) => ({ ...current, order_no: event.target.value }))} required /></label><label className={labelClass}>ช่องทาง<select className={inputClass} value={sales.channel_id} onChange={(event) => setSales((current) => ({ ...current, channel_id: event.target.value }))}>{channels.map((channel) => <option value={channel.id} key={channel.id}>{channel.name}</option>)}</select></label><label className={labelClass}>สถานะ<select className={inputClass} value={sales.status} onChange={(event) => setSales((current) => ({ ...current, status: event.target.value }))}><option value="COMPLETED">สำเร็จ</option><option value="COOKING">กำลังดำเนินการ</option></select></label></div><div className="space-y-3">{sales.items.map((item, index) => <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_92px_120px_auto]" key={index}><select className={inputClass} aria-label="สินค้า" value={item.product_id} onChange={(event) => updateSalesItem(index, "product_id", event.target.value)} required>{products.map((product) => <option value={product.id} key={product.id}>{product.name}</option>)}</select><input className={inputClass} aria-label="จำนวน" type="number" min="1" value={item.qty} onChange={(event) => updateSalesItem(index, "qty", event.target.value)} required /><input className={inputClass} aria-label="ราคา" type="number" min="0" step="0.01" value={item.price} onChange={(event) => updateSalesItem(index, "price", event.target.value)} required />{sales.items.length > 1 && <Button type="button" variant="danger" onClick={() => setSales((current) => ({ ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) }))}>ลบ</Button>}</div>)}</div><div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => setSales((current) => ({ ...current, items: [...current.items, { product_id: products[0]?.id || "", qty: 1, price: products[0]?.price_retail || "" }] }))}>+ เพิ่มสินค้า</Button><Button type="submit">{salesEditingId ? "บันทึกการแก้ไข" : "เพิ่มยอดขาย"}</Button>{salesEditingId && <Button type="button" variant="secondary" onClick={resetSales}>ยกเลิก</Button>}</div></form></Card>
+      <Card><h2 className="text-lg font-bold text-slate-900">{expenseEditingId ? "แก้ไขค่าใช้จ่าย" : "เพิ่มค่าใช้จ่าย"}</h2><p className="mt-1 text-sm text-slate-500">บันทึกในวันที่ {dateLabel(selectedDate)}</p><form className="mt-4 grid gap-4" onSubmit={saveExpense}><div className="grid gap-3 sm:grid-cols-2"><label className={labelClass}>จำนวนเงิน<input className={inputClass} type="number" min="0.01" step="0.01" value={expense.amount} onChange={(event) => setExpense((current) => ({ ...current, amount: event.target.value }))} required /></label><label className={labelClass}>ประเภท<select className={inputClass} value={expense.category} onChange={(event) => setExpense((current) => ({ ...current, category: event.target.value }))}><option value="OPERATING_EXPENSE">ค่าใช้จ่ายดำเนินงาน</option><option value="DELIVERY_COST">ค่าขนส่ง</option></select></label></div><label className={labelClass}>รายละเอียด<textarea className={`${inputClass} min-h-24 resize-y`} value={expense.description} onChange={(event) => setExpense((current) => ({ ...current, description: event.target.value }))} placeholder="เช่น ค่าขนส่งวัตถุดิบ" /></label><div className="flex gap-2"><Button type="submit">{expenseEditingId ? "บันทึกการแก้ไข" : "เพิ่มค่าใช้จ่าย"}</Button>{expenseEditingId && <Button type="button" variant="secondary" onClick={resetExpense}>ยกเลิก</Button>}</div></form></Card>
+    </div>
+    <div className="grid gap-5 xl:grid-cols-2">
+      <Card><div className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold text-slate-900">รายการขาย</h2><span className="text-sm text-slate-500">{filteredOrders.length} รายการ</span></div><div className="mt-4 space-y-3">{filteredOrders.length ? filteredOrders.map((order) => <div className="flex flex-col gap-3 rounded-xl border border-sky-100 p-3 sm:flex-row sm:items-center" key={order.id}><div className="min-w-0 flex-1"><p className="font-bold text-slate-800">#{order.order_no} · <span className="text-sky-700">{money(order.net_revenue)}</span></p><p className="mt-1 truncate text-sm text-slate-500">{order.channel_name} · {order.items}</p></div><div className="flex flex-wrap items-center gap-2"><Status status={order.status} />{order.rawItems?.length > 0 && <Button className="text-xs" variant="secondary" onClick={() => editSales(order)}>แก้ไข</Button>}<Button className="text-xs" variant="danger" onClick={() => onDeleteSales(order)}>ลบ</Button></div></div>) : <Empty>ยังไม่มีรายการขายในวันนี้ที่เลือก</Empty>}</div></Card>
+      <Card><div className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold text-slate-900">รายการค่าใช้จ่าย</h2><span className="text-sm text-slate-500">{filteredExpenses.length} รายการ</span></div><div className="mt-4 space-y-3">{filteredExpenses.length ? filteredExpenses.map((item) => <div className="flex flex-col gap-3 rounded-xl border border-sky-100 p-3 sm:flex-row sm:items-center" key={item.id}><div className="min-w-0 flex-1"><p className="font-bold text-slate-800">{money(item.amount)}</p><p className="text-sm text-slate-500">{item.category === "DELIVERY_COST" ? "ค่าขนส่ง" : "ค่าใช้จ่ายดำเนินงาน"}{item.description ? ` · ${item.description}` : ""}</p></div><div className="flex gap-2"><Button className="text-xs" variant="secondary" onClick={() => { setExpenseEditingId(item.id); setExpense({ amount: item.amount, category: item.category, description: item.description || "" }); }}>แก้ไข</Button><Button className="text-xs" variant="danger" onClick={() => onDeleteExpense(item)}>ลบ</Button></div></div>) : <Empty>ยังไม่มีรายการค่าใช้จ่ายในวันที่เลือก</Empty>}</div></Card>
+    </div>
+  </div>;
 }
 
-export default function GlassLayout({
-  activeView,
-  setActiveView,
-  orders,
-  channels,
-  products,
-  inventoryRows,
-  metrics,
-  expenses,
-  expenseRows,
-  notice,
-  onAdd,
-  onUpdate,
-  onRestock,
-  onCreateInventory,
-  onUpdateInventory,
-  onDeleteInventory,
-  onCreateMenu,
-  onUpdateMenu,
-  onDeleteMenu,
-  onCreateExpense,
-  onUpdateExpense,
-  onDeleteExpense,
-  onCreateSales,
-  onUpdateSales,
-  onDeleteSales,
-}) {
-  const sceneMode =
-    activeView === "inventory"
-      ? "warehouse"
-      : activeView === "finance"
-        ? "finance"
-        : "store";
-  return (
-    <div className="fixed inset-0 h-screen w-screen overflow-hidden bg-slate-800 text-slate-100">
-      <div className="pointer-events-none absolute inset-0 z-20">
-        <aside
-          className={`absolute top-20 bottom-14 flex flex-col ${activeView === "inventory" ? "left-4 right-4 overflow-x-hidden overflow-y-auto md:left-6 md:right-6" : activeView === "pos" ? "bottom-[52%] left-4 right-4 overflow-y-auto md:bottom-14 md:left-6 md:right-[60%] md:top-24" : "left-4 right-4 overflow-y-auto md:left-6 md:right-6 md:top-24"}`}
-        >
-          <div className={`flex min-h-0 flex-1 ${activeView === "inventory" ? "flex-col gap-4 md:flex-row" : ""}`}>
-            {activeView === "pos" && (
-              <OrdersPanel orders={orders} onUpdate={onUpdate} />
-            )}
-            {activeView === "inventory" && (
-              <InventoryPanel
-                rows={inventoryRows}
-                products={products}
-                onRestock={onRestock}
-                onCreate={onCreateInventory}
-                onUpdate={onUpdateInventory}
-                onDelete={onDeleteInventory}
-                onCreateMenu={onCreateMenu}
-                onUpdateMenu={onUpdateMenu}
-                onDeleteMenu={onDeleteMenu}
-              />
-            )}
-            {activeView === "finance" && (
-              <FinancePanel
-                metrics={metrics}
-                expenses={expenses}
-                expenseRows={expenseRows}
-                orders={orders}
-                onCreateExpense={onCreateExpense}
-                onUpdateExpense={onUpdateExpense}
-                onDeleteExpense={onDeleteExpense}
-                channels={channels}
-                products={products}
-                onCreateSales={onCreateSales}
-                onUpdateSales={onUpdateSales}
-                onDeleteSales={onDeleteSales}
-              />
-            )}
-          </div>
-        </aside>
-        {activeView === "pos" && (
-          <aside className="pointer-events-auto absolute bottom-14 left-4 right-4 top-[52%] overflow-y-auto md:left-[40%] md:right-4 md:top-24">
-            <QuickPOSPanel
-              channels={channels}
-              products={products}
-              onAdd={onAdd}
-            />
-          </aside>
-        )}
-      </div>
-      <header className="pointer-events-auto absolute left-0 right-0 top-0 z-30 flex h-14 items-center gap-2 border-b border-slate-200/15 bg-slate-800/85 px-3 backdrop-blur-xl sm:gap-4 sm:px-4 md:px-6">
-        <div className="flex items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-cyan-300 font-black text-slate-950 shadow-neon">
-            S
-          </span>
-          <span className="hidden text-xs font-bold tracking-[0.18em] text-slate-100 sm:block">
-            STOCKPOS
-          </span>
-        </div>
-        <nav className="ml-auto flex items-center gap-1">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              className={`whitespace-nowrap rounded-lg px-2 py-2 text-[9px] font-medium transition sm:px-3 sm:text-[10px] ${activeView === tab.id ? "bg-cyan-300/20 text-cyan-100 shadow-neon" : "text-slate-300 hover:bg-slate-700/70 hover:text-white"}`}
-              onClick={() => setActiveView(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-        <span className="hidden text-[10px] font-mono text-emerald-300 lg:block">
-          ● LIVE
-        </span>
-      </header>
-      <footer className="pointer-events-auto absolute bottom-0 left-0 right-0 z-30 flex h-9 items-center justify-between border-t border-slate-200/15 bg-slate-800/90 px-4 text-[9px] font-mono text-slate-300 backdrop-blur-xl md:px-6">
-        <span className="text-emerald-300">● SOCKET.IO CONNECTED</span>
-        <span className="hidden sm:block">{notice}</span>
-        <span className="text-cyan-200">DB · POSTGRESQL</span>
-      </footer>
-    </div>
-  );
+export default function GlassLayout({ activeView, setActiveView, orders, channels, products, inventoryRows, metrics, expenses, expenseRows, notice, onAdd, onUpdate, onRestock, onCreateInventory, onUpdateInventory, onDeleteInventory, onCreateMenu, onUpdateMenu, onDeleteMenu, onCreateExpense, onUpdateExpense, onDeleteExpense, onCreateSales, onUpdateSales, onDeleteSales }) {
+  const content = activeView === "inventory" ? <IngredientsPage rows={inventoryRows} onCreate={onCreateInventory} onUpdate={onUpdateInventory} onDelete={onDeleteInventory} onRestock={onRestock} /> : activeView === "menu" ? <MenusPage products={products} ingredients={inventoryRows} onCreate={onCreateMenu} onUpdate={onUpdateMenu} onDelete={onDeleteMenu} /> : activeView === "finance" ? <FinancePage metrics={metrics} expenses={expenses} expenseRows={expenseRows} orders={orders} channels={channels} products={products} onCreateExpense={onCreateExpense} onUpdateExpense={onUpdateExpense} onDeleteExpense={onDeleteExpense} onCreateSales={onCreateSales} onUpdateSales={onUpdateSales} onDeleteSales={onDeleteSales} /> : <div className="space-y-5"><OrdersPage orders={orders} onUpdate={onUpdate} /><PosPage channels={channels} products={products} onAdd={onAdd} /></div>;
+  return <div className="min-h-screen bg-sky-50 text-slate-800"><aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sky-100 bg-white px-4 py-6 lg:flex"><div className="flex items-center gap-3 px-2"><span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-600 text-lg font-black text-white">S</span><div><p className="font-bold tracking-wide text-slate-900">STOCKPOS</p><p className="text-xs text-sky-600">Management</p></div></div><nav className="mt-10 grid gap-2">{navigation.map((item) => <button className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${activeView === item.id ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`} key={item.id} onClick={() => setActiveView(item.id)}><span className="w-5 text-center">{item.icon}</span>{item.label}</button>)}</nav><div className="mt-auto rounded-2xl bg-sky-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-sky-600">ระบบเชื่อมต่อ</p><p className="mt-2 text-sm font-semibold text-slate-700">● ออนไลน์</p><p className="mt-1 text-xs text-slate-500">{notice}</p></div></aside><header className="sticky top-0 z-20 border-b border-sky-100 bg-white/95 px-4 py-3 backdrop-blur lg:hidden"><div className="flex items-center gap-2"><span className="grid h-9 w-9 place-items-center rounded-xl bg-sky-600 font-black text-white">S</span><strong className="text-slate-900">STOCKPOS</strong></div><nav className="mt-3 flex gap-2 overflow-x-auto pb-1">{navigation.map((item) => <button className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold ${activeView === item.id ? "bg-sky-600 text-white" : "bg-sky-50 text-sky-700"}`} key={item.id} onClick={() => setActiveView(item.id)}>{item.icon} {item.label}</button>)}</nav></header><main className="mx-auto w-full max-w-[1600px] p-4 pb-10 sm:p-6 lg:ml-64 lg:w-[calc(100%-16rem)] lg:p-8">{content}</main></div>;
 }
