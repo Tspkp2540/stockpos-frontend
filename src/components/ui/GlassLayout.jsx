@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { exportExcel } from "../../utils/exportExcel";
+import { maskPhone } from "../../utils/phone";
 
 const navigation = [
   { id: "pos", icon: "▣", label: "ขายและออเดอร์" },
@@ -7,163 +9,2168 @@ const navigation = [
   { id: "finance", icon: "฿", label: "การเงิน" },
 ];
 
-const money = (amount) => `฿${Number(amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
-const inputClass = "w-full min-w-0 rounded-xl border border-sky-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100";
+const money = (amount) =>
+  `฿${Number(amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+const inputClass =
+  "w-full min-w-0 rounded-xl border border-sky-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100";
 const labelClass = "grid min-w-0 gap-1.5 text-xs font-semibold text-slate-600";
 
 function Card({ children, className = "" }) {
-  return <section className={`rounded-2xl border border-sky-100 bg-white p-4 shadow-sm sm:p-5 ${className}`}>{children}</section>;
+  return (
+    <section
+      className={`rounded-2xl border border-sky-100 bg-white p-4 shadow-sm sm:p-5 ${className}`}
+    >
+      {children}
+    </section>
+  );
 }
 
 function Button({ children, className = "", variant = "primary", ...props }) {
   const styles = {
     primary: "bg-sky-600 text-white hover:bg-sky-700 focus:ring-sky-200",
-    secondary: "border border-sky-200 bg-white text-sky-700 hover:bg-sky-50 focus:ring-sky-100",
-    danger: "border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 focus:ring-rose-100",
+    secondary:
+      "border border-sky-200 bg-white text-sky-700 hover:bg-sky-50 focus:ring-sky-100",
+    danger:
+      "border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 focus:ring-rose-100",
     quiet: "text-slate-600 hover:bg-slate-100 focus:ring-slate-100",
   };
-  return <button className={`rounded-xl px-3 py-2 text-sm font-semibold transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]} ${className}`} {...props}>{children}</button>;
+  return (
+    <button
+      className={`rounded-xl px-3 py-2 text-sm font-semibold transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]} ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
 }
 
 function Status({ status }) {
-  const styles = status === "COMPLETED" ? "bg-emerald-50 text-emerald-700" : status === "CANCELLED" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700";
-  return <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${styles}`}>{status}</span>;
+  const styles =
+    status === "COMPLETED"
+      ? "bg-emerald-50 text-emerald-700"
+      : status === "CANCELLED"
+        ? "bg-rose-50 text-rose-700"
+        : "bg-amber-50 text-amber-700";
+  return (
+    <span
+      className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${styles}`}
+    >
+      {status}
+    </span>
+  );
 }
 
 function Heading({ eyebrow, title, description, action }) {
-  return <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">{eyebrow}</p><h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{title}</h1>{description && <p className="mt-1 text-sm text-slate-500">{description}</p>}</div>{action}</div>;
+  return (
+    <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">
+          {eyebrow}
+        </p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+          {title}
+        </h1>
+        {description && (
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        )}
+      </div>
+      {action}
+    </div>
+  );
 }
 
 function Empty({ children }) {
-  return <div className="rounded-xl border border-dashed border-sky-200 bg-sky-50/50 p-5 text-center text-sm text-slate-500">{children}</div>;
+  return (
+    <div className="rounded-xl border border-dashed border-sky-200 bg-sky-50/50 p-5 text-center text-sm text-slate-500">
+      {children}
+    </div>
+  );
 }
 
 function OrdersPage({ orders, onUpdate }) {
-  return <div className="space-y-5"><Heading eyebrow="Order management" title="รายการขายและออเดอร์" description="ติดตามสถานะออเดอร์ทั้งหมดจากจุดเดียว" /><div className="grid gap-4 xl:grid-cols-2">{orders.length ? orders.map((order) => <article className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm" key={order.id}><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-bold text-slate-900">#{order.order_no}</p><p className="mt-1 text-sm text-slate-500">{order.channel_name}</p></div><Status status={order.status} /></div><p className="mt-3 line-clamp-2 text-sm text-slate-600">{order.items || "ไม่มีรายการสินค้า"}</p><div className="mt-4 flex flex-wrap items-center justify-between gap-3"><strong className="text-lg text-sky-700">{money(order.net_revenue)}</strong>{order.status === "COOKING" ? <div className="flex gap-2"><Button className="text-xs" onClick={() => onUpdate(order.id, "COMPLETED")}>เสร็จสิ้น</Button><Button className="text-xs" variant="danger" onClick={() => onUpdate(order.id, "CANCELLED")}>ยกเลิก</Button></div> : <span className="text-xs text-slate-400">ไม่มีการดำเนินการ</span>}</div></article>) : <Empty>ยังไม่มีออเดอร์</Empty>}</div></div>;
+  return (
+    <div className="space-y-5">
+      <Heading
+        eyebrow="Order management"
+        title="รายการขายและออเดอร์"
+        description="ติดตามสถานะออเดอร์ทั้งหมดจากจุดเดียว"
+      />
+      <div className="grid gap-4 xl:grid-cols-2">
+        {orders.length ? (
+          orders.map((order) => (
+            <article
+              className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm"
+              key={order.id}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="font-bold text-slate-900">#{order.order_no}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {order.channel_name}
+                  </p>
+                  {order.customer_phone && (
+                    <p className="mt-1 text-xs text-slate-400">
+                      {order.customer_name || order.customer_nickname || "ลูกค้า"} · {maskPhone(order.customer_phone)}
+                    </p>
+                  )}
+                </div>
+                <Status status={order.status} />
+              </div>
+              <p className="mt-3 line-clamp-2 text-sm text-slate-600">
+                {order.items || "ไม่มีรายการสินค้า"}
+              </p>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <strong className="text-lg text-sky-700">
+                  {money(order.net_revenue)}
+                </strong>
+                {order.status === "COOKING" ? (
+                  <div className="flex gap-2">
+                    <Button
+                      className="text-xs"
+                      onClick={() => onUpdate(order.id, "COMPLETED")}
+                    >
+                      เสร็จสิ้น
+                    </Button>
+                    <Button
+                      className="text-xs"
+                      variant="danger"
+                      onClick={() => onUpdate(order.id, "CANCELLED")}
+                    >
+                      ยกเลิก
+                    </Button>
+                  </div>
+                ) : (
+                  <span className="text-xs text-slate-400">
+                    ไม่มีการดำเนินการ
+                  </span>
+                )}
+              </div>
+            </article>
+          ))
+        ) : (
+          <Empty>ยังไม่มีออเดอร์</Empty>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function PosPage({ channels, products, onAdd }) {
   const [channelId, setChannelId] = useState(channels[0]?.id || "");
   const [cart, setCart] = useState([]);
-  const total = useMemo(() => cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0), [cart]);
-  const addItem = (product) => setCart((current) => { const found = current.find((item) => item.product_id === product.id); return found ? current.map((item) => item.product_id === product.id ? { ...item, qty: item.qty + 1 } : item) : [...current, { product_id: product.id, name: product.name, price: Number(product.price_retail || 0), qty: 1 }]; });
-  const changeQty = (id, qty) => setCart((current) => current.map((item) => item.product_id === id ? { ...item, qty: Math.max(1, Number(qty) || 1) } : item));
-  const submit = () => { if (!cart.length) return; const channel = channels.find((item) => String(item.id) === String(channelId)); onAdd({ channel_id: Number(channelId), channel_name: channel?.name, total, items: cart.map(({ product_id, qty, price }) => ({ product_id, qty, price })) }); setCart([]); };
-  return <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]"><div><Heading eyebrow="Point of sale" title="เปิดรายการขาย" description="เลือกช่องทางและเมนู แล้วส่งออเดอร์ได้ทันที" /><Card><fieldset><legend className="mb-3 text-sm font-bold text-slate-800">ช่องทางการขาย</legend><div className="grid gap-2 sm:grid-cols-2">{channels.map((channel) => <label className={`flex cursor-pointer items-center justify-between rounded-xl border px-3 py-3 transition ${String(channel.id) === String(channelId) ? "border-sky-500 bg-sky-50" : "border-sky-100 hover:border-sky-300"}`} key={channel.id}><span className="text-sm font-semibold text-slate-700">{channel.name}</span><input className="h-4 w-4 accent-sky-600" type="radio" name="channel" checked={String(channel.id) === String(channelId)} onChange={() => setChannelId(channel.id)} /></label>)}</div></fieldset></Card><Card className="mt-5"><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-slate-900">เมนูขาย</h2><span className="text-sm text-slate-500">{products.length} รายการ</span></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{products.map((product) => <button className="min-w-0 rounded-2xl border border-sky-100 bg-sky-50/40 p-4 text-left transition hover:border-sky-400 hover:bg-sky-50 focus:outline-none focus:ring-4 focus:ring-sky-100" key={product.id} onClick={() => addItem(product)}><span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-lg shadow-sm">{product.icon || "▦"}</span><p className="mt-3 truncate font-bold text-slate-800">{product.name}</p><p className="mt-1 text-sm font-semibold text-sky-700">{money(product.price_retail)}</p></button>)}</div></Card></div><aside className="xl:sticky xl:top-5 xl:self-start"><Card><div className="flex items-center justify-between"><h2 className="text-lg font-bold text-slate-900">ตะกร้าสินค้า</h2><span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700">{cart.length} รายการ</span></div><div className="my-4 space-y-3">{cart.length ? cart.map((item) => <div className="rounded-xl border border-sky-100 p-3" key={item.product_id}><div className="flex gap-3"><div className="min-w-0 flex-1"><p className="truncate font-semibold text-slate-800">{item.name}</p><p className="text-sm text-sky-700">{money(item.price)}</p></div><Button className="px-2 py-1 text-xs" variant="danger" onClick={() => setCart((current) => current.filter((row) => row.product_id !== item.product_id))}>ลบ</Button></div><label className="mt-2 grid gap-1 text-xs font-medium text-slate-500">จำนวน<input className={inputClass} type="number" min="1" value={item.qty} onChange={(event) => changeQty(item.product_id, event.target.value)} /></label></div>) : <Empty>เลือกเมนูจากรายการด้านซ้าย</Empty>}</div><div className="border-t border-sky-100 pt-4"><div className="mb-4 flex items-center justify-between"><span className="font-semibold text-slate-600">ยอดรวม</span><strong className="text-2xl text-sky-700">{money(total)}</strong></div><Button className="w-full" disabled={!cart.length} onClick={submit}>ยืนยันออเดอร์</Button></div></Card></aside></div>;
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const total = useMemo(
+    () =>
+      cart.reduce(
+        (sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0),
+        0,
+      ),
+    [cart],
+  );
+  const addItem = (product) =>
+    setCart((current) => {
+      const found = current.find((item) => item.product_id === product.id);
+      return found
+        ? current.map((item) =>
+            item.product_id === product.id
+              ? { ...item, qty: item.qty + 1 }
+              : item,
+          )
+        : [
+            ...current,
+            {
+              product_id: product.id,
+              name: product.name,
+              price: Number(product.price_retail || 0),
+              qty: 1,
+            },
+          ];
+    });
+  const changeQty = (id, qty) =>
+    setCart((current) =>
+      current.map((item) =>
+        item.product_id === id
+          ? { ...item, qty: Math.max(1, Number(qty) || 1) }
+          : item,
+      ),
+    );
+  const submit = async () => {
+    if (!cart.length) return;
+    const channel = channels.find(
+      (item) => String(item.id) === String(channelId),
+    );
+    const saved = await onAdd({
+      channel_id: Number(channelId),
+      channel_name: channel?.name,
+      total,
+      customer_name: customerName.trim(),
+      customer_nickname: customerName.trim(),
+      customer_phone: customerPhone.trim(),
+      items: cart.map(({ product_id, qty, price }) => ({
+        product_id,
+        qty,
+        price,
+      })),
+    });
+    if (saved) {
+      setCart([]);
+      setCustomerName("");
+      setCustomerPhone("");
+    }
+  };
+  return (
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div>
+        <Heading
+          eyebrow="Point of sale"
+          title="เปิดรายการขาย"
+          description="เลือกช่องทางและเมนู แล้วส่งออเดอร์ได้ทันที"
+        />
+        <Card>
+          <fieldset>
+            <legend className="mb-3 text-sm font-bold text-slate-800">
+              ช่องทางการขาย
+            </legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {channels.map((channel) => (
+                <label
+                  className={`flex cursor-pointer items-center justify-between rounded-xl border px-3 py-3 transition ${String(channel.id) === String(channelId) ? "border-sky-500 bg-sky-50" : "border-sky-100 hover:border-sky-300"}`}
+                  key={channel.id}
+                >
+                  <span className="text-sm font-semibold text-slate-700">
+                    {channel.name}
+                  </span>
+                  <input
+                    className="h-4 w-4 accent-sky-600"
+                    type="radio"
+                    name="channel"
+                    checked={String(channel.id) === String(channelId)}
+                    onChange={() => setChannelId(channel.id)}
+                  />
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </Card>
+        <Card className="mt-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-slate-900">เมนูขาย</h2>
+            <span className="text-sm text-slate-500">
+              {products.length} รายการ
+            </span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {products.map((product) => (
+              <button
+                className="min-w-0 rounded-2xl border border-sky-100 bg-sky-50/40 p-4 text-left transition hover:border-sky-400 hover:bg-sky-50 focus:outline-none focus:ring-4 focus:ring-sky-100"
+                key={product.id}
+                onClick={() => addItem(product)}
+              >
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-lg shadow-sm">
+                  {product.icon || "▦"}
+                </span>
+                <p className="mt-3 truncate font-bold text-slate-800">
+                  {product.name}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-sky-700">
+                  {money(product.price_retail)}
+                </p>
+              </button>
+            ))}
+          </div>
+        </Card>
+      </div>
+      <aside className="xl:sticky xl:top-5 xl:self-start">
+        <Card>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-slate-900">ตะกร้าสินค้า</h2>
+            <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700">
+              {cart.length} รายการ
+            </span>
+          </div>
+          <div className="my-4 space-y-3">
+            {cart.length ? (
+              cart.map((item) => (
+                <div
+                  className="rounded-xl border border-sky-100 p-3"
+                  key={item.product_id}
+                >
+                  <div className="flex gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-slate-800">
+                        {item.name}
+                      </p>
+                      <p className="text-sm text-sky-700">
+                        {money(item.price)}
+                      </p>
+                    </div>
+                    <Button
+                      className="px-2 py-1 text-xs"
+                      variant="danger"
+                      onClick={() =>
+                        setCart((current) =>
+                          current.filter(
+                            (row) => row.product_id !== item.product_id,
+                          ),
+                        )
+                      }
+                    >
+                      ลบ
+                    </Button>
+                  </div>
+                  <label className="mt-2 grid gap-1 text-xs font-medium text-slate-500">
+                    จำนวน
+                    <input
+                      className={inputClass}
+                      type="number"
+                      min="1"
+                      value={item.qty}
+                      onChange={(event) =>
+                        changeQty(item.product_id, event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+              ))
+            ) : (
+              <Empty>เลือกเมนูจากรายการด้านซ้าย</Empty>
+            )}
+          </div>
+          <div className="space-y-3 border-t border-sky-100 pt-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <label className={labelClass}>
+                ชื่อลูกค้า <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+                <input
+                  className={inputClass}
+                  autoComplete="name"
+                  maxLength="120"
+                  value={customerName}
+                  onChange={(event) => setCustomerName(event.target.value)}
+                  placeholder="เช่น นัท"
+                />
+              </label>
+              <label className={labelClass}>
+                เบอร์โทรศัพท์ <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+                <input
+                  className={inputClass}
+                  inputMode="tel"
+                  autoComplete="tel"
+                  maxLength="20"
+                  value={customerPhone}
+                  onChange={(event) => setCustomerPhone(event.target.value)}
+                  placeholder="เช่น 0812345678"
+                />
+              </label>
+            </div>
+            <div className="mb-4 flex items-center justify-between">
+              <span className="font-semibold text-slate-600">ยอดรวม</span>
+              <strong className="text-2xl text-sky-700">{money(total)}</strong>
+            </div>
+            <Button className="w-full" disabled={!cart.length} onClick={submit}>
+              ยืนยันออเดอร์
+            </Button>
+          </div>
+        </Card>
+      </aside>
+    </div>
+  );
 }
 
 function IngredientsPage({ rows, onCreate, onUpdate, onDelete, onRestock }) {
-  const initial = { name: "", unit: "", stock_qty: "", cost_per_unit: "", min_stock_alert: "", expiry_date: "" };
+  const initial = {
+    name: "",
+    unit: "",
+    stock_qty: "",
+    cost_per_unit: "",
+    min_stock_alert: "",
+    expiry_date: "",
+  };
   const [form, setForm] = useState(initial);
   const [editingId, setEditingId] = useState(null);
-  const save = async (event) => { event.preventDefault(); const saved = editingId ? await onUpdate(editingId, form) : await onCreate(form); if (saved) { setForm(initial); setEditingId(null); } };
-  const edit = (item) => { setEditingId(item.id); setForm({ name: item.name || "", unit: item.unit || "", stock_qty: item.stock_qty ?? item.stock ?? "", cost_per_unit: item.cost_per_unit || "", min_stock_alert: item.min_stock_alert || "", expiry_date: String(item.expiry_date || "").slice(0, 10) }); };
-  const updateField = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
-  return <div className="space-y-5"><Heading eyebrow="Inventory" title="วัตถุดิบ" description="เพิ่ม แก้ไข และติดตามสต็อกวัตถุดิบ" action={<Button variant="secondary" onClick={() => { setForm(initial); setEditingId(null); }}>+ เพิ่มวัตถุดิบ</Button>} /><div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]"><Card><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-slate-900">รายการวัตถุดิบ</h2><span className="text-sm text-slate-500">{rows.length} รายการ</span></div><div className="space-y-3">{rows.length ? rows.map((item) => { const qty = Number(item.stock_qty ?? item.stock ?? 0); const low = item.is_low_stock || item.level === "low" || (item.min_stock_alert && qty <= Number(item.min_stock_alert)); return <article className="flex flex-col gap-3 rounded-2xl border border-sky-100 p-4 sm:flex-row sm:items-center" key={item.id || item.code}><span className={`h-3 w-3 rounded-full ${low ? "bg-amber-400" : "bg-emerald-400"}`} /><div className="min-w-0 flex-1"><p className="truncate font-bold text-slate-800">{item.name}</p><p className="mt-1 text-sm text-slate-500">คงเหลือ {qty} {item.unit || "หน่วย"}{item.expiry_date && ` · หมดอายุ ${String(item.expiry_date).slice(0, 10)}`}</p></div><div className="flex flex-wrap gap-2"><Button className="text-xs" variant="secondary" onClick={() => onRestock(item)}>เติมสต็อก</Button><Button className="text-xs" variant="secondary" onClick={() => edit(item)}>แก้ไข</Button><Button className="text-xs" variant="danger" onClick={() => onDelete(item)}>ลบ</Button></div></article>; }) : <Empty>ยังไม่มีวัตถุดิบ</Empty>}</div></Card><aside className="order-first xl:order-none xl:sticky xl:top-5 xl:self-start"><Card><h2 className="text-lg font-bold text-slate-900">{editingId ? "แก้ไขวัตถุดิบ" : "เพิ่มวัตถุดิบ"}</h2><p className="mt-1 text-sm text-slate-500">กรอกข้อมูลให้ครบเพื่อบันทึกเข้าคลัง</p><form className="mt-5 grid gap-4" onSubmit={save}><label className={labelClass}>ชื่อวัตถุดิบ<input className={inputClass} value={form.name} onChange={updateField("name")} placeholder="เช่น นมสด" required /></label><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1"><label className={labelClass}>หน่วยนับ<input className={inputClass} value={form.unit} onChange={updateField("unit")} placeholder="เช่น ขวด" required /></label><label className={labelClass}>จำนวนคงเหลือ<input className={inputClass} type="number" min="0" value={form.stock_qty} onChange={updateField("stock_qty")} required /></label><label className={labelClass}>ต้นทุนต่อหน่วย<input className={inputClass} type="number" min="0" step="0.01" value={form.cost_per_unit} onChange={updateField("cost_per_unit")} /></label><label className={labelClass}>แจ้งเตือนเมื่อเหลือ<input className={inputClass} type="number" min="0" value={form.min_stock_alert} onChange={updateField("min_stock_alert")} /></label></div><label className={labelClass}>วันหมดอายุ<input className={inputClass} type="date" value={form.expiry_date} onChange={updateField("expiry_date")} /></label><div className="flex gap-2"><Button className="flex-1" type="submit">{editingId ? "บันทึกการแก้ไข" : "เพิ่มวัตถุดิบ"}</Button>{editingId && <Button type="button" variant="secondary" onClick={() => { setForm(initial); setEditingId(null); }}>ยกเลิก</Button>}</div></form></Card></aside></div></div>;
+  const save = async (event) => {
+    event.preventDefault();
+    const saved = editingId
+      ? await onUpdate(editingId, form)
+      : await onCreate(form);
+    if (saved) {
+      setForm(initial);
+      setEditingId(null);
+    }
+  };
+  const edit = (item) => {
+    setEditingId(item.id);
+    setForm({
+      name: item.name || "",
+      unit: item.unit || "",
+      stock_qty: item.stock_qty ?? item.stock ?? "",
+      cost_per_unit: item.cost_per_unit || "",
+      min_stock_alert: item.min_stock_alert || "",
+      expiry_date: String(item.expiry_date || "").slice(0, 10),
+    });
+  };
+  const updateField = (field) => (event) =>
+    setForm((current) => ({ ...current, [field]: event.target.value }));
+  return (
+    <div className="space-y-5">
+      <Heading
+        eyebrow="Inventory"
+        title="วัตถุดิบ"
+        description="เพิ่ม แก้ไข และติดตามสต็อกวัตถุดิบ"
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => exportInventory(rows)}>
+              ↓ Export Excel
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setForm(initial);
+                setEditingId(null);
+              }}
+            >
+              + เพิ่มวัตถุดิบ
+            </Button>
+          </div>
+        }
+      />
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
+        <Card>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-slate-900">รายการวัตถุดิบ</h2>
+            <span className="text-sm text-slate-500">{rows.length} รายการ</span>
+          </div>
+          <div className="space-y-3">
+            {rows.length ? (
+              rows.map((item) => {
+                const qty = Number(item.stock_qty ?? item.stock ?? 0);
+                const low =
+                  item.is_low_stock ||
+                  item.level === "low" ||
+                  (item.min_stock_alert && qty <= Number(item.min_stock_alert));
+                return (
+                  <article
+                    className="flex flex-col gap-3 rounded-2xl border border-sky-100 p-4 sm:flex-row sm:items-center"
+                    key={item.id || item.code}
+                  >
+                    <span
+                      className={`h-3 w-3 rounded-full ${low ? "bg-amber-400" : "bg-emerald-400"}`}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-bold text-slate-800">
+                        {item.name}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        คงเหลือ {qty} {item.unit || "หน่วย"}
+                        {item.expiry_date &&
+                          ` · หมดอายุ ${String(item.expiry_date).slice(0, 10)}`}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        className="text-xs"
+                        variant="secondary"
+                        onClick={() => onRestock(item)}
+                      >
+                        เติมสต็อก
+                      </Button>
+                      <Button
+                        className="text-xs"
+                        variant="secondary"
+                        onClick={() => edit(item)}
+                      >
+                        แก้ไข
+                      </Button>
+                      <Button
+                        className="text-xs"
+                        variant="danger"
+                        onClick={() => onDelete(item)}
+                      >
+                        ลบ
+                      </Button>
+                    </div>
+                  </article>
+                );
+              })
+            ) : (
+              <Empty>ยังไม่มีวัตถุดิบ</Empty>
+            )}
+          </div>
+        </Card>
+        <aside className="order-first xl:order-none xl:sticky xl:top-5 xl:self-start">
+          <Card>
+            <h2 className="text-lg font-bold text-slate-900">
+              {editingId ? "แก้ไขวัตถุดิบ" : "เพิ่มวัตถุดิบ"}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              กรอกข้อมูลให้ครบเพื่อบันทึกเข้าคลัง
+            </p>
+            <form className="mt-5 grid gap-4" onSubmit={save}>
+              <label className={labelClass}>
+                ชื่อวัตถุดิบ
+                <input
+                  className={inputClass}
+                  value={form.name}
+                  onChange={updateField("name")}
+                  placeholder="เช่น นมสด"
+                  required
+                />
+              </label>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                <label className={labelClass}>
+                  หน่วยนับ
+                  <input
+                    className={inputClass}
+                    value={form.unit}
+                    onChange={updateField("unit")}
+                    placeholder="เช่น ขวด"
+                    required
+                  />
+                </label>
+                <label className={labelClass}>
+                  จำนวนคงเหลือ
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    value={form.stock_qty}
+                    onChange={updateField("stock_qty")}
+                    required
+                  />
+                </label>
+                <label className={labelClass}>
+                  ต้นทุนต่อหน่วย
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.cost_per_unit}
+                    onChange={updateField("cost_per_unit")}
+                  />
+                </label>
+                <label className={labelClass}>
+                  แจ้งเตือนเมื่อเหลือ
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    value={form.min_stock_alert}
+                    onChange={updateField("min_stock_alert")}
+                  />
+                </label>
+              </div>
+              <label className={labelClass}>
+                วันหมดอายุ
+                <input
+                  className={inputClass}
+                  type="date"
+                  value={form.expiry_date}
+                  onChange={updateField("expiry_date")}
+                />
+              </label>
+              <div className="flex gap-2">
+                <Button className="flex-1" type="submit">
+                  {editingId ? "บันทึกการแก้ไข" : "เพิ่มวัตถุดิบ"}
+                </Button>
+                {editingId && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      setForm(initial);
+                      setEditingId(null);
+                    }}
+                  >
+                    ยกเลิก
+                  </Button>
+                )}
+              </div>
+            </form>
+          </Card>
+        </aside>
+      </div>
+    </div>
+  );
 }
 
 function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete }) {
-  const initial = { name: "", category: "", price_retail: "", price_wholesale: "", recipe: [] };
+  const initial = {
+    name: "",
+    category: "",
+    price_retail: "",
+    price_wholesale: "",
+    recipe: [],
+  };
   const [form, setForm] = useState(initial);
   const [editingId, setEditingId] = useState(null);
-  const addRecipe = () => setForm((current) => ({ ...current, recipe: [...current.recipe, { ingredient_id: ingredients[0]?.id || "", quantity_used: 1 }] }));
-  const updateRecipe = (index, field, value) => setForm((current) => ({ ...current, recipe: current.recipe.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
-  const save = async (event) => { event.preventDefault(); if (!form.recipe.length) return window.alert("กรุณาเลือกวัตถุดิบอย่างน้อย 1 รายการ"); const saved = editingId ? await onUpdate(editingId, form) : await onCreate(form); if (saved) { setForm(initial); setEditingId(null); } };
-  const edit = (product) => { setEditingId(product.id); setForm({ name: product.name || "", category: product.category || "", price_retail: product.price_retail || "", price_wholesale: product.price_wholesale || "", recipe: (product.recipe || []).map((item) => ({ ingredient_id: item.ingredient_id, quantity_used: item.quantity_used })) }); };
-  return <div className="space-y-5"><Heading eyebrow="Catalog" title="เมนูสินค้า" description="จัดการเมนูขายและสูตรวัตถุดิบ แยกจากหน้าคลังสินค้า" action={<Button variant="secondary" onClick={() => { setForm(initial); setEditingId(null); }}>+ เพิ่มเมนู</Button>} /><div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]"><Card><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-slate-900">รายการเมนู</h2><span className="text-sm text-slate-500">{products.length} รายการ</span></div><div className="grid gap-3 sm:grid-cols-2">{products.length ? products.map((product) => <article className="rounded-2xl border border-sky-100 p-4" key={product.id}><div className="flex items-start justify-between gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl bg-sky-50 text-xl">{product.icon || "▦"}</span><strong className="text-sky-700">{money(product.price_retail)}</strong></div><h3 className="mt-4 truncate font-bold text-slate-900">{product.name}</h3><p className="mt-1 text-sm text-slate-500">{product.category || "ไม่มีหมวดหมู่"}</p><p className="mt-2 text-xs text-slate-500">สูตร {product.recipe?.length || 0} วัตถุดิบ</p><div className="mt-4 flex gap-2"><Button className="flex-1 text-xs" variant="secondary" onClick={() => edit(product)}>แก้ไข</Button><Button className="text-xs" variant="danger" onClick={() => onDelete(product)}>ลบ</Button></div></article>) : <Empty>ยังไม่มีเมนูสินค้า</Empty>}</div></Card><aside className="order-first xl:order-none xl:sticky xl:top-5 xl:self-start"><Card><h2 className="text-lg font-bold text-slate-900">{editingId ? "แก้ไขเมนู" : "เพิ่มเมนู"}</h2><form className="mt-5 grid gap-4" onSubmit={save}><label className={labelClass}>ชื่อเมนู<input className={inputClass} value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="เช่น ชานมไข่มุก" required /></label><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1"><label className={labelClass}>หมวดหมู่<input className={inputClass} value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} placeholder="เช่น เครื่องดื่ม" /></label><label className={labelClass}>ราคาขาย<input className={inputClass} type="number" min="0" step="0.01" value={form.price_retail} onChange={(event) => setForm((current) => ({ ...current, price_retail: event.target.value }))} required /></label><label className={labelClass}>ราคาส่ง<input className={inputClass} type="number" min="0" step="0.01" value={form.price_wholesale} onChange={(event) => setForm((current) => ({ ...current, price_wholesale: event.target.value }))} /></label></div><div className="rounded-xl border border-sky-100 bg-sky-50/60 p-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-bold text-slate-700">สูตรวัตถุดิบ</p><Button className="text-xs" type="button" variant="secondary" onClick={addRecipe}>+ เพิ่ม</Button></div><div className="mt-3 space-y-3">{form.recipe.map((item, index) => <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_100px_auto]" key={index}><select className={inputClass} value={item.ingredient_id} onChange={(event) => updateRecipe(index, "ingredient_id", event.target.value)} required><option value="">เลือกวัตถุดิบ</option>{ingredients.map((ingredient) => <option value={ingredient.id} key={ingredient.id}>{ingredient.name} ({ingredient.unit})</option>)}</select><input className={inputClass} type="number" min="0.01" step="0.01" value={item.quantity_used} onChange={(event) => updateRecipe(index, "quantity_used", event.target.value)} required /><Button className="sm:px-2" type="button" variant="danger" onClick={() => setForm((current) => ({ ...current, recipe: current.recipe.filter((_, itemIndex) => itemIndex !== index) }))}>ลบ</Button></div>)}{!form.recipe.length && <p className="text-sm text-slate-500">กด “เพิ่ม” เพื่อระบุวัตถุดิบ</p>}</div></div><div className="flex gap-2"><Button className="flex-1" type="submit">{editingId ? "บันทึกการแก้ไข" : "เพิ่มเมนู"}</Button>{editingId && <Button type="button" variant="secondary" onClick={() => { setForm(initial); setEditingId(null); }}>ยกเลิก</Button>}</div></form></Card></aside></div></div>;
-}
-
-function LegacyFinancePage({ metrics, expenses, expenseRows, orders, channels, products, onCreateExpense, onUpdateExpense, onDeleteExpense, onCreateSales, onUpdateSales, onDeleteSales }) {
-  const newSales = () => ({ order_no: `MAN-${Date.now()}`, channel_id: channels[0]?.id || "", status: "COMPLETED", items: [{ product_id: products[0]?.id || "", qty: 1, price: products[0]?.price_retail || "" }] });
-  const [sales, setSales] = useState(newSales);
-  const [salesEditingId, setSalesEditingId] = useState(null);
-  const [expense, setExpense] = useState({ amount: "", category: "OPERATING_EXPENSE", description: "" });
-  const [expenseEditingId, setExpenseEditingId] = useState(null);
-  const statCards = [["ยอดขายรวม", metrics.gross], ["ยอดสุทธิ", metrics.net], ["ต้นทุนสินค้า", metrics.cogs], ["ค่าใช้จ่าย", expenses], ["กำไรสุทธิ", metrics.profit]];
-  const updateSalesItem = (index, field, value) => setSales((current) => ({ ...current, items: current.items.map((item, itemIndex) => { if (itemIndex !== index) return item; if (field === "product_id") { const product = products.find((row) => String(row.id) === String(value)); return { ...item, product_id: value, price: product?.price_retail ?? item.price }; } return { ...item, [field]: value }; }) }));
-  const saveSales = async (event) => { event.preventDefault(); const record = { ...sales, channel_id: Number(sales.channel_id), items: sales.items.map((item) => ({ product_id: Number(item.product_id), qty: Number(item.qty), price: Number(item.price) })) }; const saved = salesEditingId ? await onUpdateSales(salesEditingId, record) : await onCreateSales(record); if (saved) { setSalesEditingId(null); setSales(newSales()); } };
-  const editSales = (order) => { const rawItems = order.rawItems || []; if (!rawItems.length) return; setSalesEditingId(order.id); setSales({ order_no: order.order_no, channel_id: order.channel_id, status: order.status === "CANCELLED" ? "COMPLETED" : order.status, items: rawItems.map((item) => ({ product_id: item.product_id, qty: item.quantity ?? item.qty, price: item.unit_price ?? item.price })) }); };
-  const saveExpense = async (event) => { event.preventDefault(); const saved = expenseEditingId ? await onUpdateExpense(expenseEditingId, expense.amount, expense.category, expense.description) : await onCreateExpense(expense.amount, expense.category, expense.description); if (saved) { setExpense({ amount: "", category: "OPERATING_EXPENSE", description: "" }); setExpenseEditingId(null); } };
-  return <div className="space-y-5"><Heading eyebrow="Finance" title="การเงินและบันทึกยอดขาย" description="ติดตามยอดขาย เพิ่มรายการขาย และจัดการค่าใช้จ่าย" /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{statCards.map(([label, value]) => <Card className="p-4" key={label}><p className="text-xs font-semibold text-slate-500">{label}</p><strong className="mt-2 block text-xl text-sky-700">{money(value)}</strong></Card>)}</div><div className="grid gap-5 2xl:grid-cols-2"><Card><h2 className="text-lg font-bold text-slate-900">{salesEditingId ? "แก้ไขรายการขาย" : "เพิ่มรายการขาย"}</h2><form className="mt-4 grid gap-4" onSubmit={saveSales}><div className="grid gap-3 sm:grid-cols-3"><label className={labelClass}>เลขที่ออเดอร์<input className={inputClass} value={sales.order_no} onChange={(event) => setSales((current) => ({ ...current, order_no: event.target.value }))} required /></label><label className={labelClass}>ช่องทาง<select className={inputClass} value={sales.channel_id} onChange={(event) => setSales((current) => ({ ...current, channel_id: event.target.value }))}>{channels.map((channel) => <option value={channel.id} key={channel.id}>{channel.name}</option>)}</select></label><label className={labelClass}>สถานะ<select className={inputClass} value={sales.status} onChange={(event) => setSales((current) => ({ ...current, status: event.target.value }))}><option value="COMPLETED">สำเร็จ</option><option value="COOKING">กำลังดำเนินการ</option></select></label></div><div className="space-y-3">{sales.items.map((item, index) => <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_92px_120px_auto]" key={index}><select className={inputClass} value={item.product_id} onChange={(event) => updateSalesItem(index, "product_id", event.target.value)} required>{products.map((product) => <option value={product.id} key={product.id}>{product.name}</option>)}</select><input className={inputClass} type="number" min="1" value={item.qty} onChange={(event) => updateSalesItem(index, "qty", event.target.value)} required /><input className={inputClass} type="number" min="0" step="0.01" value={item.price} onChange={(event) => updateSalesItem(index, "price", event.target.value)} required />{sales.items.length > 1 && <Button type="button" variant="danger" onClick={() => setSales((current) => ({ ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) }))}>ลบ</Button>}</div>)}</div><div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => setSales((current) => ({ ...current, items: [...current.items, { product_id: products[0]?.id || "", qty: 1, price: products[0]?.price_retail || "" }] }))}>+ เพิ่มสินค้า</Button><Button type="submit">{salesEditingId ? "บันทึกรายการ" : "เพิ่มยอดขาย"}</Button>{salesEditingId && <Button type="button" variant="secondary" onClick={() => { setSalesEditingId(null); setSales(newSales()); }}>ยกเลิก</Button>}</div></form></Card><Card><h2 className="text-lg font-bold text-slate-900">{expenseEditingId ? "แก้ไขค่าใช้จ่าย" : "เพิ่มค่าใช้จ่าย"}</h2><form className="mt-4 grid gap-4" onSubmit={saveExpense}><div className="grid gap-3 sm:grid-cols-2"><label className={labelClass}>จำนวนเงิน<input className={inputClass} type="number" min="0.01" step="0.01" value={expense.amount} onChange={(event) => setExpense((current) => ({ ...current, amount: event.target.value }))} required /></label><label className={labelClass}>ประเภท<select className={inputClass} value={expense.category} onChange={(event) => setExpense((current) => ({ ...current, category: event.target.value }))}><option value="OPERATING_EXPENSE">ค่าใช้จ่ายดำเนินงาน</option><option value="DELIVERY_COST">ค่าขนส่ง</option></select></label></div><label className={labelClass}>รายละเอียด<textarea className={`${inputClass} min-h-24 resize-y`} value={expense.description} onChange={(event) => setExpense((current) => ({ ...current, description: event.target.value }))} placeholder="เช่น ค่าขนส่งวัตถุดิบ" /></label><div className="flex gap-2"><Button type="submit">{expenseEditingId ? "บันทึกการแก้ไข" : "เพิ่มค่าใช้จ่าย"}</Button>{expenseEditingId && <Button type="button" variant="secondary" onClick={() => { setExpenseEditingId(null); setExpense({ amount: "", category: "OPERATING_EXPENSE", description: "" }); }}>ยกเลิก</Button>}</div></form></Card></div><div className="grid gap-5 xl:grid-cols-2"><Card><h2 className="text-lg font-bold text-slate-900">Sales records</h2><div className="mt-4 space-y-3">{orders.length ? orders.map((order) => <div className="flex flex-col gap-3 rounded-xl border border-sky-100 p-3 sm:flex-row sm:items-center" key={order.id}><div className="min-w-0 flex-1"><p className="font-bold text-slate-800">#{order.order_no} · <span className="text-sky-700">{money(order.net_revenue)}</span></p><p className="mt-1 truncate text-sm text-slate-500">{order.channel_name} · {order.items}</p></div><div className="flex items-center gap-2"><Status status={order.status} />{order.rawItems?.length > 0 && <Button className="text-xs" variant="secondary" onClick={() => editSales(order)}>แก้ไข</Button>}<Button className="text-xs" variant="danger" onClick={() => onDeleteSales(order)}>ลบ</Button></div></div>) : <Empty>ยังไม่มีรายการขาย</Empty>}</div></Card><Card><h2 className="text-lg font-bold text-slate-900">Expense ledger</h2><div className="mt-4 space-y-3">{expenseRows.length ? expenseRows.map((item) => <div className="flex flex-col gap-3 rounded-xl border border-sky-100 p-3 sm:flex-row sm:items-center" key={item.id}><div className="min-w-0 flex-1"><p className="font-bold text-slate-800">{money(item.amount)}</p><p className="text-sm text-slate-500">{item.category === "DELIVERY_COST" ? "ค่าขนส่ง" : "ค่าใช้จ่ายดำเนินงาน"}{item.description ? ` · ${item.description}` : ""}</p></div><div className="flex gap-2"><Button className="text-xs" variant="secondary" onClick={() => { setExpenseEditingId(item.id); setExpense({ amount: item.amount, category: item.category, description: item.description || "" }); }}>แก้ไข</Button><Button className="text-xs" variant="danger" onClick={() => onDeleteExpense(item)}>ลบ</Button></div></div>) : <Empty>ยังไม่มีรายการค่าใช้จ่าย</Empty>}</div></Card></div></div>;
-}
-
-const bangkokDate = (value = new Date()) => {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
-  const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
-};
-
-const todayInBangkok = () => bangkokDate(new Date());
-const dateLabel = (date) => new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${date}T00:00:00Z`));
-const rowMatchesDate = (row, selectedDate) => !row?.created_at ? selectedDate === todayInBangkok() : bangkokDate(row.created_at) === selectedDate;
-
-function FinancePage({ expenseRows, orders, channels, products, onCreateExpense, onUpdateExpense, onDeleteExpense, onCreateSales, onUpdateSales, onDeleteSales }) {
-  const [selectedDate, setSelectedDate] = useState(todayInBangkok);
-  const newSales = () => ({ order_no: `MAN-${Date.now()}`, channel_id: channels[0]?.id || "", status: "COMPLETED", items: [{ product_id: products[0]?.id || "", qty: 1, price: products[0]?.price_retail || "" }] });
-  const [sales, setSales] = useState(newSales);
-  const [salesEditingId, setSalesEditingId] = useState(null);
-  const [expense, setExpense] = useState({ amount: "", category: "OPERATING_EXPENSE", description: "" });
-  const [expenseEditingId, setExpenseEditingId] = useState(null);
-  const filteredOrders = useMemo(() => orders.filter((order) => rowMatchesDate(order, selectedDate)), [orders, selectedDate]);
-  const filteredExpenses = useMemo(() => expenseRows.filter((item) => rowMatchesDate(item, selectedDate)), [expenseRows, selectedDate]);
-  const summary = useMemo(() => {
-    const salesTotals = filteredOrders.reduce((totals, order) => ({
-      gross: totals.gross + Number(order.gross_amount ?? order.net_revenue ?? 0),
-      net: totals.net + Number(order.net_revenue || 0),
-      cogs: totals.cogs + Number(order.total_cogs || 0),
-      profit: totals.profit + Number(order.net_profit ?? order.net_revenue ?? 0),
-    }), { gross: 0, net: 0, cogs: 0, profit: 0 });
-    const expenseTotal = filteredExpenses.reduce((total, item) => total + Number(item.amount || 0), 0);
-    return { ...salesTotals, expenses: expenseTotal, profit: salesTotals.profit - expenseTotal };
-  }, [filteredExpenses, filteredOrders]);
-  const statCards = [["ยอดขายรวม", summary.gross], ["ยอดสุทธิ", summary.net], ["ต้นทุนสินค้า", summary.cogs], ["ค่าใช้จ่าย", summary.expenses], ["กำไรสุทธิ", summary.profit]];
-  const updateSalesItem = (index, field, value) => setSales((current) => ({ ...current, items: current.items.map((item, itemIndex) => {
-    if (itemIndex !== index) return item;
-    if (field === "product_id") {
-      const product = products.find((row) => String(row.id) === String(value));
-      return { ...item, product_id: value, price: product?.price_retail ?? item.price };
+  const addRecipe = () =>
+    setForm((current) => ({
+      ...current,
+      recipe: [
+        ...current.recipe,
+        { ingredient_id: ingredients[0]?.id || "", quantity_used: 1 },
+      ],
+    }));
+  const updateRecipe = (index, field, value) =>
+    setForm((current) => ({
+      ...current,
+      recipe: current.recipe.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item,
+      ),
+    }));
+  const save = async (event) => {
+    event.preventDefault();
+    if (!form.recipe.length)
+      return window.alert("กรุณาเลือกวัตถุดิบอย่างน้อย 1 รายการ");
+    const saved = editingId
+      ? await onUpdate(editingId, form)
+      : await onCreate(form);
+    if (saved) {
+      setForm(initial);
+      setEditingId(null);
     }
-    return { ...item, [field]: value };
-  }) }));
+  };
+  const edit = (product) => {
+    setEditingId(product.id);
+    setForm({
+      name: product.name || "",
+      category: product.category || "",
+      price_retail: product.price_retail || "",
+      price_wholesale: product.price_wholesale || "",
+      recipe: (product.recipe || []).map((item) => ({
+        ingredient_id: item.ingredient_id,
+        quantity_used: item.quantity_used,
+      })),
+    });
+  };
+  return (
+    <div className="space-y-5">
+      <Heading
+        eyebrow="Catalog"
+        title="เมนูสินค้า"
+        description="จัดการเมนูขายและสูตรวัตถุดิบ แยกจากหน้าคลังสินค้า"
+        action={
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setForm(initial);
+              setEditingId(null);
+            }}
+          >
+            + เพิ่มเมนู
+          </Button>
+        }
+      />
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
+        <Card>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-slate-900">รายการเมนู</h2>
+            <span className="text-sm text-slate-500">
+              {products.length} รายการ
+            </span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {products.length ? (
+              products.map((product) => (
+                <article
+                  className="rounded-2xl border border-sky-100 p-4"
+                  key={product.id}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="grid h-11 w-11 place-items-center rounded-xl bg-sky-50 text-xl">
+                      {product.icon || "▦"}
+                    </span>
+                    <strong className="text-sky-700">
+                      {money(product.price_retail)}
+                    </strong>
+                  </div>
+                  <h3 className="mt-4 truncate font-bold text-slate-900">
+                    {product.name}
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {product.category || "ไม่มีหมวดหมู่"}
+                  </p>
+                  <p className="mt-2 text-xs text-slate-500">
+                    สูตร {product.recipe?.length || 0} วัตถุดิบ
+                  </p>
+                  <div className="mt-4 flex gap-2">
+                    <Button
+                      className="flex-1 text-xs"
+                      variant="secondary"
+                      onClick={() => edit(product)}
+                    >
+                      แก้ไข
+                    </Button>
+                    <Button
+                      className="text-xs"
+                      variant="danger"
+                      onClick={() => onDelete(product)}
+                    >
+                      ลบ
+                    </Button>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <Empty>ยังไม่มีเมนูสินค้า</Empty>
+            )}
+          </div>
+        </Card>
+        <aside className="order-first xl:order-none xl:sticky xl:top-5 xl:self-start">
+          <Card>
+            <h2 className="text-lg font-bold text-slate-900">
+              {editingId ? "แก้ไขเมนู" : "เพิ่มเมนู"}
+            </h2>
+            <form className="mt-5 grid gap-4" onSubmit={save}>
+              <label className={labelClass}>
+                ชื่อเมนู
+                <input
+                  className={inputClass}
+                  value={form.name}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      name: event.target.value,
+                    }))
+                  }
+                  placeholder="เช่น ชานมไข่มุก"
+                  required
+                />
+              </label>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                <label className={labelClass}>
+                  หมวดหมู่
+                  <input
+                    className={inputClass}
+                    value={form.category}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        category: event.target.value,
+                      }))
+                    }
+                    placeholder="เช่น เครื่องดื่ม"
+                  />
+                </label>
+                <label className={labelClass}>
+                  ราคาขาย
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.price_retail}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        price_retail: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </label>
+                <label className={labelClass}>
+                  ราคาส่ง
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.price_wholesale}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        price_wholesale: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+              <div className="rounded-xl border border-sky-100 bg-sky-50/60 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-bold text-slate-700">
+                    สูตรวัตถุดิบ
+                  </p>
+                  <Button
+                    className="text-xs"
+                    type="button"
+                    variant="secondary"
+                    onClick={addRecipe}
+                  >
+                    + เพิ่ม
+                  </Button>
+                </div>
+                <div className="mt-3 space-y-3">
+                  {form.recipe.map((item, index) => (
+                    <div
+                      className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_100px_auto]"
+                      key={index}
+                    >
+                      <select
+                        className={inputClass}
+                        value={item.ingredient_id}
+                        onChange={(event) =>
+                          updateRecipe(
+                            index,
+                            "ingredient_id",
+                            event.target.value,
+                          )
+                        }
+                        required
+                      >
+                        <option value="">เลือกวัตถุดิบ</option>
+                        {ingredients.map((ingredient) => (
+                          <option value={ingredient.id} key={ingredient.id}>
+                            {ingredient.name} ({ingredient.unit})
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        className={inputClass}
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={item.quantity_used}
+                        onChange={(event) =>
+                          updateRecipe(
+                            index,
+                            "quantity_used",
+                            event.target.value,
+                          )
+                        }
+                        required
+                      />
+                      <Button
+                        className="sm:px-2"
+                        type="button"
+                        variant="danger"
+                        onClick={() =>
+                          setForm((current) => ({
+                            ...current,
+                            recipe: current.recipe.filter(
+                              (_, itemIndex) => itemIndex !== index,
+                            ),
+                          }))
+                        }
+                      >
+                        ลบ
+                      </Button>
+                    </div>
+                  ))}
+                  {!form.recipe.length && (
+                    <p className="text-sm text-slate-500">
+                      กด “เพิ่ม” เพื่อระบุวัตถุดิบ
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button className="flex-1" type="submit">
+                  {editingId ? "บันทึกการแก้ไข" : "เพิ่มเมนู"}
+                </Button>
+                {editingId && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      setForm(initial);
+                      setEditingId(null);
+                    }}
+                  >
+                    ยกเลิก
+                  </Button>
+                )}
+              </div>
+            </form>
+          </Card>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function LegacyFinancePage({
+  metrics,
+  expenses,
+  expenseRows,
+  orders,
+  channels,
+  products,
+  onCreateExpense,
+  onUpdateExpense,
+  onDeleteExpense,
+  onCreateSales,
+  onUpdateSales,
+  onDeleteSales,
+}) {
+  const newSales = () => ({
+    order_no: `MAN-${Date.now()}`,
+    channel_id: channels[0]?.id || "",
+    status: "COMPLETED",
+    items: [
+      {
+        product_id: products[0]?.id || "",
+        qty: 1,
+        price: products[0]?.price_retail || "",
+      },
+    ],
+  });
+  const [sales, setSales] = useState(newSales);
+  const [salesEditingId, setSalesEditingId] = useState(null);
+  const [expense, setExpense] = useState({
+    amount: "",
+    category: "OPERATING_EXPENSE",
+    description: "",
+  });
+  const [expenseEditingId, setExpenseEditingId] = useState(null);
+  const statCards = [
+    ["ยอดขายรวม", metrics.gross],
+    ["ยอดสุทธิ", metrics.net],
+    ["ต้นทุนสินค้า", metrics.cogs],
+    ["ค่าใช้จ่าย", expenses],
+    ["กำไรสุทธิ", metrics.profit],
+  ];
+  const updateSalesItem = (index, field, value) =>
+    setSales((current) => ({
+      ...current,
+      items: current.items.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+        if (field === "product_id") {
+          const product = products.find(
+            (row) => String(row.id) === String(value),
+          );
+          return {
+            ...item,
+            product_id: value,
+            price: product?.price_retail ?? item.price,
+          };
+        }
+        return { ...item, [field]: value };
+      }),
+    }));
   const saveSales = async (event) => {
     event.preventDefault();
-    const record = { ...sales, record_date: selectedDate, channel_id: Number(sales.channel_id), items: sales.items.map((item) => ({ product_id: Number(item.product_id), qty: Number(item.qty), price: Number(item.price) })) };
-    const saved = salesEditingId ? await onUpdateSales(salesEditingId, record) : await onCreateSales(record);
-    if (saved) { setSalesEditingId(null); setSales(newSales()); }
+    const record = {
+      ...sales,
+      channel_id: Number(sales.channel_id),
+      items: sales.items.map((item) => ({
+        product_id: Number(item.product_id),
+        qty: Number(item.qty),
+        price: Number(item.price),
+      })),
+    };
+    const saved = salesEditingId
+      ? await onUpdateSales(salesEditingId, record)
+      : await onCreateSales(record);
+    if (saved) {
+      setSalesEditingId(null);
+      setSales(newSales());
+    }
   };
   const editSales = (order) => {
     const rawItems = order.rawItems || [];
     if (!rawItems.length) return;
     setSalesEditingId(order.id);
-    setSales({ order_no: order.order_no, channel_id: order.channel_id, status: order.status === "CANCELLED" ? "COMPLETED" : order.status, items: rawItems.map((item) => ({ product_id: item.product_id, qty: item.quantity ?? item.qty, price: item.unit_price ?? item.price })) });
+    setSales({
+      order_no: order.order_no,
+      channel_id: order.channel_id,
+      status: order.status === "CANCELLED" ? "COMPLETED" : order.status,
+      items: rawItems.map((item) => ({
+        product_id: item.product_id,
+        qty: item.quantity ?? item.qty,
+        price: item.unit_price ?? item.price,
+      })),
+    });
   };
   const saveExpense = async (event) => {
     event.preventDefault();
     const saved = expenseEditingId
-      ? await onUpdateExpense(expenseEditingId, expense.amount, expense.category, expense.description, selectedDate)
-      : await onCreateExpense(expense.amount, expense.category, expense.description, selectedDate);
-    if (saved) { setExpense({ amount: "", category: "OPERATING_EXPENSE", description: "" }); setExpenseEditingId(null); }
+      ? await onUpdateExpense(
+          expenseEditingId,
+          expense.amount,
+          expense.category,
+          expense.description,
+        )
+      : await onCreateExpense(
+          expense.amount,
+          expense.category,
+          expense.description,
+        );
+    if (saved) {
+      setExpense({
+        amount: "",
+        category: "OPERATING_EXPENSE",
+        description: "",
+      });
+      setExpenseEditingId(null);
+    }
   };
-  const resetSales = () => { setSalesEditingId(null); setSales(newSales()); };
-  const resetExpense = () => { setExpenseEditingId(null); setExpense({ amount: "", category: "OPERATING_EXPENSE", description: "" }); };
-  return <div className="space-y-5">
-    <Heading eyebrow="Finance" title="การเงินและบันทึกยอดขาย" description={`รายการและยอดสรุปของวันที่ ${dateLabel(selectedDate)}`} action={<div className="flex items-end gap-2"><label className={labelClass}>กรองวันที่<input className={inputClass} type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value || todayInBangkok())} /></label><Button type="button" variant="secondary" onClick={() => setSelectedDate(todayInBangkok())}>วันนี้</Button></div>} />
-    <Card className="border-sky-200 bg-sky-50/60 p-4"><p className="text-sm font-semibold text-sky-900">เพิ่มรายการขายและค่าใช้จ่ายจะบันทึกเป็นวันที่ <span className="font-bold">{dateLabel(selectedDate)}</span></p><p className="mt-1 text-xs text-sky-700">หากไม่ได้เลือกวันที่ ระบบจะใช้วันปัจจุบันอัตโนมัติ</p></Card>
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{statCards.map(([label, value]) => <Card className="p-4" key={label}><p className="text-xs font-semibold text-slate-500">{label}</p><strong className="mt-2 block text-xl text-sky-700">{money(value)}</strong></Card>)}</div>
-    <div className="grid gap-5 2xl:grid-cols-2">
-      <Card><h2 className="text-lg font-bold text-slate-900">{salesEditingId ? "แก้ไขรายการขาย" : "เพิ่มรายการขาย"}</h2><p className="mt-1 text-sm text-slate-500">บันทึกในวันที่ {dateLabel(selectedDate)}</p><form className="mt-4 grid gap-4" onSubmit={saveSales}><div className="grid gap-3 sm:grid-cols-3"><label className={labelClass}>เลขที่ออเดอร์<input className={inputClass} value={sales.order_no} onChange={(event) => setSales((current) => ({ ...current, order_no: event.target.value }))} required /></label><label className={labelClass}>ช่องทาง<select className={inputClass} value={sales.channel_id} onChange={(event) => setSales((current) => ({ ...current, channel_id: event.target.value }))}>{channels.map((channel) => <option value={channel.id} key={channel.id}>{channel.name}</option>)}</select></label><label className={labelClass}>สถานะ<select className={inputClass} value={sales.status} onChange={(event) => setSales((current) => ({ ...current, status: event.target.value }))}><option value="COMPLETED">สำเร็จ</option><option value="COOKING">กำลังดำเนินการ</option></select></label></div><div className="space-y-3">{sales.items.map((item, index) => <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_92px_120px_auto]" key={index}><select className={inputClass} aria-label="สินค้า" value={item.product_id} onChange={(event) => updateSalesItem(index, "product_id", event.target.value)} required>{products.map((product) => <option value={product.id} key={product.id}>{product.name}</option>)}</select><input className={inputClass} aria-label="จำนวน" type="number" min="1" value={item.qty} onChange={(event) => updateSalesItem(index, "qty", event.target.value)} required /><input className={inputClass} aria-label="ราคา" type="number" min="0" step="0.01" value={item.price} onChange={(event) => updateSalesItem(index, "price", event.target.value)} required />{sales.items.length > 1 && <Button type="button" variant="danger" onClick={() => setSales((current) => ({ ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) }))}>ลบ</Button>}</div>)}</div><div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => setSales((current) => ({ ...current, items: [...current.items, { product_id: products[0]?.id || "", qty: 1, price: products[0]?.price_retail || "" }] }))}>+ เพิ่มสินค้า</Button><Button type="submit">{salesEditingId ? "บันทึกการแก้ไข" : "เพิ่มยอดขาย"}</Button>{salesEditingId && <Button type="button" variant="secondary" onClick={resetSales}>ยกเลิก</Button>}</div></form></Card>
-      <Card><h2 className="text-lg font-bold text-slate-900">{expenseEditingId ? "แก้ไขค่าใช้จ่าย" : "เพิ่มค่าใช้จ่าย"}</h2><p className="mt-1 text-sm text-slate-500">บันทึกในวันที่ {dateLabel(selectedDate)}</p><form className="mt-4 grid gap-4" onSubmit={saveExpense}><div className="grid gap-3 sm:grid-cols-2"><label className={labelClass}>จำนวนเงิน<input className={inputClass} type="number" min="0.01" step="0.01" value={expense.amount} onChange={(event) => setExpense((current) => ({ ...current, amount: event.target.value }))} required /></label><label className={labelClass}>ประเภท<select className={inputClass} value={expense.category} onChange={(event) => setExpense((current) => ({ ...current, category: event.target.value }))}><option value="OPERATING_EXPENSE">ค่าใช้จ่ายดำเนินงาน</option><option value="DELIVERY_COST">ค่าขนส่ง</option></select></label></div><label className={labelClass}>รายละเอียด<textarea className={`${inputClass} min-h-24 resize-y`} value={expense.description} onChange={(event) => setExpense((current) => ({ ...current, description: event.target.value }))} placeholder="เช่น ค่าขนส่งวัตถุดิบ" /></label><div className="flex gap-2"><Button type="submit">{expenseEditingId ? "บันทึกการแก้ไข" : "เพิ่มค่าใช้จ่าย"}</Button>{expenseEditingId && <Button type="button" variant="secondary" onClick={resetExpense}>ยกเลิก</Button>}</div></form></Card>
+  return (
+    <div className="space-y-5">
+      <Heading
+        eyebrow="Finance"
+        title="การเงินและบันทึกยอดขาย"
+        description="ติดตามยอดขาย เพิ่มรายการขาย และจัดการค่าใช้จ่าย"
+      />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {statCards.map(([label, value]) => (
+          <Card className="p-4" key={label}>
+            <p className="text-xs font-semibold text-slate-500">{label}</p>
+            <strong className="mt-2 block text-xl text-sky-700">
+              {money(value)}
+            </strong>
+          </Card>
+        ))}
+      </div>
+      <div className="grid gap-5 2xl:grid-cols-2">
+        <Card>
+          <h2 className="text-lg font-bold text-slate-900">
+            {salesEditingId ? "แก้ไขรายการขาย" : "เพิ่มรายการขาย"}
+          </h2>
+          <form className="mt-4 grid gap-4" onSubmit={saveSales}>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className={labelClass}>
+                เลขที่ออเดอร์
+                <input
+                  className={inputClass}
+                  value={sales.order_no}
+                  onChange={(event) =>
+                    setSales((current) => ({
+                      ...current,
+                      order_no: event.target.value,
+                    }))
+                  }
+                  required
+                />
+              </label>
+              <label className={labelClass}>
+                ช่องทาง
+                <select
+                  className={inputClass}
+                  value={sales.channel_id}
+                  onChange={(event) =>
+                    setSales((current) => ({
+                      ...current,
+                      channel_id: event.target.value,
+                    }))
+                  }
+                >
+                  {channels.map((channel) => (
+                    <option value={channel.id} key={channel.id}>
+                      {channel.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={labelClass}>
+                สถานะ
+                <select
+                  className={inputClass}
+                  value={sales.status}
+                  onChange={(event) =>
+                    setSales((current) => ({
+                      ...current,
+                      status: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="COMPLETED">สำเร็จ</option>
+                  <option value="COOKING">กำลังดำเนินการ</option>
+                </select>
+              </label>
+            </div>
+            <div className="space-y-3">
+              {sales.items.map((item, index) => (
+                <div
+                  className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_92px_120px_auto]"
+                  key={index}
+                >
+                  <select
+                    className={inputClass}
+                    value={item.product_id}
+                    onChange={(event) =>
+                      updateSalesItem(index, "product_id", event.target.value)
+                    }
+                    required
+                  >
+                    {products.map((product) => (
+                      <option value={product.id} key={product.id}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min="1"
+                    value={item.qty}
+                    onChange={(event) =>
+                      updateSalesItem(index, "qty", event.target.value)
+                    }
+                    required
+                  />
+                  <input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={item.price}
+                    onChange={(event) =>
+                      updateSalesItem(index, "price", event.target.value)
+                    }
+                    required
+                  />
+                  {sales.items.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="danger"
+                      onClick={() =>
+                        setSales((current) => ({
+                          ...current,
+                          items: current.items.filter(
+                            (_, itemIndex) => itemIndex !== index,
+                          ),
+                        }))
+                      }
+                    >
+                      ลบ
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  setSales((current) => ({
+                    ...current,
+                    items: [
+                      ...current.items,
+                      {
+                        product_id: products[0]?.id || "",
+                        qty: 1,
+                        price: products[0]?.price_retail || "",
+                      },
+                    ],
+                  }))
+                }
+              >
+                + เพิ่มสินค้า
+              </Button>
+              <Button type="submit">
+                {salesEditingId ? "บันทึกรายการ" : "เพิ่มยอดขาย"}
+              </Button>
+              {salesEditingId && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setSalesEditingId(null);
+                    setSales(newSales());
+                  }}
+                >
+                  ยกเลิก
+                </Button>
+              )}
+            </div>
+          </form>
+        </Card>
+        <Card>
+          <h2 className="text-lg font-bold text-slate-900">
+            {expenseEditingId ? "แก้ไขค่าใช้จ่าย" : "เพิ่มค่าใช้จ่าย"}
+          </h2>
+          <form className="mt-4 grid gap-4" onSubmit={saveExpense}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className={labelClass}>
+                จำนวนเงิน
+                <input
+                  className={inputClass}
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={expense.amount}
+                  onChange={(event) =>
+                    setExpense((current) => ({
+                      ...current,
+                      amount: event.target.value,
+                    }))
+                  }
+                  required
+                />
+              </label>
+              <label className={labelClass}>
+                ประเภท
+                <select
+                  className={inputClass}
+                  value={expense.category}
+                  onChange={(event) =>
+                    setExpense((current) => ({
+                      ...current,
+                      category: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="OPERATING_EXPENSE">ค่าใช้จ่ายดำเนินงาน</option>
+                  <option value="DELIVERY_COST">ค่าขนส่ง</option>
+                </select>
+              </label>
+            </div>
+            <label className={labelClass}>
+              รายละเอียด
+              <textarea
+                className={`${inputClass} min-h-24 resize-y`}
+                value={expense.description}
+                onChange={(event) =>
+                  setExpense((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+                placeholder="เช่น ค่าขนส่งวัตถุดิบ"
+              />
+            </label>
+            <div className="flex gap-2">
+              <Button type="submit">
+                {expenseEditingId ? "บันทึกการแก้ไข" : "เพิ่มค่าใช้จ่าย"}
+              </Button>
+              {expenseEditingId && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setExpenseEditingId(null);
+                    setExpense({
+                      amount: "",
+                      category: "OPERATING_EXPENSE",
+                      description: "",
+                    });
+                  }}
+                >
+                  ยกเลิก
+                </Button>
+              )}
+            </div>
+          </form>
+        </Card>
+      </div>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Card>
+          <h2 className="text-lg font-bold text-slate-900">Sales records</h2>
+          <div className="mt-4 space-y-3">
+            {orders.length ? (
+              orders.map((order) => (
+                <div
+                  className="flex flex-col gap-3 rounded-xl border border-sky-100 p-3 sm:flex-row sm:items-center"
+                  key={order.id}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-slate-800">
+                      #{order.order_no} ·{" "}
+                      <span className="text-sky-700">
+                        {money(order.net_revenue)}
+                      </span>
+                    </p>
+                    <p className="mt-1 truncate text-sm text-slate-500">
+                      {order.channel_name} · {order.items}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Status status={order.status} />
+                    {order.rawItems?.length > 0 && (
+                      <Button
+                        className="text-xs"
+                        variant="secondary"
+                        onClick={() => editSales(order)}
+                      >
+                        แก้ไข
+                      </Button>
+                    )}
+                    <Button
+                      className="text-xs"
+                      variant="danger"
+                      onClick={() => onDeleteSales(order)}
+                    >
+                      ลบ
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <Empty>ยังไม่มีรายการขาย</Empty>
+            )}
+          </div>
+        </Card>
+        <Card>
+          <h2 className="text-lg font-bold text-slate-900">Expense ledger</h2>
+          <div className="mt-4 space-y-3">
+            {expenseRows.length ? (
+              expenseRows.map((item) => (
+                <div
+                  className="flex flex-col gap-3 rounded-xl border border-sky-100 p-3 sm:flex-row sm:items-center"
+                  key={item.id}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-slate-800">
+                      {money(item.amount)}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {item.category === "DELIVERY_COST"
+                        ? "ค่าขนส่ง"
+                        : "ค่าใช้จ่ายดำเนินงาน"}
+                      {item.description ? ` · ${item.description}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      className="text-xs"
+                      variant="secondary"
+                      onClick={() => {
+                        setExpenseEditingId(item.id);
+                        setExpense({
+                          amount: item.amount,
+                          category: item.category,
+                          description: item.description || "",
+                        });
+                      }}
+                    >
+                      แก้ไข
+                    </Button>
+                    <Button
+                      className="text-xs"
+                      variant="danger"
+                      onClick={() => onDeleteExpense(item)}
+                    >
+                      ลบ
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <Empty>ยังไม่มีรายการค่าใช้จ่าย</Empty>
+            )}
+          </div>
+        </Card>
+      </div>
     </div>
-    <div className="grid gap-5 xl:grid-cols-2">
-      <Card><div className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold text-slate-900">รายการขาย</h2><span className="text-sm text-slate-500">{filteredOrders.length} รายการ</span></div><div className="mt-4 space-y-3">{filteredOrders.length ? filteredOrders.map((order) => <div className="flex flex-col gap-3 rounded-xl border border-sky-100 p-3 sm:flex-row sm:items-center" key={order.id}><div className="min-w-0 flex-1"><p className="font-bold text-slate-800">#{order.order_no} · <span className="text-sky-700">{money(order.net_revenue)}</span></p><p className="mt-1 truncate text-sm text-slate-500">{order.channel_name} · {order.items}</p></div><div className="flex flex-wrap items-center gap-2"><Status status={order.status} />{order.rawItems?.length > 0 && <Button className="text-xs" variant="secondary" onClick={() => editSales(order)}>แก้ไข</Button>}<Button className="text-xs" variant="danger" onClick={() => onDeleteSales(order)}>ลบ</Button></div></div>) : <Empty>ยังไม่มีรายการขายในวันนี้ที่เลือก</Empty>}</div></Card>
-      <Card><div className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold text-slate-900">รายการค่าใช้จ่าย</h2><span className="text-sm text-slate-500">{filteredExpenses.length} รายการ</span></div><div className="mt-4 space-y-3">{filteredExpenses.length ? filteredExpenses.map((item) => <div className="flex flex-col gap-3 rounded-xl border border-sky-100 p-3 sm:flex-row sm:items-center" key={item.id}><div className="min-w-0 flex-1"><p className="font-bold text-slate-800">{money(item.amount)}</p><p className="text-sm text-slate-500">{item.category === "DELIVERY_COST" ? "ค่าขนส่ง" : "ค่าใช้จ่ายดำเนินงาน"}{item.description ? ` · ${item.description}` : ""}</p></div><div className="flex gap-2"><Button className="text-xs" variant="secondary" onClick={() => { setExpenseEditingId(item.id); setExpense({ amount: item.amount, category: item.category, description: item.description || "" }); }}>แก้ไข</Button><Button className="text-xs" variant="danger" onClick={() => onDeleteExpense(item)}>ลบ</Button></div></div>) : <Empty>ยังไม่มีรายการค่าใช้จ่ายในวันที่เลือก</Empty>}</div></Card>
-    </div>
-  </div>;
+  );
 }
 
-export default function GlassLayout({ activeView, setActiveView, orders, channels, products, inventoryRows, metrics, expenses, expenseRows, notice, onAdd, onUpdate, onRestock, onCreateInventory, onUpdateInventory, onDeleteInventory, onCreateMenu, onUpdateMenu, onDeleteMenu, onCreateExpense, onUpdateExpense, onDeleteExpense, onCreateSales, onUpdateSales, onDeleteSales }) {
-  const content = activeView === "inventory" ? <IngredientsPage rows={inventoryRows} onCreate={onCreateInventory} onUpdate={onUpdateInventory} onDelete={onDeleteInventory} onRestock={onRestock} /> : activeView === "menu" ? <MenusPage products={products} ingredients={inventoryRows} onCreate={onCreateMenu} onUpdate={onUpdateMenu} onDelete={onDeleteMenu} /> : activeView === "finance" ? <FinancePage metrics={metrics} expenses={expenses} expenseRows={expenseRows} orders={orders} channels={channels} products={products} onCreateExpense={onCreateExpense} onUpdateExpense={onUpdateExpense} onDeleteExpense={onDeleteExpense} onCreateSales={onCreateSales} onUpdateSales={onUpdateSales} onDeleteSales={onDeleteSales} /> : <div className="space-y-5"><OrdersPage orders={orders} onUpdate={onUpdate} /><PosPage channels={channels} products={products} onAdd={onAdd} /></div>;
-  return <div className="min-h-screen bg-sky-50 text-slate-800"><aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sky-100 bg-white px-4 py-6 lg:flex"><div className="flex items-center gap-3 px-2"><span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-600 text-lg font-black text-white">S</span><div><p className="font-bold tracking-wide text-slate-900">STOCKPOS</p><p className="text-xs text-sky-600">Management</p></div></div><nav className="mt-10 grid gap-2">{navigation.map((item) => <button className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${activeView === item.id ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`} key={item.id} onClick={() => setActiveView(item.id)}><span className="w-5 text-center">{item.icon}</span>{item.label}</button>)}</nav><div className="mt-auto rounded-2xl bg-sky-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-sky-600">ระบบเชื่อมต่อ</p><p className="mt-2 text-sm font-semibold text-slate-700">● ออนไลน์</p><p className="mt-1 text-xs text-slate-500">{notice}</p></div></aside><header className="sticky top-0 z-20 border-b border-sky-100 bg-white/95 px-4 py-3 backdrop-blur lg:hidden"><div className="flex items-center gap-2"><span className="grid h-9 w-9 place-items-center rounded-xl bg-sky-600 font-black text-white">S</span><strong className="text-slate-900">STOCKPOS</strong></div><nav className="mt-3 flex gap-2 overflow-x-auto pb-1">{navigation.map((item) => <button className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold ${activeView === item.id ? "bg-sky-600 text-white" : "bg-sky-50 text-sky-700"}`} key={item.id} onClick={() => setActiveView(item.id)}>{item.icon} {item.label}</button>)}</nav></header><main className="mx-auto w-full max-w-[1600px] p-4 pb-10 sm:p-6 lg:ml-64 lg:w-[calc(100%-16rem)] lg:p-8">{content}</main></div>;
+const bangkokDate = (value = new Date()) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
+const todayInBangkok = () => bangkokDate(new Date());
+const dateLabel = (date) =>
+  new Intl.DateTimeFormat("th-TH", {
+    timeZone: "Asia/Bangkok",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(`${date}T00:00:00Z`));
+const rowMatchesDate = (row, selectedDate) =>
+  !row?.created_at
+    ? selectedDate === todayInBangkok()
+    : bangkokDate(row.created_at) === selectedDate;
+const inventoryIsLow = (item) => {
+  const quantity = Number(item.stock_qty ?? item.stock ?? 0);
+  return (
+    item.is_low_stock ||
+    item.level === "low" ||
+    (item.min_stock_alert && quantity <= Number(item.min_stock_alert))
+  );
+};
+
+const exportInventory = (rows) =>
+  exportExcel({
+    filename: `stockpos-inventory-${todayInBangkok()}.xlsx`,
+    sheets: [
+      {
+        name: "วัตถุดิบ",
+        columns: [
+          { key: "id", label: "รหัส" },
+          { key: "name", label: "ชื่อวัตถุดิบ" },
+          { key: "unit", label: "หน่วย" },
+          { key: "quantity", label: "จำนวนคงเหลือ" },
+          { key: "cost", label: "ต้นทุนต่อหน่วย" },
+          { key: "value", label: "มูลค่าคงเหลือ" },
+          { key: "minimum", label: "แจ้งเตือนเมื่อเหลือ" },
+          { key: "status", label: "สถานะ" },
+          { key: "expiry", label: "วันหมดอายุ" },
+        ],
+        rows: rows.map((item) => {
+          const quantity = Number(item.stock_qty ?? item.stock ?? 0);
+          const cost = Number(item.cost_per_unit || 0);
+          return {
+            id: item.id ?? item.code ?? "",
+            name: item.name || "",
+            unit: item.unit || "",
+            quantity,
+            cost,
+            value: quantity * cost,
+            minimum: Number(item.min_stock_alert || 0),
+            status: inventoryIsLow(item) ? "ใกล้หมด" : "ปกติ",
+            expiry: String(item.expiry_date || "").slice(0, 10),
+          };
+        }),
+      },
+    ],
+  });
+
+const exportFinance = ({ selectedDate, orders, expenses, summary }) =>
+  exportExcel({
+    filename: `stockpos-finance-${selectedDate}.xlsx`,
+    sheets: [
+      {
+        name: "สรุปการเงิน",
+        columns: [
+          { key: "label", label: "รายการ" },
+          { key: "value", label: "จำนวนเงิน / ค่า" },
+        ],
+        rows: [
+          { label: "วันที่", value: selectedDate },
+          { label: "จำนวนรายการขาย", value: orders.length },
+          { label: "ยอดขายรวม", value: summary.gross },
+          { label: "ยอดสุทธิ", value: summary.net },
+          { label: "ต้นทุนสินค้า", value: summary.cogs },
+          { label: "ค่าใช้จ่าย", value: summary.expenses },
+          { label: "กำไรสุทธิ", value: summary.profit },
+        ],
+      },
+      {
+        name: "รายการขาย",
+        columns: [
+          { key: "date", label: "วันที่" },
+          { key: "orderNo", label: "เลขที่ออเดอร์" },
+          { key: "channel", label: "ช่องทาง" },
+          { key: "status", label: "สถานะ" },
+          { key: "items", label: "รายการสินค้า" },
+          { key: "gross", label: "ยอดขายรวม" },
+          { key: "net", label: "ยอดสุทธิ" },
+          { key: "cogs", label: "ต้นทุนสินค้า" },
+          { key: "profit", label: "กำไร" },
+        ],
+        rows: orders.map((order) => ({
+          date: bangkokDate(order.created_at) || selectedDate,
+          orderNo: order.order_no || "",
+          channel: order.channel_name || "",
+          status: order.status || "",
+          items: order.items || "",
+          gross: Number(order.gross_amount ?? order.net_revenue ?? 0),
+          net: Number(order.net_revenue || 0),
+          cogs: Number(order.total_cogs || 0),
+          profit: Number(order.net_profit ?? order.net_revenue ?? 0),
+        })),
+      },
+      {
+        name: "ค่าใช้จ่าย",
+        columns: [
+          { key: "date", label: "วันที่" },
+          { key: "category", label: "ประเภท" },
+          { key: "description", label: "รายละเอียด" },
+          { key: "amount", label: "จำนวนเงิน" },
+        ],
+        rows: expenses.map((item) => ({
+          date: bangkokDate(item.created_at) || selectedDate,
+          category:
+            item.category === "DELIVERY_COST"
+              ? "ค่าขนส่ง"
+              : "ค่าใช้จ่ายดำเนินงาน",
+          description: item.description || "",
+          amount: Number(item.amount || 0),
+        })),
+      },
+    ],
+  });
+
+function FinancePage({
+  expenseRows,
+  orders,
+  channels,
+  products,
+  onCreateExpense,
+  onUpdateExpense,
+  onDeleteExpense,
+  onCreateSales,
+  onUpdateSales,
+  onDeleteSales,
+}) {
+  const [selectedDate, setSelectedDate] = useState(todayInBangkok);
+  const newSales = () => ({
+    order_no: `MAN-${Date.now()}`,
+    channel_id: channels[0]?.id || "",
+    status: "COMPLETED",
+    items: [
+      {
+        product_id: products[0]?.id || "",
+        qty: 1,
+        price: products[0]?.price_retail || "",
+      },
+    ],
+  });
+  const [sales, setSales] = useState(newSales);
+  const [salesEditingId, setSalesEditingId] = useState(null);
+  const [expense, setExpense] = useState({
+    amount: "",
+    category: "OPERATING_EXPENSE",
+    description: "",
+  });
+  const [expenseEditingId, setExpenseEditingId] = useState(null);
+  const filteredOrders = useMemo(
+    () => orders.filter((order) => rowMatchesDate(order, selectedDate)),
+    [orders, selectedDate],
+  );
+  const filteredExpenses = useMemo(
+    () => expenseRows.filter((item) => rowMatchesDate(item, selectedDate)),
+    [expenseRows, selectedDate],
+  );
+  const summary = useMemo(() => {
+    const salesTotals = filteredOrders.reduce(
+      (totals, order) => ({
+        gross:
+          totals.gross + Number(order.gross_amount ?? order.net_revenue ?? 0),
+        net: totals.net + Number(order.net_revenue || 0),
+        cogs: totals.cogs + Number(order.total_cogs || 0),
+        profit:
+          totals.profit + Number(order.net_profit ?? order.net_revenue ?? 0),
+      }),
+      { gross: 0, net: 0, cogs: 0, profit: 0 },
+    );
+    const expenseTotal = filteredExpenses.reduce(
+      (total, item) => total + Number(item.amount || 0),
+      0,
+    );
+    return {
+      ...salesTotals,
+      expenses: expenseTotal,
+      profit: salesTotals.profit - expenseTotal,
+    };
+  }, [filteredExpenses, filteredOrders]);
+  const statCards = [
+    ["ยอดขายรวม", summary.gross],
+    ["ยอดสุทธิ", summary.net],
+    ["ต้นทุนสินค้า", summary.cogs],
+    ["ค่าใช้จ่าย", summary.expenses],
+    ["กำไรสุทธิ", summary.profit],
+  ];
+  const updateSalesItem = (index, field, value) =>
+    setSales((current) => ({
+      ...current,
+      items: current.items.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+        if (field === "product_id") {
+          const product = products.find(
+            (row) => String(row.id) === String(value),
+          );
+          return {
+            ...item,
+            product_id: value,
+            price: product?.price_retail ?? item.price,
+          };
+        }
+        return { ...item, [field]: value };
+      }),
+    }));
+  const saveSales = async (event) => {
+    event.preventDefault();
+    const record = {
+      ...sales,
+      record_date: selectedDate,
+      channel_id: Number(sales.channel_id),
+      items: sales.items.map((item) => ({
+        product_id: Number(item.product_id),
+        qty: Number(item.qty),
+        price: Number(item.price),
+      })),
+    };
+    const saved = salesEditingId
+      ? await onUpdateSales(salesEditingId, record)
+      : await onCreateSales(record);
+    if (saved) {
+      setSalesEditingId(null);
+      setSales(newSales());
+    }
+  };
+  const editSales = (order) => {
+    const rawItems = order.rawItems || [];
+    if (!rawItems.length) return;
+    setSalesEditingId(order.id);
+    setSales({
+      order_no: order.order_no,
+      channel_id: order.channel_id,
+      status: order.status === "CANCELLED" ? "COMPLETED" : order.status,
+      items: rawItems.map((item) => ({
+        product_id: item.product_id,
+        qty: item.quantity ?? item.qty,
+        price: item.unit_price ?? item.price,
+      })),
+    });
+  };
+  const saveExpense = async (event) => {
+    event.preventDefault();
+    const saved = expenseEditingId
+      ? await onUpdateExpense(
+          expenseEditingId,
+          expense.amount,
+          expense.category,
+          expense.description,
+          selectedDate,
+        )
+      : await onCreateExpense(
+          expense.amount,
+          expense.category,
+          expense.description,
+          selectedDate,
+        );
+    if (saved) {
+      setExpense({
+        amount: "",
+        category: "OPERATING_EXPENSE",
+        description: "",
+      });
+      setExpenseEditingId(null);
+    }
+  };
+  const resetSales = () => {
+    setSalesEditingId(null);
+    setSales(newSales());
+  };
+  const resetExpense = () => {
+    setExpenseEditingId(null);
+    setExpense({ amount: "", category: "OPERATING_EXPENSE", description: "" });
+  };
+  return (
+    <div className="space-y-5">
+      <Heading
+        eyebrow="Finance"
+        title="การเงินและบันทึกยอดขาย"
+        description={`รายการและยอดสรุปของวันที่ ${dateLabel(selectedDate)}`}
+        action={
+          <div className="flex flex-wrap items-end gap-2">
+            <label className={labelClass}>
+              กรองวันที่
+              <input
+                className={inputClass}
+                type="date"
+                value={selectedDate}
+                onChange={(event) =>
+                  setSelectedDate(event.target.value || todayInBangkok())
+                }
+              />
+            </label>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setSelectedDate(todayInBangkok())}
+            >
+              วันนี้
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => exportFinance({ selectedDate, orders: filteredOrders, expenses: filteredExpenses, summary })}
+            >
+              ↓ Export Excel
+            </Button>
+          </div>
+        }
+      />
+      <Card className="border-sky-200 bg-sky-50/60 p-4">
+        <p className="text-sm font-semibold text-sky-900">
+          เพิ่มรายการขายและค่าใช้จ่ายจะบันทึกเป็นวันที่{" "}
+          <span className="font-bold">{dateLabel(selectedDate)}</span>
+        </p>
+        <p className="mt-1 text-xs text-sky-700">
+          หากไม่ได้เลือกวันที่ ระบบจะใช้วันปัจจุบันอัตโนมัติ
+        </p>
+      </Card>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {statCards.map(([label, value]) => (
+          <Card className="p-4" key={label}>
+            <p className="text-xs font-semibold text-slate-500">{label}</p>
+            <strong className="mt-2 block text-xl text-sky-700">
+              {money(value)}
+            </strong>
+          </Card>
+        ))}
+      </div>
+      <div className="grid gap-5 2xl:grid-cols-2">
+        <Card>
+          <h2 className="text-lg font-bold text-slate-900">
+            {salesEditingId ? "แก้ไขรายการขาย" : "เพิ่มรายการขาย"}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            บันทึกในวันที่ {dateLabel(selectedDate)}
+          </p>
+          <form className="mt-4 grid gap-4" onSubmit={saveSales}>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className={labelClass}>
+                เลขที่ออเดอร์
+                <input
+                  className={inputClass}
+                  value={sales.order_no}
+                  onChange={(event) =>
+                    setSales((current) => ({
+                      ...current,
+                      order_no: event.target.value,
+                    }))
+                  }
+                  required
+                />
+              </label>
+              <label className={labelClass}>
+                ช่องทาง
+                <select
+                  className={inputClass}
+                  value={sales.channel_id}
+                  onChange={(event) =>
+                    setSales((current) => ({
+                      ...current,
+                      channel_id: event.target.value,
+                    }))
+                  }
+                >
+                  {channels.map((channel) => (
+                    <option value={channel.id} key={channel.id}>
+                      {channel.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={labelClass}>
+                สถานะ
+                <select
+                  className={inputClass}
+                  value={sales.status}
+                  onChange={(event) =>
+                    setSales((current) => ({
+                      ...current,
+                      status: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="COMPLETED">สำเร็จ</option>
+                  <option value="COOKING">กำลังดำเนินการ</option>
+                </select>
+              </label>
+            </div>
+            <div className="space-y-3">
+              {sales.items.map((item, index) => (
+                <div
+                  className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_92px_120px_auto]"
+                  key={index}
+                >
+                  <select
+                    className={inputClass}
+                    aria-label="สินค้า"
+                    value={item.product_id}
+                    onChange={(event) =>
+                      updateSalesItem(index, "product_id", event.target.value)
+                    }
+                    required
+                  >
+                    {products.map((product) => (
+                      <option value={product.id} key={product.id}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    className={inputClass}
+                    aria-label="จำนวน"
+                    type="number"
+                    min="1"
+                    value={item.qty}
+                    onChange={(event) =>
+                      updateSalesItem(index, "qty", event.target.value)
+                    }
+                    required
+                  />
+                  <input
+                    className={inputClass}
+                    aria-label="ราคา"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={item.price}
+                    onChange={(event) =>
+                      updateSalesItem(index, "price", event.target.value)
+                    }
+                    required
+                  />
+                  {sales.items.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="danger"
+                      onClick={() =>
+                        setSales((current) => ({
+                          ...current,
+                          items: current.items.filter(
+                            (_, itemIndex) => itemIndex !== index,
+                          ),
+                        }))
+                      }
+                    >
+                      ลบ
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  setSales((current) => ({
+                    ...current,
+                    items: [
+                      ...current.items,
+                      {
+                        product_id: products[0]?.id || "",
+                        qty: 1,
+                        price: products[0]?.price_retail || "",
+                      },
+                    ],
+                  }))
+                }
+              >
+                + เพิ่มสินค้า
+              </Button>
+              <Button type="submit">
+                {salesEditingId ? "บันทึกการแก้ไข" : "เพิ่มยอดขาย"}
+              </Button>
+              {salesEditingId && (
+                <Button type="button" variant="secondary" onClick={resetSales}>
+                  ยกเลิก
+                </Button>
+              )}
+            </div>
+          </form>
+        </Card>
+        <Card>
+          <h2 className="text-lg font-bold text-slate-900">
+            {expenseEditingId ? "แก้ไขค่าใช้จ่าย" : "เพิ่มค่าใช้จ่าย"}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            บันทึกในวันที่ {dateLabel(selectedDate)}
+          </p>
+          <form className="mt-4 grid gap-4" onSubmit={saveExpense}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className={labelClass}>
+                จำนวนเงิน
+                <input
+                  className={inputClass}
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={expense.amount}
+                  onChange={(event) =>
+                    setExpense((current) => ({
+                      ...current,
+                      amount: event.target.value,
+                    }))
+                  }
+                  required
+                />
+              </label>
+              <label className={labelClass}>
+                ประเภท
+                <select
+                  className={inputClass}
+                  value={expense.category}
+                  onChange={(event) =>
+                    setExpense((current) => ({
+                      ...current,
+                      category: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="OPERATING_EXPENSE">ค่าใช้จ่ายดำเนินงาน</option>
+                  <option value="DELIVERY_COST">ค่าขนส่ง</option>
+                </select>
+              </label>
+            </div>
+            <label className={labelClass}>
+              รายละเอียด
+              <textarea
+                className={`${inputClass} min-h-24 resize-y`}
+                value={expense.description}
+                onChange={(event) =>
+                  setExpense((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+                placeholder="เช่น ค่าขนส่งวัตถุดิบ"
+              />
+            </label>
+            <div className="flex gap-2">
+              <Button type="submit">
+                {expenseEditingId ? "บันทึกการแก้ไข" : "เพิ่มค่าใช้จ่าย"}
+              </Button>
+              {expenseEditingId && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={resetExpense}
+                >
+                  ยกเลิก
+                </Button>
+              )}
+            </div>
+          </form>
+        </Card>
+      </div>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Card>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-bold text-slate-900">รายการขาย</h2>
+            <span className="text-sm text-slate-500">
+              {filteredOrders.length} รายการ
+            </span>
+          </div>
+          <div className="mt-4 space-y-3">
+            {filteredOrders.length ? (
+              filteredOrders.map((order) => (
+                <div
+                  className="flex flex-col gap-3 rounded-xl border border-sky-100 p-3 sm:flex-row sm:items-center"
+                  key={order.id}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-slate-800">
+                      #{order.order_no} ·{" "}
+                      <span className="text-sky-700">
+                        {money(order.net_revenue)}
+                      </span>
+                    </p>
+                    <p className="mt-1 truncate text-sm text-slate-500">
+                      {order.channel_name} · {order.items}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Status status={order.status} />
+                    {order.rawItems?.length > 0 && (
+                      <Button
+                        className="text-xs"
+                        variant="secondary"
+                        onClick={() => editSales(order)}
+                      >
+                        แก้ไข
+                      </Button>
+                    )}
+                    <Button
+                      className="text-xs"
+                      variant="danger"
+                      onClick={() => onDeleteSales(order)}
+                    >
+                      ลบ
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <Empty>ยังไม่มีรายการขายในวันนี้ที่เลือก</Empty>
+            )}
+          </div>
+        </Card>
+        <Card>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-bold text-slate-900">
+              รายการค่าใช้จ่าย
+            </h2>
+            <span className="text-sm text-slate-500">
+              {filteredExpenses.length} รายการ
+            </span>
+          </div>
+          <div className="mt-4 space-y-3">
+            {filteredExpenses.length ? (
+              filteredExpenses.map((item) => (
+                <div
+                  className="flex flex-col gap-3 rounded-xl border border-sky-100 p-3 sm:flex-row sm:items-center"
+                  key={item.id}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-slate-800">
+                      {money(item.amount)}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {item.category === "DELIVERY_COST"
+                        ? "ค่าขนส่ง"
+                        : "ค่าใช้จ่ายดำเนินงาน"}
+                      {item.description ? ` · ${item.description}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      className="text-xs"
+                      variant="secondary"
+                      onClick={() => {
+                        setExpenseEditingId(item.id);
+                        setExpense({
+                          amount: item.amount,
+                          category: item.category,
+                          description: item.description || "",
+                        });
+                      }}
+                    >
+                      แก้ไข
+                    </Button>
+                    <Button
+                      className="text-xs"
+                      variant="danger"
+                      onClick={() => onDeleteExpense(item)}
+                    >
+                      ลบ
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <Empty>ยังไม่มีรายการค่าใช้จ่ายในวันที่เลือก</Empty>
+            )}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+export default function GlassLayout({
+  activeView,
+  setActiveView,
+  orders,
+  channels,
+  products,
+  inventoryRows,
+  metrics,
+  expenses,
+  expenseRows,
+  notice,
+  onAdd,
+  onUpdate,
+  onRestock,
+  onCreateInventory,
+  onUpdateInventory,
+  onDeleteInventory,
+  onCreateMenu,
+  onUpdateMenu,
+  onDeleteMenu,
+  onCreateExpense,
+  onUpdateExpense,
+  onDeleteExpense,
+  onCreateSales,
+  onUpdateSales,
+  onDeleteSales,
+}) {
+  const content =
+    activeView === "inventory" ? (
+      <IngredientsPage
+        rows={inventoryRows}
+        onCreate={onCreateInventory}
+        onUpdate={onUpdateInventory}
+        onDelete={onDeleteInventory}
+        onRestock={onRestock}
+      />
+    ) : activeView === "menu" ? (
+      <MenusPage
+        products={products}
+        ingredients={inventoryRows}
+        onCreate={onCreateMenu}
+        onUpdate={onUpdateMenu}
+        onDelete={onDeleteMenu}
+      />
+    ) : activeView === "finance" ? (
+      <FinancePage
+        metrics={metrics}
+        expenses={expenses}
+        expenseRows={expenseRows}
+        orders={orders}
+        channels={channels}
+        products={products}
+        onCreateExpense={onCreateExpense}
+        onUpdateExpense={onUpdateExpense}
+        onDeleteExpense={onDeleteExpense}
+        onCreateSales={onCreateSales}
+        onUpdateSales={onUpdateSales}
+        onDeleteSales={onDeleteSales}
+      />
+    ) : (
+      <div className="space-y-5">
+        <OrdersPage orders={orders} onUpdate={onUpdate} />
+        <PosPage channels={channels} products={products} onAdd={onAdd} />
+      </div>
+    );
+  return (
+    <div className="min-h-screen bg-sky-50 text-slate-800">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sky-100 bg-white px-4 py-6 lg:flex">
+        <div className="flex items-center gap-3 px-2">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-600 text-lg font-black text-white">
+            S
+          </span>
+          <div>
+            <p className="font-bold tracking-wide text-slate-900">STOCKPOS</p>
+            <p className="text-xs text-sky-600">Management</p>
+          </div>
+        </div>
+        <nav className="mt-10 grid gap-2">
+          {navigation.map((item) => (
+            <button
+              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${activeView === item.id ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
+              key={item.id}
+              onClick={() => setActiveView(item.id)}
+            >
+              <span className="w-5 text-center">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        <div className="mt-auto rounded-2xl bg-sky-50 p-4">
+          <p className="text-xs font-bold uppercase tracking-wider text-sky-600">
+            ระบบเชื่อมต่อ
+          </p>
+          <p className="mt-2 text-sm font-semibold text-slate-700">● ออนไลน์</p>
+          <p className="mt-1 text-xs text-slate-500">{notice}</p>
+        </div>
+      </aside>
+      <header className="sticky top-0 z-20 border-b border-sky-100 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+        <div className="flex items-center gap-2">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-sky-600 font-black text-white">
+            S
+          </span>
+          <strong className="text-slate-900">STOCKPOS</strong>
+        </div>
+        <nav className="mt-3 flex gap-2 overflow-x-auto pb-1">
+          {navigation.map((item) => (
+            <button
+              className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold ${activeView === item.id ? "bg-sky-600 text-white" : "bg-sky-50 text-sky-700"}`}
+              key={item.id}
+              onClick={() => setActiveView(item.id)}
+            >
+              {item.icon} {item.label}
+            </button>
+          ))}
+        </nav>
+      </header>
+      <main className="mx-auto w-full max-w-[1600px] p-4 pb-10 sm:p-6 lg:ml-64 lg:w-[calc(100%-16rem)] lg:p-8">
+        {content}
+      </main>
+    </div>
+  );
 }
