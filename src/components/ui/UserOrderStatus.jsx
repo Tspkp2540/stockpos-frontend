@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
 import { maskPhone } from "../../utils/phone";
 
 const money = (amount) =>
@@ -52,11 +53,11 @@ export default function UserOrderStatus({ user, orders, onLogout }) {
       : orders;
   }, [orders, query]);
   return (
-    <div className="min-h-screen bg-sky-50 text-slate-800">
-      <header className="border-b border-sky-100 bg-white">
+    <div className="shop-scene text-slate-800">
+      <header className="shop-topbar relative z-10 border-b">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 p-4 sm:p-6">
           <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-600 font-black text-white">
+            <span className="shop-orb grid h-10 w-10 place-items-center rounded-xl bg-sky-600 font-black text-white">
               S
             </span>
             <div>
@@ -77,8 +78,9 @@ export default function UserOrderStatus({ user, orders, onLogout }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-5xl p-4 pb-10 sm:p-6">
-        <div className="rounded-3xl bg-gradient-to-br from-sky-600 to-cyan-500 p-6 text-white sm:p-8">
+      <main className="relative mx-auto w-full max-w-5xl p-4 pb-10 sm:p-6">
+        <div className="relative overflow-hidden rounded-3xl border border-sky-200 bg-gradient-to-br from-sky-700 via-sky-600 to-cyan-500 p-6 text-white shadow-xl shadow-sky-200/60 sm:p-8">
+          <div className="relative z-10 max-w-2xl">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-100">
             My purchase history
           </p>
@@ -97,6 +99,13 @@ export default function UserOrderStatus({ user, orders, onLogout }) {
               placeholder="ค้นหาด้วยเลขคิว ชื่อเล่น หรือหมายเลขออเดอร์"
             />
           </label>
+          </div>
+          <img
+            className="pointer-events-none absolute -right-4 -bottom-20 hidden h-[360px] w-[245px] object-cover object-[50%_14%] opacity-95 lg:block"
+            src={coffeeBarista}
+            alt=""
+            aria-hidden="true"
+          />
         </div>
         <section className="mt-6">
           <div className="mb-4 flex items-center justify-between">
@@ -109,7 +118,7 @@ export default function UserOrderStatus({ user, orders, onLogout }) {
             {visibleOrders.length ? (
               visibleOrders.map((order) => (
                 <article
-                  className="rounded-2xl border border-sky-100 bg-white p-5 shadow-sm"
+                  className="shop-panel rounded-2xl border p-5"
                   key={order.id}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -145,7 +154,7 @@ export default function UserOrderStatus({ user, orders, onLogout }) {
                 </article>
               ))
             ) : (
-              <div className="rounded-2xl border border-dashed border-sky-200 bg-white p-8 text-center text-sm text-slate-500 md:col-span-2">
+              <div className="shop-panel rounded-2xl border border-dashed p-8 text-center text-sm text-slate-500 md:col-span-2">
                 ไม่พบประวัติการสั่งซื้อ
               </div>
             )}

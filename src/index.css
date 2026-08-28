@@ -28,6 +28,59 @@ body {
   background: #f0f9ff;
 }
 
+.shop-scene {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(125, 211, 252, 0.48), transparent 32rem),
+    radial-gradient(circle at 100% 12%, rgba(103, 232, 249, 0.35), transparent 28rem),
+    linear-gradient(155deg, #f8fdff 0%, #eefaff 45%, #e0f6ff 100%);
+}
+
+.shop-scene::before,
+.shop-scene::after {
+  position: fixed;
+  z-index: -1;
+  width: 22rem;
+  height: 22rem;
+  border-radius: 9999px;
+  content: "";
+  filter: blur(2px);
+  pointer-events: none;
+}
+
+.shop-scene::before {
+  right: -12rem;
+  bottom: 8%;
+  background: rgba(186, 230, 253, 0.55);
+}
+
+.shop-scene::after {
+  left: -15rem;
+  bottom: 22%;
+  background: rgba(224, 242, 254, 0.8);
+}
+
+.shop-topbar {
+  border-color: rgba(186, 230, 253, 0.85);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 10px 30px rgba(14, 116, 144, 0.06);
+  backdrop-filter: blur(18px);
+}
+
+.shop-panel {
+  border-color: rgba(186, 230, 253, 0.9);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 45px rgba(14, 116, 144, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.shop-orb {
+  box-shadow: 0 12px 28px rgba(2, 132, 199, 0.24);
+}
+
 button,
 input,
 select,

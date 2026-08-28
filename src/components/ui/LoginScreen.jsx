@@ -27,8 +27,8 @@ export default function LoginScreen({ onLogin, onRegister, onAnonymous, onHome }
     }
   };
 
-  return <main className="grid min-h-screen place-items-center bg-sky-50 p-4 sm:p-8">
-    <section className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-sky-100 bg-white shadow-xl shadow-sky-100/70 md:grid-cols-[1fr_420px]">
+  return <main className="shop-scene grid place-items-center p-4 sm:p-8">
+    <section className="shop-panel grid w-full max-w-5xl overflow-hidden rounded-3xl border md:grid-cols-[1fr_420px]">
       <div className="relative hidden min-h-[640px] overflow-hidden bg-gradient-to-br from-sky-800 via-sky-600 to-cyan-400 md:flex md:items-center md:justify-center">
         <div className="mx-6 h-[620px] w-[420px] max-w-[calc(100%-3rem)] overflow-hidden rounded-[2rem] border border-white/40 bg-white/10 p-2 shadow-[0_28px_60px_rgba(2,68,120,0.42)] ring-1 ring-sky-100/20 backdrop-blur-sm">
           <img className="h-full w-full rounded-[1.5rem] object-contain shadow-inner" src={coffeeBarista} alt="ตัวละครบาริสต้า KIN CHA KAN ชูแก้วกาแฟ" />

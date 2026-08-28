@@ -1,9 +1,13 @@
 import { useMemo, useState } from "react";
+import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
+import officeCoordinator from "../../assets/operations-office-coordinator.png";
+import stockCoordinator from "../../assets/operations-stock-coordinator.png";
 import { exportExcel } from "../../utils/exportExcel";
 import { maskPhone } from "../../utils/phone";
 
 const navigation = [
   { id: "pos", icon: "▣", label: "ขายและออเดอร์" },
+  { id: "operations", icon: "◉", label: "ศูนย์ปฏิบัติการ" },
   { id: "inventory", icon: "□", label: "วัตถุดิบ" },
   { id: "menu", icon: "☷", label: "เมนูสินค้า" },
   { id: "finance", icon: "฿", label: "การเงิน" },
@@ -18,7 +22,7 @@ const labelClass = "grid min-w-0 gap-1.5 text-xs font-semibold text-slate-600";
 function Card({ children, className = "" }) {
   return (
     <section
-      className={`rounded-2xl border border-sky-100 bg-white p-4 shadow-sm sm:p-5 ${className}`}
+      className={`shop-panel rounded-2xl border p-4 sm:p-5 ${className}`}
     >
       {children}
     </section>
@@ -2052,6 +2056,293 @@ function FinancePage({
   );
 }
 
+function OperationsZone({
+  image,
+  eyebrow,
+  title,
+  status,
+  statusTone = "sky",
+  imagePosition = "50% 18%",
+  children,
+}) {
+  const statusStyles = {
+    sky: "bg-sky-100 text-sky-700",
+    amber: "bg-amber-100 text-amber-700",
+    emerald: "bg-emerald-100 text-emerald-700",
+  };
+  return (
+    <article className="overflow-hidden rounded-3xl border border-sky-100 bg-white shadow-sm">
+      <div className="relative aspect-[4/3] min-h-60 overflow-hidden bg-sky-100">
+        <img
+          className="h-full w-full object-cover"
+          src={image}
+          alt={title}
+          loading="lazy"
+          style={{ objectPosition: imagePosition }}
+        />
+        <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-sky-950/60 to-transparent" />
+        <div className="absolute inset-x-4 bottom-4">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-100">
+            {eyebrow}
+          </p>
+          <h2 className="mt-1 text-xl font-bold text-white">{title}</h2>
+        </div>
+      </div>
+      <div className="p-4 sm:p-5">
+        <span
+          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${statusStyles[statusTone] || statusStyles.sky}`}
+        >
+          {status}
+        </span>
+        <div className="mt-4">{children}</div>
+      </div>
+    </article>
+  );
+}
+
+function OperationsPage({ orders, inventoryRows, expenseRows }) {
+  const today = todayInBangkok();
+  const todayOrders = useMemo(
+    () => orders.filter((order) => rowMatchesDate(order, today)),
+    [orders, today],
+  );
+  const pendingOrders = useMemo(
+    () => todayOrders.filter((order) => order.status === "COOKING"),
+    [todayOrders],
+  );
+  const completedOrders = useMemo(
+    () => todayOrders.filter((order) => order.status === "COMPLETED"),
+    [todayOrders],
+  );
+  const lowStockRows = useMemo(
+    () => inventoryRows.filter(inventoryIsLow),
+    [inventoryRows],
+  );
+  const todayExpenses = useMemo(
+    () => expenseRows.filter((expense) => rowMatchesDate(expense, today)),
+    [expenseRows, today],
+  );
+  const expenseTotal = useMemo(
+    () =>
+      todayExpenses.reduce(
+        (total, expense) => total + Number(expense.amount || 0),
+        0,
+      ),
+    [todayExpenses],
+  );
+  const latestPendingOrder = pendingOrders[0];
+  const netToday = todayOrders.reduce(
+    (total, order) => total + Number(order.net_revenue || 0),
+    0,
+  );
+  const profitToday = netToday - expenseTotal;
+
+  return (
+    <div className="space-y-5">
+      <Heading
+        eyebrow="Operations center"
+        title="ศูนย์ปฏิบัติการร้าน"
+        description={`ภาพรวมการทำงานประจำวันที่ ${dateLabel(today)} จากข้อมูลจริงในระบบ`}
+        action={
+          <span className="rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+            ● ข้อมูลเชื่อมต่อแล้ว
+          </span>
+        }
+      />
+
+      <section className="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-700 via-sky-600 to-cyan-500 p-5 text-white shadow-lg shadow-sky-200 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-sky-100">
+              KIN CHA KAN · live workflow
+            </p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
+              หน้าร้าน สต็อก และออฟฟิศ 
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-sky-100">
+              เมนูที่เกี่ยวข้องในแถบด้านข้าง
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center sm:min-w-72">
+            <div className="rounded-2xl bg-white/15 px-3 py-3 backdrop-blur-sm">
+              <strong className="block text-lg">{todayOrders.length}</strong>
+              <span className="text-[11px] text-sky-100">ออเดอร์วันนี้</span>
+            </div>
+            <div className="rounded-2xl bg-white/15 px-3 py-3 backdrop-blur-sm">
+              <strong className="block text-lg">{lowStockRows.length}</strong>
+              <span className="text-[11px] text-sky-100">สต็อกต้องดู</span>
+            </div>
+            <div className="rounded-2xl bg-white/15 px-3 py-3 backdrop-blur-sm">
+              <strong className="block text-lg">{money(profitToday)}</strong>
+              <span className="text-[11px] text-sky-100">กำไรวันนี้</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <OperationsZone
+          image={coffeeBarista}
+          imagePosition="50% 14%"
+          eyebrow="Front counter"
+          title="หน้าร้าน"
+          status={
+            pendingOrders.length
+              ? `กำลังทำ ${pendingOrders.length} ออเดอร์`
+              : "พร้อมรับออเดอร์"
+          }
+          statusTone={pendingOrders.length ? "amber" : "emerald"}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-sky-50 p-3">
+              <p className="text-xs font-semibold text-slate-500">รับวันนี้</p>
+              <strong className="mt-1 block text-2xl text-sky-700">
+                {todayOrders.length}
+              </strong>
+              <p className="text-xs text-slate-500">รายการ</p>
+            </div>
+            <div className="rounded-2xl bg-emerald-50 p-3">
+              <p className="text-xs font-semibold text-slate-500">เสร็จแล้ว</p>
+              <strong className="mt-1 block text-2xl text-emerald-700">
+                {completedOrders.length}
+              </strong>
+              <p className="text-xs text-slate-500">รายการ</p>
+            </div>
+          </div>
+          <p className="mt-3 truncate text-sm text-slate-500">
+            {latestPendingOrder
+              ? `คิวล่าสุด #${latestPendingOrder.order_no || latestPendingOrder.id}`
+              : "ยังไม่มีคิวที่กำลังจัดเตรียม"}
+          </p>
+        </OperationsZone>
+
+        <OperationsZone
+          image={stockCoordinator}
+          imagePosition="50% 20%"
+          eyebrow="Stock room"
+          title="สต็อกวัตถุดิบ"
+          status={
+            lowStockRows.length
+              ? `ต้องตรวจ ${lowStockRows.length} รายการ`
+              : "สต็อกพร้อมใช้งาน"
+          }
+          statusTone={lowStockRows.length ? "amber" : "emerald"}
+        >
+          <div className="rounded-2xl bg-sky-50 p-3">
+            <p className="text-xs font-semibold text-slate-500">
+              วัตถุดิบที่ต้องเติมหรือใกล้ถึงขั้นต่ำ
+            </p>
+            <strong className="mt-1 block text-2xl text-sky-700">
+              {lowStockRows.length}
+            </strong>
+            <p className="text-xs text-slate-500">จากทั้งหมด {inventoryRows.length} รายการ</p>
+          </div>
+          <p className="mt-3 truncate text-sm text-slate-500">
+            {lowStockRows.length
+              ? lowStockRows
+                  .slice(0, 2)
+                  .map((item) => item.name)
+                  .join(" · ")
+              : "ปริมาณคงเหลืออยู่ในเกณฑ์ที่กำหนด"}
+          </p>
+        </OperationsZone>
+
+        <OperationsZone
+          image={officeCoordinator}
+          imagePosition="50% 30%"
+          eyebrow="Back office"
+          title="ออฟฟิศและการเงิน"
+          status="สรุปยอดอัตโนมัติ"
+          statusTone="sky"
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-sky-50 p-3">
+              <p className="text-xs font-semibold text-slate-500">ยอดขายวันนี้</p>
+              <strong className="mt-1 block truncate text-lg text-sky-700">
+                {money(netToday)}
+              </strong>
+            </div>
+            <div className="rounded-2xl bg-rose-50 p-3">
+              <p className="text-xs font-semibold text-slate-500">ค่าใช้จ่ายวันนี้</p>
+              <strong className="mt-1 block truncate text-lg text-rose-600">
+                {money(expenseTotal)}
+              </strong>
+            </div>
+          </div>
+          <p className="mt-3 text-sm text-slate-500">
+            กำไรจากข้อมูลวันนี้ <strong className="text-slate-800">{money(profitToday)}</strong>
+          </p>
+        </OperationsZone>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">ลำดับงานวันนี้</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                ติดตามงานแต่ละส่วนจากต้นทางถึงสรุปยอด
+              </p>
+            </div>
+            <span className="text-sm font-semibold text-sky-700">{dateLabel(today)}</span>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {[
+              ["1", "รับออเดอร์", `${todayOrders.length} รายการวันนี้`, "bg-sky-100 text-sky-700"],
+              [
+                "2",
+                "ตรวจสต็อก",
+                lowStockRows.length ? `ต้องเติม ${lowStockRows.length} รายการ` : "ปริมาณพร้อมใช้งาน",
+                lowStockRows.length
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-emerald-100 text-emerald-700",
+              ],
+              ["3", "สรุปการเงิน", `กำไร ${money(profitToday)}`, "bg-indigo-100 text-indigo-700"],
+            ].map(([step, title, detail, tone]) => (
+              <div className="rounded-2xl border border-sky-100 p-4" key={step}>
+                <span className={`grid h-8 w-8 place-items-center rounded-full text-sm font-black ${tone}`}>
+                  {step}
+                </span>
+                <h3 className="mt-3 font-bold text-slate-800">{title}</h3>
+                <p className="mt-1 text-sm text-slate-500">{detail}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card>
+          <h2 className="text-lg font-bold text-slate-900">สิ่งที่ต้องดูแล</h2>
+          <p className="mt-1 text-sm text-slate-500">รายการที่ควรจัดการก่อน</p>
+          <div className="mt-4 space-y-3">
+            {lowStockRows.length ? (
+              lowStockRows.slice(0, 3).map((item) => (
+                <div className="rounded-xl border border-amber-100 bg-amber-50 p-3" key={item.id || item.name}>
+                  <p className="font-semibold text-amber-800">{item.name}</p>
+                  <p className="mt-1 text-xs text-amber-700">
+                    เหลือ {Number(item.stock_qty ?? item.stock ?? 0)} {item.unit || "หน่วย"}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <Empty>ไม่มีวัตถุดิบที่ต่ำกว่าระดับแจ้งเตือน</Empty>
+            )}
+            {pendingOrders.length > 0 && (
+              <div className="rounded-xl border border-sky-100 bg-sky-50 p-3">
+                <p className="font-semibold text-sky-800">
+                  ออเดอร์ที่กำลังทำ {pendingOrders.length} รายการ
+                </p>
+                <p className="mt-1 text-xs text-sky-700">
+                  ตรวจสถานะต่อได้จากเมนูขายและออเดอร์
+                </p>
+              </div>
+            )}
+          </div>
+        </Card>
+      </section>
+    </div>
+  );
+}
+
 export default function GlassLayout({
   activeView,
   setActiveView,
@@ -2111,6 +2402,12 @@ export default function GlassLayout({
         onUpdateSales={onUpdateSales}
         onDeleteSales={onDeleteSales}
       />
+    ) : activeView === "operations" ? (
+      <OperationsPage
+        orders={orders}
+        inventoryRows={inventoryRows}
+        expenseRows={expenseRows}
+      />
     ) : (
       <div className="space-y-5">
         <OrdersPage orders={orders} onUpdate={onUpdate} />
@@ -2118,10 +2415,10 @@ export default function GlassLayout({
       </div>
     );
   return (
-    <div className="min-h-screen bg-sky-50 text-slate-800">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-sky-100 bg-white px-4 py-6 lg:flex">
+    <div className="shop-scene text-slate-800">
+      <aside className="shop-topbar fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r px-4 py-6 lg:flex">
         <div className="flex items-center gap-3 px-2">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-600 text-lg font-black text-white">
+          <span className="shop-orb grid h-10 w-10 place-items-center rounded-xl bg-sky-600 text-lg font-black text-white">
             S
           </span>
           <div>
@@ -2141,7 +2438,7 @@ export default function GlassLayout({
             </button>
           ))}
         </nav>
-        <div className="mt-auto rounded-2xl bg-sky-50 p-4">
+        <div className="mt-auto rounded-2xl border border-sky-100 bg-sky-50/80 p-4 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wider text-sky-600">
             ระบบเชื่อมต่อ
           </p>
@@ -2149,9 +2446,9 @@ export default function GlassLayout({
           <p className="mt-1 text-xs text-slate-500">{notice}</p>
         </div>
       </aside>
-      <header className="sticky top-0 z-20 border-b border-sky-100 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+      <header className="shop-topbar sticky top-0 z-20 border-b px-4 py-3 lg:hidden">
         <div className="flex items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-sky-600 font-black text-white">
+          <span className="shop-orb grid h-9 w-9 place-items-center rounded-xl bg-sky-600 font-black text-white">
             S
           </span>
           <strong className="text-slate-900">STOCKPOS</strong>
@@ -2168,7 +2465,7 @@ export default function GlassLayout({
           ))}
         </nav>
       </header>
-      <main className="mx-auto w-full max-w-[1600px] p-4 pb-10 sm:p-6 lg:ml-64 lg:w-[calc(100%-16rem)] lg:p-8">
+      <main className="relative mx-auto w-full max-w-[1600px] p-4 pb-10 sm:p-6 lg:ml-64 lg:w-[calc(100%-16rem)] lg:p-8">
         {content}
       </main>
     </div>

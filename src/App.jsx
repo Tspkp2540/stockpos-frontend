@@ -105,7 +105,7 @@ const normalizeOrder = (order) => {
 function App() {
   const [session, setSession] = useState(loadSession);
   const [anonymousMode, setAnonymousMode] = useState(true);
-  const [activeView, setActiveView] = useState("pos");
+  const [activeView, setActiveView] = useState("operations");
   const [orders, setOrders] = useState(initialOrders);
   const [restocked, setRestocked] = useState([]);
   const [notice, setNotice] = useState("LIVE SYNC · 14:32:08");
@@ -130,7 +130,7 @@ function App() {
     };
     window.localStorage.setItem(SESSION_KEY, JSON.stringify(account));
     setSession(account);
-    setActiveView("pos");
+    setActiveView(account.role === "admin" ? "operations" : "pos");
   };
   const login = async (credentials) => {
     try {
@@ -167,7 +167,7 @@ function App() {
     delete axios.defaults.headers.common.Authorization;
     setSession(null);
     setAnonymousMode(true);
-    setActiveView("pos");
+    setActiveView("operations");
   };
 
   useEffect(() => {
