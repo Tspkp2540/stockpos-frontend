@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
 import officeCoordinator from "../../assets/operations-office-coordinator.png";
 import stockCoordinator from "../../assets/operations-stock-coordinator.png";
+import OperationsRoom3D from "./OperationsRoom3D";
 import { exportExcel } from "../../utils/exportExcel";
 import { maskPhone } from "../../utils/phone";
 
@@ -159,12 +160,17 @@ function OrdersPage({ orders, onUpdate }) {
   );
 }
 
-function PosPage({ channels, products, onAdd }) {
+function PosPage({ channels, products, onAdd, onValidateCoupon }) {
   const [channelId, setChannelId] = useState(channels[0]?.id || "");
   const [cart, setCart] = useState([]);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const total = useMemo(
+  const [discountType, setDiscountType] = useState("amount");
+  const [discountValue, setDiscountValue] = useState("");
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState("");
+  const subtotal = useMemo(
     () =>
       cart.reduce(
         (sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0),
@@ -172,6 +178,25 @@ function PosPage({ channels, products, onAdd }) {
       ),
     [cart],
   );
+  const manualDiscountAmount = useMemo(() => {
+    const value = Math.max(0, Number(discountValue) || 0);
+    return discountType === "percent"
+      ? Math.min(subtotal, subtotal * Math.min(value, 100) / 100)
+      : Math.min(subtotal, value);
+  }, [discountType, discountValue, subtotal]);
+  const couponDiscountAmount = useMemo(() => {
+    if (!appliedCoupon) return 0;
+    const eligibleAmount = Math.max(0, subtotal - manualDiscountAmount);
+    if (eligibleAmount < Number(appliedCoupon.min_order_amount || 0)) return 0;
+    const rawDiscount = appliedCoupon.discount_type === "PERCENT"
+      ? eligibleAmount * Math.min(Number(appliedCoupon.discount_value || 0), 100) / 100
+      : Number(appliedCoupon.discount_value || 0);
+    const cappedDiscount = Number(appliedCoupon.max_discount_amount || 0) > 0
+      ? Math.min(rawDiscount, Number(appliedCoupon.max_discount_amount))
+      : rawDiscount;
+    return Math.min(eligibleAmount, cappedDiscount);
+  }, [appliedCoupon, manualDiscountAmount, subtotal]);
+  const total = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
   const addItem = (product) =>
     setCart((current) => {
       const found = current.find((item) => item.product_id === product.id);
@@ -199,6 +224,25 @@ function PosPage({ channels, products, onAdd }) {
           : item,
       ),
     );
+  const applyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    if (!onValidateCoupon) {
+      setCouponError("ยังไม่สามารถตรวจสอบคูปองได้");
+      return;
+    }
+    try {
+      const coupon = await onValidateCoupon({
+        code: couponCode.trim(),
+        amount: Math.max(0, subtotal - manualDiscountAmount),
+      });
+      setAppliedCoupon(coupon);
+      setCouponCode(coupon.code);
+      setCouponError("");
+    } catch (error) {
+      setAppliedCoupon(null);
+      setCouponError(error.response?.data?.error || error.message || "คูปองไม่สามารถใช้งานได้");
+    }
+  };
   const submit = async () => {
     if (!cart.length) return;
     const channel = channels.find(
@@ -211,16 +255,23 @@ function PosPage({ channels, products, onAdd }) {
       customer_name: customerName.trim(),
       customer_nickname: customerName.trim(),
       customer_phone: customerPhone.trim(),
+      manual_discount_amount: Number(manualDiscountAmount.toFixed(2)),
+      coupon_code: appliedCoupon?.code || undefined,
       items: cart.map(({ product_id, qty, price }) => ({
         product_id,
         qty,
-        price,
+        price: Number(price),
       })),
     });
     if (saved) {
       setCart([]);
       setCustomerName("");
       setCustomerPhone("");
+      setDiscountValue("");
+      setDiscountType("amount");
+      setCouponCode("");
+      setAppliedCoupon(null);
+      setCouponError("");
     }
   };
   return (
@@ -367,8 +418,89 @@ function PosPage({ channels, products, onAdd }) {
                 />
               </label>
             </div>
+            <div className="rounded-xl bg-sky-50/70 p-3">
+              <p className="text-xs font-bold text-sky-700">ส่วนลดทั้งตะกร้า</p>
+              <div className="mt-2 grid grid-cols-[110px_minmax(0,1fr)] gap-2">
+                <select
+                  className={inputClass}
+                  value={discountType}
+                  onChange={(event) => setDiscountType(event.target.value)}
+                >
+                  <option value="amount">ลดเป็นบาท</option>
+                  <option value="percent">ลดเป็น %</option>
+                </select>
+                <input
+                  className={inputClass}
+                  type="number"
+                  min="0"
+                  max={discountType === "percent" ? "100" : undefined}
+                  step="0.01"
+                  inputMode="decimal"
+                  value={discountValue}
+                  onChange={(event) => setDiscountValue(event.target.value)}
+                  placeholder={discountType === "percent" ? "เช่น 10" : "เช่น 20"}
+                />
+              </div>
+            </div>
+            <div className="rounded-xl border border-sky-100 bg-white/75 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold text-slate-700">คูปองส่วนลด</p>
+                {appliedCoupon ? (
+                  <button
+                    className="text-xs font-semibold text-rose-600"
+                    onClick={() => {
+                      setAppliedCoupon(null);
+                      setCouponError("");
+                    }}
+                  >
+                    ล้างคูปอง
+                  </button>
+                ) : null}
+              </div>
+              <div className="mt-2 flex gap-2">
+                <input
+                  className={inputClass}
+                  value={couponCode}
+                  onChange={(event) => {
+                    setCouponCode(event.target.value.toUpperCase());
+                    setCouponError("");
+                  }}
+                  placeholder="เช่น WELCOME10"
+                />
+                <Button
+                  className="shrink-0"
+                  variant="secondary"
+                  disabled={!cart.length || !couponCode.trim()}
+                  onClick={applyCoupon}
+                >
+                  ใช้คูปอง
+                </Button>
+              </div>
+              {appliedCoupon ? (
+                <p className="mt-2 text-xs font-semibold text-emerald-700">
+                  ใช้ {appliedCoupon.code} แล้ว · ลด {money(couponDiscountAmount)}
+                </p>
+              ) : null}
+              {couponError ? <p className="mt-2 text-xs font-medium text-rose-600">{couponError}</p> : null}
+            </div>
+            <div className="space-y-2 border-b border-sky-100 pb-4 text-sm">
+              <div className="flex items-center justify-between text-slate-500">
+                <span>ยอดก่อนลด</span>
+                <span>{money(subtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-rose-600">
+                <span>ส่วนลดหน้าร้าน</span>
+                <span>-{money(manualDiscountAmount)}</span>
+              </div>
+              {appliedCoupon ? (
+                <div className="flex items-center justify-between text-emerald-700">
+                  <span>คูปอง {appliedCoupon.code}</span>
+                  <span>-{money(couponDiscountAmount)}</span>
+                </div>
+              ) : null}
+            </div>
             <div className="mb-4 flex items-center justify-between">
-              <span className="font-semibold text-slate-600">ยอดรวม</span>
+              <span className="font-semibold text-slate-600">ยอดสุทธิ</span>
               <strong className="text-2xl text-sky-700">{money(total)}</strong>
             </div>
             <Button className="w-full" disabled={!cart.length} onClick={submit}>
@@ -2100,7 +2232,66 @@ function OperationsZone({
   );
 }
 
-function OperationsPage({ orders, inventoryRows, expenseRows }) {
+function LiveWorkflowRoom({
+  todayOrders,
+  pendingOrders,
+  lowStockRows,
+  inventoryRows,
+  activeOrders,
+  financialSummary,
+  profitToday,
+  isAdmin,
+}) {
+  const frontCounterTitle = pendingOrders
+    ? `กำลังทำ ${pendingOrders} คิว`
+    : "พร้อมรับออเดอร์";
+  const stockTitle = lowStockRows
+    ? `ต้องเติม ${lowStockRows} รายการ`
+    : "วัตถุดิบพร้อม";
+
+  return (
+    <section className="mt-2 overflow-hidden py-3 sm:py-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">
+            Live room · ทดลองการเคลื่อนไหว
+          </p>
+          <h2 className="mt-1 text-xl font-bold text-slate-900">
+            ห้องปฏิบัติการร้าน
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            ชี้ที่วัตถุดิบบนชั้นวางเพื่อดูข้อมูลสต็อกได้โดยตรง
+          </p>
+        </div>
+        <p className="pt-1 text-xs font-bold text-sky-700">● ตัวละครกำลังทำงาน</p>
+      </div>
+
+      <div className="operations-room-scene relative mt-5 aspect-video min-h-[220px] overflow-hidden bg-sky-50">
+        <OperationsRoom3D
+          pendingOrders={pendingOrders}
+          lowStockRows={lowStockRows}
+          inventoryRows={inventoryRows}
+          activeOrders={activeOrders}
+          financialSummary={financialSummary}
+          isAdmin={isAdmin}
+        />
+      </div>
+      <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+        <span>
+          หน้าร้าน: <strong className="font-semibold text-slate-700">{frontCounterTitle}</strong>
+        </span>
+        <span>
+          สต็อก: <strong className="font-semibold text-slate-700">{stockTitle}</strong>
+        </span>
+        <span>
+          กำไรวันนี้: <strong className="font-semibold text-slate-700">{money(profitToday)}</strong>
+        </span>
+      </p>
+    </section>
+  );
+}
+
+function OperationsPage({ orders, inventoryRows, expenseRows, isAdmin }) {
   const today = todayInBangkok();
   const todayOrders = useMemo(
     () => orders.filter((order) => rowMatchesDate(order, today)),
@@ -2179,6 +2370,21 @@ function OperationsPage({ orders, inventoryRows, expenseRows }) {
           </div>
         </div>
       </section>
+
+      <LiveWorkflowRoom
+        todayOrders={todayOrders.length}
+        pendingOrders={pendingOrders.length}
+        lowStockRows={lowStockRows.length}
+        inventoryRows={inventoryRows}
+        activeOrders={pendingOrders}
+        financialSummary={{
+          revenue: netToday,
+          expenses: expenseTotal,
+          profit: profitToday,
+        }}
+        profitToday={profitToday}
+        isAdmin={isAdmin}
+      />
 
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         <OperationsZone
@@ -2344,6 +2550,7 @@ function OperationsPage({ orders, inventoryRows, expenseRows }) {
 }
 
 export default function GlassLayout({
+  user,
   activeView,
   setActiveView,
   orders,
@@ -2355,6 +2562,7 @@ export default function GlassLayout({
   expenseRows,
   notice,
   onAdd,
+  onValidateCoupon,
   onUpdate,
   onRestock,
   onCreateInventory,
@@ -2407,11 +2615,17 @@ export default function GlassLayout({
         orders={orders}
         inventoryRows={inventoryRows}
         expenseRows={expenseRows}
+        isAdmin={user?.role === "admin"}
       />
     ) : (
       <div className="space-y-5">
         <OrdersPage orders={orders} onUpdate={onUpdate} />
-        <PosPage channels={channels} products={products} onAdd={onAdd} />
+        <PosPage
+          channels={channels}
+          products={products}
+          onAdd={onAdd}
+          onValidateCoupon={onValidateCoupon}
+        />
       </div>
     );
   return (

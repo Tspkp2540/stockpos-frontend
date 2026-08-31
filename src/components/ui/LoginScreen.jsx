@@ -1,5 +1,5 @@
 import { useState } from "react";
-import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
+import coffeeBarista from "../../assets/coffee-barista-login-clean.png";
 
 const inputClass = "w-full rounded-xl border border-sky-200 px-3 py-2.5 text-sm outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-100";
 
@@ -29,10 +29,8 @@ export default function LoginScreen({ onLogin, onRegister, onAnonymous, onHome }
 
   return <main className="shop-scene grid place-items-center p-4 sm:p-8">
     <section className="shop-panel grid w-full max-w-5xl overflow-hidden rounded-3xl border md:grid-cols-[1fr_420px]">
-      <div className="relative hidden min-h-[640px] overflow-hidden bg-gradient-to-br from-sky-800 via-sky-600 to-cyan-400 md:flex md:items-center md:justify-center">
-        <div className="mx-6 h-[620px] w-[420px] max-w-[calc(100%-3rem)] overflow-hidden rounded-[2rem] border border-white/40 bg-white/10 p-2 shadow-[0_28px_60px_rgba(2,68,120,0.42)] ring-1 ring-sky-100/20 backdrop-blur-sm">
-          <img className="h-full w-full rounded-[1.5rem] object-contain shadow-inner" src={coffeeBarista} alt="ตัวละครบาริสต้า KIN CHA KAN ชูแก้วกาแฟ" />
-        </div>
+      <div className="relative hidden min-h-[640px] overflow-hidden bg-sky-100 md:block">
+        <img className="absolute inset-0 h-full w-full object-cover object-[50%_22%]" src={coffeeBarista} alt="ตัวละครบาริสต้า KIN CHA KAN ชูแก้วกาแฟ" />
       </div>
       <div className="p-6 sm:p-10"><button className="mb-6 inline-flex items-center gap-1 rounded-lg px-1 py-1.5 text-sm font-bold text-sky-700 transition hover:text-sky-900 hover:underline focus:outline-none focus:ring-4 focus:ring-sky-100" type="button" onClick={onHome}>← หน้าหลัก</button>
         <div className="flex items-center gap-3 md:hidden"><span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-600 font-black text-white">S</span><strong className="text-slate-900">STOCKPOS</strong></div>

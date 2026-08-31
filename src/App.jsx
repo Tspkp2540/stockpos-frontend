@@ -349,6 +349,8 @@ function App() {
         customer_name: payload.customer_name || undefined,
         customer_nickname: payload.customer_nickname || undefined,
         customer_phone: payload.customer_phone || undefined,
+        manual_discount_amount: Number(payload.manual_discount_amount) || 0,
+        coupon_code: payload.coupon_code || undefined,
       });
       if (response.data?.success) {
         setOrders((current) => [
@@ -367,6 +369,16 @@ function App() {
       console.warn("Order API failed.", error);
     }
     return false;
+  };
+  const validateCoupon = async ({ code, amount }) => {
+    const response = await axios.post(`${API_BASE}/api/coupons/validate`, {
+      code,
+      amount,
+    });
+    if (!response.data?.success) {
+      throw new Error(response.data?.error || "ไม่สามารถใช้คูปองนี้ได้");
+    }
+    return response.data.data;
   };
   const updateOrder = async (id, status) => {
     try {
@@ -730,6 +742,7 @@ function App() {
         channels={channels}
         products={products}
         onAdd={addOrder}
+        onValidateCoupon={validateCoupon}
         onUpdate={updateOrder}
         onLogout={logout}
       />
@@ -748,6 +761,7 @@ function App() {
         </button>
       </div>
       <GlassLayout
+        user={session}
         activeView={activeView}
         setActiveView={setActiveView}
         orders={orders}
@@ -759,6 +773,7 @@ function App() {
         expenseRows={expenseRows}
         notice={notice}
         onAdd={addOrder}
+        onValidateCoupon={validateCoupon}
         onUpdate={updateOrder}
         onRestock={handleRestock}
         onCreateInventory={createInventory}

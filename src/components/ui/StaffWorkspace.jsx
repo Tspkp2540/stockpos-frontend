@@ -51,6 +51,7 @@ export default function StaffWorkspace({
   channels,
   products,
   onAdd,
+  onValidateCoupon,
   onUpdate,
   onLogout,
 }) {
@@ -58,7 +59,12 @@ export default function StaffWorkspace({
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerNickname, setCustomerNickname] = useState("");
   const [cart, setCart] = useState([]);
-  const total = useMemo(
+  const [discountType, setDiscountType] = useState("amount");
+  const [discountValue, setDiscountValue] = useState("");
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState("");
+  const subtotal = useMemo(
     () =>
       cart.reduce(
         (sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0),
@@ -66,6 +72,25 @@ export default function StaffWorkspace({
       ),
     [cart],
   );
+  const manualDiscountAmount = useMemo(() => {
+    const value = Math.max(0, Number(discountValue) || 0);
+    return discountType === "percent"
+      ? Math.min(subtotal, subtotal * Math.min(value, 100) / 100)
+      : Math.min(subtotal, value);
+  }, [discountType, discountValue, subtotal]);
+  const couponDiscountAmount = useMemo(() => {
+    if (!appliedCoupon) return 0;
+    const eligibleAmount = Math.max(0, subtotal - manualDiscountAmount);
+    if (eligibleAmount < Number(appliedCoupon.min_order_amount || 0)) return 0;
+    const rawDiscount = appliedCoupon.discount_type === "PERCENT"
+      ? eligibleAmount * Math.min(Number(appliedCoupon.discount_value || 0), 100) / 100
+      : Number(appliedCoupon.discount_value || 0);
+    const cappedDiscount = Number(appliedCoupon.max_discount_amount || 0) > 0
+      ? Math.min(rawDiscount, Number(appliedCoupon.max_discount_amount))
+      : rawDiscount;
+    return Math.min(eligibleAmount, cappedDiscount);
+  }, [appliedCoupon, manualDiscountAmount, subtotal]);
+  const total = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
   const cookingOrders = orders.filter((order) => order.status === "COOKING").length;
 
   const addProduct = (product) =>
@@ -95,6 +120,25 @@ export default function StaffWorkspace({
           : item,
       ),
     );
+  const applyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    if (!onValidateCoupon) {
+      setCouponError("ยังไม่สามารถตรวจสอบคูปองได้");
+      return;
+    }
+    try {
+      const coupon = await onValidateCoupon({
+        code: couponCode.trim(),
+        amount: Math.max(0, subtotal - manualDiscountAmount),
+      });
+      setAppliedCoupon(coupon);
+      setCouponCode(coupon.code);
+      setCouponError("");
+    } catch (error) {
+      setAppliedCoupon(null);
+      setCouponError(error.response?.data?.error || error.message || "คูปองไม่สามารถใช้งานได้");
+    }
+  };
   const submit = async () => {
     if (!cart.length) return;
     const channel = channels.find(
@@ -105,16 +149,23 @@ export default function StaffWorkspace({
       channel_name: channel?.name,
       customer_phone: customerPhone.trim(),
       customer_nickname: customerNickname.trim(),
+      manual_discount_amount: Number(manualDiscountAmount.toFixed(2)),
+      coupon_code: appliedCoupon?.code || undefined,
       items: cart.map(({ product_id, qty, price }) => ({
         product_id,
         qty,
-        price,
+        price: Number(price),
       })),
     });
     if (saved) {
       setCart([]);
       setCustomerPhone("");
       setCustomerNickname("");
+      setDiscountValue("");
+      setDiscountType("amount");
+      setCouponCode("");
+      setAppliedCoupon(null);
+      setCouponError("");
     }
   };
 
@@ -144,7 +195,7 @@ export default function StaffWorkspace({
 
       <main className="relative mx-auto w-full max-w-[1500px] space-y-6 p-4 pb-10 sm:p-6">
         <section className="relative overflow-hidden rounded-3xl border border-sky-200 bg-gradient-to-r from-sky-700 via-sky-600 to-cyan-500 p-5 text-white shadow-xl shadow-sky-200/60 sm:p-7">
-          <div className="relative z-10 max-w-2xl">
+          <div className="relative z-10 max-w-2xl sm:max-w-[64%] xl:max-w-2xl">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-sky-100">
               Front counter · live order flow
             </p>
@@ -164,7 +215,7 @@ export default function StaffWorkspace({
             </div>
           </div>
           <img
-            className="pointer-events-none absolute -right-3 -bottom-16 hidden h-[330px] w-[230px] object-cover object-[50%_15%] opacity-95 sm:block"
+            className="pointer-events-none absolute -right-2 -bottom-12 hidden h-[270px] w-[188px] object-cover object-[50%_14%] opacity-95 sm:block md:-bottom-16 md:h-[330px] md:w-[230px]"
             src={coffeeBarista}
             alt=""
             aria-hidden="true"
@@ -312,8 +363,89 @@ export default function StaffWorkspace({
                 )}
               </div>
               <div className="border-t border-sky-100 pt-4">
-                <div className="mb-4 flex items-center justify-between">
-                  <span className="font-semibold text-slate-600">ยอดรวม</span>
+                <div className="mb-4 rounded-xl bg-sky-50/70 p-3">
+                  <p className="text-xs font-bold text-slate-700">ส่วนลดทั้งตะกร้า</p>
+                  <div className="mt-2 grid grid-cols-[110px_minmax(0,1fr)] gap-2">
+                    <select
+                      className={inputClass}
+                      value={discountType}
+                      onChange={(event) => setDiscountType(event.target.value)}
+                    >
+                      <option value="amount">ลดเป็นบาท</option>
+                      <option value="percent">ลดเป็น %</option>
+                    </select>
+                    <input
+                      className={inputClass}
+                      type="number"
+                      min="0"
+                      max={discountType === "percent" ? "100" : undefined}
+                      step="0.01"
+                      inputMode="decimal"
+                      value={discountValue}
+                      onChange={(event) => setDiscountValue(event.target.value)}
+                      placeholder={discountType === "percent" ? "เช่น 10" : "เช่น 20"}
+                    />
+                  </div>
+                </div>
+                <div className="mb-4 rounded-xl border border-sky-100 bg-white/75 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold text-slate-700">คูปองส่วนลด</p>
+                    {appliedCoupon ? (
+                      <button
+                        className="text-xs font-semibold text-rose-600"
+                        onClick={() => {
+                          setAppliedCoupon(null);
+                          setCouponError("");
+                        }}
+                      >
+                        ล้างคูปอง
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      className={inputClass}
+                      value={couponCode}
+                      onChange={(event) => {
+                        setCouponCode(event.target.value.toUpperCase());
+                        setCouponError("");
+                      }}
+                      placeholder="เช่น WELCOME10"
+                    />
+                    <Button
+                      className="shrink-0"
+                      variant="secondary"
+                      disabled={!cart.length || !couponCode.trim()}
+                      onClick={applyCoupon}
+                    >
+                      ใช้คูปอง
+                    </Button>
+                  </div>
+                  {appliedCoupon ? (
+                    <p className="mt-2 text-xs font-semibold text-emerald-700">
+                      ใช้ {appliedCoupon.code} แล้ว · ลด {money(couponDiscountAmount)}
+                    </p>
+                  ) : null}
+                  {couponError ? <p className="mt-2 text-xs font-medium text-rose-600">{couponError}</p> : null}
+                </div>
+                <div className="space-y-2 border-b border-sky-100 pb-4 text-sm">
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span>ยอดก่อนลด</span>
+                    <span>{money(subtotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-rose-600">
+                    <span>ส่วนลดหน้าร้าน</span>
+                    <span>-{money(manualDiscountAmount)}</span>
+                  </div>
+                  {appliedCoupon ? (
+                    <div className="flex items-center justify-between text-emerald-700">
+                      <span>คูปอง {appliedCoupon.code}</span>
+                      <span>-{money(couponDiscountAmount)}</span>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="my-4 flex items-center justify-between">
+                  <span className="font-semibold text-slate-600">ยอดสุทธิ</span>
                   <strong className="text-2xl text-sky-700">{money(total)}</strong>
                 </div>
                 <Button className="w-full" disabled={!cart.length} onClick={submit}>

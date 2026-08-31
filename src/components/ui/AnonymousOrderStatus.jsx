@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
-import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
+import guestOrderLookup from "../../assets/guest-order-lookup.png";
 import { maskPhone } from "../../utils/phone";
 
 const statusLabel = (status) =>
@@ -90,13 +90,13 @@ export default function AnonymousOrderStatus({ apiBase, onBack }) {
             className="rounded-xl border border-sky-200 px-3 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-50"
             onClick={onBack}
           >
-            เข้าสู่ระบบจัดการร้าน
+            เข้าสู่ระบบ
           </button>
         </div>
       </header>
       <main className="relative mx-auto w-full max-w-5xl p-4 pb-10 sm:p-6">
         <section className="relative overflow-hidden rounded-3xl border border-sky-200 bg-gradient-to-br from-sky-700 via-sky-600 to-cyan-500 p-6 text-white shadow-xl shadow-sky-200/60 sm:p-8">
-          <div className="relative z-10 max-w-2xl">
+          <div className="relative z-10 max-w-2xl md:max-w-[62%]">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-100">
             Public dashboard
           </p>
@@ -137,8 +137,8 @@ export default function AnonymousOrderStatus({ apiBase, onBack }) {
           </form>
           </div>
           <img
-            className="pointer-events-none absolute -right-4 -bottom-20 hidden h-[360px] w-[245px] object-cover object-[50%_14%] opacity-95 lg:block"
-            src={coffeeBarista}
+            className="pointer-events-none absolute -right-3 -bottom-14 hidden h-[310px] w-[215px] object-cover object-[50%_12%] opacity-95 md:block lg:h-[360px] lg:w-[245px]"
+            src={guestOrderLookup}
             alt=""
             aria-hidden="true"
           />

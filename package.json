@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@craco/craco": "^7.1.0",
+    "@react-three/fiber": "^9.7.0",
     "@socket.io/component-emitter": "^3.1.2",
     "autoprefixer": "^10.5.4",
     "axios": "^1.19.0",
@@ -22,6 +23,7 @@
     "serve": "^14.2.6",
     "socket.io-client": "^4.8.3",
     "tailwindcss": "^3.4.17",
+    "three": "^0.185.1",
     "xlsx": "^0.18.5"
   },
   "browserslist": {
