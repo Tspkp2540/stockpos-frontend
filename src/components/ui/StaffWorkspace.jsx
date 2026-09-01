@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
 import MenuModifierPicker from "./MenuModifierPicker";
+import { printReceipt } from "../../utils/printReceipt";
 
 const money = (amount) =>
   `฿${Number(amount || 0).toLocaleString("en-US", {
@@ -8,6 +9,13 @@ const money = (amount) =>
   })}`;
 const inputClass =
   "w-full min-w-0 rounded-xl border border-sky-200 bg-white/90 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-100";
+const paymentOptions = [
+  ["CASH", "เงินสด"],
+  ["QR", "QR พร้อมเพย์"],
+  ["TRANSFER", "โอนเงิน"],
+  ["CARD", "บัตร"],
+  ["OTHER", "อื่น ๆ"],
+];
 const statusClass = (status) =>
   status === "COMPLETED"
     ? "bg-emerald-50 text-emerald-700"
@@ -39,6 +47,9 @@ function ItemList({ items }) {
         {items.map((item, index) => (
           <li key={`${item.product_id || item.name}-${index}`}>
             {item.name} × {item.quantity || item.qty}
+            {(item.modifiers || []).length ? (
+              <span className="block text-xs text-violet-700">{item.modifiers.map((modifier) => modifier.name).join(" · ")}</span>
+            ) : null}
           </li>
         ))}
       </ul>
@@ -51,8 +62,11 @@ export default function StaffWorkspace({
   orders,
   channels,
   products,
+  currentShift,
   onAdd,
   onValidateCoupon,
+  onOpenCashShift,
+  onCloseCashShift,
   onUpdate,
   onLogout,
 }) {
@@ -61,11 +75,14 @@ export default function StaffWorkspace({
   const [customerNickname, setCustomerNickname] = useState("");
   const [cart, setCart] = useState([]);
   const [pendingProduct, setPendingProduct] = useState(null);
+  const [editingCartKey, setEditingCartKey] = useState(null);
   const [discountType, setDiscountType] = useState("amount");
   const [discountValue, setDiscountValue] = useState("");
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponError, setCouponError] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const [amountReceived, setAmountReceived] = useState("");
   const subtotal = useMemo(
     () =>
       cart.reduce(
@@ -93,14 +110,24 @@ export default function StaffWorkspace({
     return Math.min(eligibleAmount, cappedDiscount);
   }, [appliedCoupon, manualDiscountAmount, subtotal]);
   const total = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
+  const receivedAmount = Number(amountReceived || 0);
+  const changeAmount = paymentMethod === "CASH" && receivedAmount >= total
+    ? receivedAmount - total
+    : 0;
   const cookingOrders = orders.filter((order) => order.status === "COOKING").length;
+
+  const cartKeyFor = (product, modifiers = []) =>
+    `${product.id}:${modifiers
+      .map((modifier) => modifier.id)
+      .sort((a, b) => a - b)
+      .join("-") || "base"}`;
 
   const addConfiguredProduct = (product, modifiers = []) => {
     const modifierAdjustment = modifiers.reduce(
       (sum, modifier) => sum + Number(modifier.price_adjustment || 0),
       0,
     );
-    const cartKey = `${product.id}:${modifiers.map((modifier) => modifier.id).sort((a, b) => a - b).join("-") || "base"}`;
+    const cartKey = cartKeyFor(product, modifiers);
     setCart((current) => {
       const existing = current.find((item) => item.cart_key === cartKey);
       return existing
@@ -118,6 +145,7 @@ export default function StaffWorkspace({
               base_price: Number(product.price_retail || 0),
               price: Number(product.price_retail || 0) + modifierAdjustment,
               modifiers,
+              modifier_groups: product.modifier_groups || [],
               qty: 1,
             },
         ];
@@ -125,10 +153,58 @@ export default function StaffWorkspace({
   };
   const addProduct = (product) => {
     if ((product.modifier_groups || []).length) {
+      setEditingCartKey(null);
       setPendingProduct(product);
       return;
     }
     addConfiguredProduct(product);
+  };
+  const editCartModifiers = (cartKey) => {
+    const item = cart.find((row) => row.cart_key === cartKey);
+    if (!item) return;
+    const product = products.find((row) => String(row.id) === String(item.product_id)) || {
+      id: item.product_id,
+      name: item.name,
+      price_retail: item.base_price,
+      modifier_groups: item.modifier_groups || [],
+    };
+    if (!(product.modifier_groups || []).length) return;
+    setEditingCartKey(cartKey);
+    setPendingProduct(product);
+  };
+  const replaceConfiguredProduct = (previousCartKey, product, modifiers = []) => {
+    const modifierAdjustment = modifiers.reduce(
+      (sum, modifier) => sum + Number(modifier.price_adjustment || 0),
+      0,
+    );
+    const nextCartKey = cartKeyFor(product, modifiers);
+    setCart((current) => {
+      const previous = current.find((item) => item.cart_key === previousCartKey);
+      if (!previous) return current;
+      const matching = current.find((item) => item.cart_key === nextCartKey);
+      if (matching && nextCartKey !== previousCartKey) {
+        return current
+          .filter((item) => item.cart_key !== previousCartKey)
+          .map((item) =>
+            item.cart_key === nextCartKey
+              ? { ...item, qty: Number(item.qty || 0) + Number(previous.qty || 0) }
+              : item,
+          );
+      }
+      return current.map((item) =>
+        item.cart_key === previousCartKey
+          ? {
+              ...item,
+              cart_key: nextCartKey,
+              name: product.name,
+              base_price: Number(product.price_retail || 0),
+              price: Number(product.price_retail || 0) + modifierAdjustment,
+              modifiers,
+              modifier_groups: product.modifier_groups || [],
+            }
+          : item,
+      );
+    });
   };
   const updateQuantity = (cartKey, qty) =>
     setCart((current) =>
@@ -157,8 +233,27 @@ export default function StaffWorkspace({
       setCouponError(error.response?.data?.error || error.message || "คูปองไม่สามารถใช้งานได้");
     }
   };
+  const manageCashShift = async () => {
+    if (currentShift) {
+      const closingCash = window.prompt(
+        `ยอดเงินสดที่ควรมี ${money(Number(currentShift.opening_cash || 0) + Number(currentShift.cash_sales || 0))}\nกรอกยอดที่นับได้เพื่อปิดกะ`,
+      );
+      if (closingCash === null) return;
+      const closed = await onCloseCashShift?.(currentShift.id, closingCash);
+      if (closed) {
+        window.alert(`ปิดกะแล้ว\nยอดคาดการณ์: ${money(closed.expected_cash)}\nยอดต่าง: ${money(closed.difference_amount)}`);
+      }
+      return;
+    }
+    const openingCash = window.prompt("เงินทอนเริ่มกะ", "0");
+    if (openingCash === null) return;
+    await onOpenCashShift?.(openingCash);
+  };
   const submit = async () => {
     if (!cart.length) return;
+    if (paymentMethod === "CASH" && total > 0 && (!currentShift || receivedAmount < total)) {
+      return window.alert(!currentShift ? "กรุณาเปิดกะเงินสดก่อนรับเงินสด" : "ยอดที่รับต้องไม่น้อยกว่ายอดสุทธิ");
+    }
     const channel = channels.find(
       (item) => String(item.id) === String(channelId),
     );
@@ -169,6 +264,8 @@ export default function StaffWorkspace({
       customer_nickname: customerNickname.trim(),
       manual_discount_amount: Number(manualDiscountAmount.toFixed(2)),
       coupon_code: appliedCoupon?.code || undefined,
+      payment_method: paymentMethod,
+      amount_received: paymentMethod === "CASH" ? receivedAmount : undefined,
       items: cart.map(({ product_id, name, qty, price, base_price, modifiers }) => ({
         product_id,
         name,
@@ -186,6 +283,8 @@ export default function StaffWorkspace({
       setCouponCode("");
       setAppliedCoupon(null);
       setCouponError("");
+      setPaymentMethod("CASH");
+      setAmountReceived("");
     }
   };
 
@@ -203,6 +302,9 @@ export default function StaffWorkspace({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button className="hidden sm:inline-flex" variant="secondary" onClick={manageCashShift}>
+              {currentShift ? "ปิดกะเงินสด" : "เปิดกะเงินสด"}
+            </Button>
             <span className="hidden text-sm font-semibold text-slate-600 sm:block">
               {user.name}
             </span>
@@ -356,6 +458,14 @@ export default function StaffWorkspace({
                               {item.modifiers.map((modifier) => modifier.name).join(" · ")}
                             </p>
                           ) : null}
+                          {(item.modifier_groups?.length || products.find((product) => String(product.id) === String(item.product_id))?.modifier_groups?.length) ? (
+                            <button
+                              className="mt-2 text-xs font-bold text-violet-700 hover:text-violet-900"
+                              onClick={() => editCartModifiers(item.cart_key)}
+                            >
+                              ปรับความหวาน / ท็อปปิ้ง
+                            </button>
+                          ) : null}
                         </div>
                         <Button
                           className="px-2 py-1 text-xs"
@@ -453,6 +563,59 @@ export default function StaffWorkspace({
                   ) : null}
                   {couponError ? <p className="mt-2 text-xs font-medium text-rose-600">{couponError}</p> : null}
                 </div>
+                <div className="mb-4 rounded-xl border border-amber-100 bg-amber-50/60 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold text-slate-700">การชำระเงิน</p>
+                    <button className="text-xs font-semibold text-sky-700 sm:hidden" onClick={manageCashShift}>
+                      {currentShift ? "ปิดกะ" : "เปิดกะ"}
+                    </button>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {paymentOptions.map(([value, label]) => (
+                      <label
+                        className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold transition ${paymentMethod === value ? "border-amber-500 bg-white text-amber-800" : "border-amber-100 bg-white/70 text-slate-600"}`}
+                        key={value}
+                      >
+                        <input
+                          className="accent-amber-600"
+                          type="radio"
+                          name="staff-payment"
+                          checked={paymentMethod === value}
+                          onChange={() => setPaymentMethod(value)}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  {paymentMethod === "CASH" ? (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <label className="grid gap-1 text-xs font-medium text-slate-600">
+                        รับเงินสด
+                        <input
+                          className={inputClass}
+                          type="number"
+                          min={total}
+                          step="0.01"
+                          inputMode="decimal"
+                          value={amountReceived}
+                          onChange={(event) => setAmountReceived(event.target.value)}
+                          placeholder={total.toFixed(2)}
+                        />
+                      </label>
+                      <div className="rounded-xl bg-white/80 p-3 text-xs">
+                        <p className="text-slate-500">เงินทอน</p>
+                        <strong className="mt-1 block text-lg text-emerald-700">{money(changeAmount)}</strong>
+                      </div>
+                    </div>
+                  ) : null}
+                  <p className={`mt-2 text-xs ${paymentMethod === "CASH" && !currentShift ? "text-rose-600" : "text-slate-500"}`}>
+                    {paymentMethod === "CASH"
+                      ? currentShift
+                        ? `กะเปิดอยู่ · เงินทอนเริ่มกะ ${money(currentShift.opening_cash)}`
+                        : "ต้องเปิดกะเงินสดก่อนรับชำระด้วยเงินสด"
+                      : "การชำระเงินแบบนี้ไม่รวมในยอดเงินสดของกะ"}
+                  </p>
+                </div>
                 <div className="space-y-2 border-b border-sky-100 pb-4 text-sm">
                   <div className="flex items-center justify-between text-slate-500">
                     <span>ยอดก่อนลด</span>
@@ -511,15 +674,26 @@ export default function StaffWorkspace({
                     <strong className="text-lg text-sky-700">{money(order.net_revenue)}</strong>
                     {order.status === "COOKING" ? (
                       <div className="flex gap-2">
-                        <Button className="text-xs" onClick={() => onUpdate(order.id, "COMPLETED")}>
-                          เสร็จสิ้น
+                        <Button className="text-xs" onClick={() => onUpdate(order.id, "READY")}>
+                          พร้อมรับ
                         </Button>
                         <Button className="text-xs" variant="danger" onClick={() => onUpdate(order.id, "CANCELLED")}>
                           ยกเลิก
                         </Button>
                       </div>
+                    ) : order.status === "READY" ? (
+                      <div className="flex gap-2">
+                        <Button className="text-xs" onClick={() => onUpdate(order.id, "COMPLETED")}>
+                          ส่งมอบแล้ว
+                        </Button>
+                        <Button className="text-xs" variant="secondary" onClick={() => printReceipt(order)}>
+                          ใบเสร็จ
+                        </Button>
+                      </div>
                     ) : (
-                      <span className="text-xs text-slate-400">ไม่มีการดำเนินการ</span>
+                      <Button className="text-xs" variant="secondary" onClick={() => printReceipt(order)}>
+                        ใบเสร็จ
+                      </Button>
                     )}
                   </div>
                 </article>
@@ -534,12 +708,19 @@ export default function StaffWorkspace({
       </main>
       {pendingProduct ? (
         <MenuModifierPicker
-          key={pendingProduct.id}
+          key={`${pendingProduct.id}-${editingCartKey || "new"}`}
           product={pendingProduct}
-          onClose={() => setPendingProduct(null)}
-          onConfirm={(product, modifiers) => {
-            addConfiguredProduct(product, modifiers);
+          initialModifiers={editingCartKey ? cart.find((item) => item.cart_key === editingCartKey)?.modifiers || [] : []}
+          actionLabel={editingCartKey ? "บันทึกการปรับแก้ว" : "เพิ่มลงตะกร้า"}
+          onClose={() => {
             setPendingProduct(null);
+            setEditingCartKey(null);
+          }}
+          onConfirm={(product, modifiers) => {
+            if (editingCartKey) replaceConfiguredProduct(editingCartKey, product, modifiers);
+            else addConfiguredProduct(product, modifiers);
+            setPendingProduct(null);
+            setEditingCartKey(null);
           }}
         />
       ) : null}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
 import officeCoordinator from "../../assets/operations-office-coordinator.png";
 import stockCoordinator from "../../assets/operations-stock-coordinator.png";
@@ -6,9 +6,11 @@ import OperationsRoom3D from "./OperationsRoom3D";
 import MenuModifierPicker from "./MenuModifierPicker";
 import { exportExcel } from "../../utils/exportExcel";
 import { maskPhone } from "../../utils/phone";
+import { printReceipt } from "../../utils/printReceipt";
 
 const navigation = [
   { id: "pos", icon: "▣", label: "ขายและออเดอร์" },
+  { id: "kitchen", icon: "☕", label: "จอเตรียมสินค้า" },
   { id: "operations", icon: "◉", label: "ศูนย์ปฏิบัติการ" },
   { id: "inventory", icon: "□", label: "วัตถุดิบ" },
   { id: "menu", icon: "☷", label: "เมนูสินค้า" },
@@ -20,6 +22,13 @@ const money = (amount) =>
 const inputClass =
   "w-full min-w-0 rounded-xl border border-sky-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100";
 const labelClass = "grid min-w-0 gap-1.5 text-xs font-semibold text-slate-600";
+const paymentOptions = [
+  ["CASH", "เงินสด"],
+  ["QR", "QR พร้อมเพย์"],
+  ["TRANSFER", "โอนเงิน"],
+  ["CARD", "บัตร"],
+  ["OTHER", "อื่น ๆ"],
+];
 
 function Card({ children, className = "" }) {
   return (
@@ -133,9 +142,9 @@ function OrdersPage({ orders, onUpdate }) {
                   <div className="flex gap-2">
                     <Button
                       className="text-xs"
-                      onClick={() => onUpdate(order.id, "COMPLETED")}
+                      onClick={() => onUpdate(order.id, "READY")}
                     >
-                      เสร็จสิ้น
+                      พร้อมรับ
                     </Button>
                     <Button
                       className="text-xs"
@@ -145,10 +154,19 @@ function OrdersPage({ orders, onUpdate }) {
                       ยกเลิก
                     </Button>
                   </div>
+                ) : order.status === "READY" ? (
+                  <div className="flex gap-2">
+                    <Button className="text-xs" onClick={() => onUpdate(order.id, "COMPLETED")}>
+                      ส่งมอบแล้ว
+                    </Button>
+                    <Button className="text-xs" variant="secondary" onClick={() => printReceipt(order)}>
+                      ใบเสร็จ
+                    </Button>
+                  </div>
                 ) : (
-                  <span className="text-xs text-slate-400">
-                    ไม่มีการดำเนินการ
-                  </span>
+                  <Button className="text-xs" variant="secondary" onClick={() => printReceipt(order)}>
+                    ใบเสร็จ
+                  </Button>
                 )}
               </div>
             </article>
@@ -161,10 +179,85 @@ function OrdersPage({ orders, onUpdate }) {
   );
 }
 
-function PosPage({ channels, products, onAdd, onValidateCoupon }) {
+function KitchenDisplayPage({ orders, onUpdate }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const activeOrders = orders.filter((order) => !["COMPLETED", "CANCELLED"].includes(order.status));
+  const elapsed = (order) => {
+    const createdAt = new Date(order.created_at || order.order_date || now).getTime();
+    const minutes = Math.max(0, Math.floor((now - createdAt) / 60000));
+    return minutes ? `รอ ${minutes} นาที` : "เพิ่งเข้าคิว";
+  };
+  const Ticket = ({ order }) => {
+    const rawItems = Array.isArray(order.rawItems) ? order.rawItems : [];
+    const isReady = order.status === "READY";
+    return (
+      <article className={`rounded-2xl border bg-white p-4 shadow-sm ${isReady ? "border-emerald-200" : "border-amber-200"}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xl font-black text-slate-900">คิว {order.queue_no || "-"}</p>
+            <p className="mt-1 text-xs font-semibold text-slate-500">#{order.order_no} · {elapsed(order)}</p>
+          </div>
+          <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${isReady ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+            {isReady ? "พร้อมรับ" : "กำลังทำ"}
+          </span>
+        </div>
+        <div className="mt-4 rounded-xl bg-slate-50 p-3">
+          <p className="text-xs font-bold text-slate-500">{order.customer_nickname || order.customer_name || "ไม่ระบุชื่อลูกค้า"} · {order.channel_name || "หน้าร้าน"}</p>
+          <ul className="mt-2 space-y-2 text-sm text-slate-700">
+            {rawItems.length ? rawItems.map((item, index) => (
+              <li key={`${item.product_id || item.name}-${index}`}>
+                <span className="font-bold">{item.name} × {item.quantity ?? item.qty}</span>
+                {(item.modifiers || []).length ? (
+                  <span className="mt-0.5 block text-xs text-violet-700">{item.modifiers.map((modifier) => modifier.name).join(" · ")}</span>
+                ) : null}
+              </li>
+            )) : <li>{order.items || "ไม่มีรายละเอียดสินค้า"}</li>}
+          </ul>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button className="flex-1" onClick={() => onUpdate(order.id, isReady ? "COMPLETED" : "READY")}>
+            {isReady ? "ส่งมอบแล้ว" : "ทำเสร็จ / พร้อมรับ"}
+          </Button>
+          <Button className="text-xs" variant="secondary" onClick={() => printReceipt(order)}>
+            ใบเสร็จ
+          </Button>
+        </div>
+      </article>
+    );
+  };
+  const cooking = activeOrders.filter((order) => order.status !== "READY");
+  const ready = activeOrders.filter((order) => order.status === "READY");
+  return (
+    <div className="space-y-5">
+      <Heading
+        eyebrow="Kitchen display"
+        title="จอเตรียมสินค้า"
+        description="จัดการคิวแบบสองขั้น: กำลังทำ → พร้อมรับ → ส่งมอบแล้ว"
+        action={<span className="rounded-full bg-sky-100 px-3 py-2 text-sm font-bold text-sky-700">{activeOrders.length} คิวที่ต้องดูแล</span>}
+      />
+      <div className="grid gap-5 xl:grid-cols-2">
+        <section className="rounded-3xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-amber-950">กำลังทำ</h2><span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-amber-700">{cooking.length}</span></div>
+          <div className="grid gap-3">{cooking.length ? cooking.map((order) => <Ticket key={order.id} order={order} />) : <Empty>ไม่มีคิวกำลังทำ</Empty>}</div>
+        </section>
+        <section className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-emerald-950">พร้อมรับสินค้า</h2><span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-emerald-700">{ready.length}</span></div>
+          <div className="grid gap-3">{ready.length ? ready.map((order) => <Ticket key={order.id} order={order} />) : <Empty>ยังไม่มีรายการที่พร้อมรับ</Empty>}</div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, onOpenCashShift, onCloseCashShift }) {
   const [channelId, setChannelId] = useState(channels[0]?.id || "");
   const [cart, setCart] = useState([]);
   const [pendingProduct, setPendingProduct] = useState(null);
+  const [editingCartKey, setEditingCartKey] = useState(null);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [discountType, setDiscountType] = useState("amount");
@@ -172,6 +265,8 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponError, setCouponError] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const [amountReceived, setAmountReceived] = useState("");
   const subtotal = useMemo(
     () =>
       cart.reduce(
@@ -199,12 +294,21 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
     return Math.min(eligibleAmount, cappedDiscount);
   }, [appliedCoupon, manualDiscountAmount, subtotal]);
   const total = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
+  const receivedAmount = Number(amountReceived || 0);
+  const changeAmount = paymentMethod === "CASH" && receivedAmount >= total
+    ? receivedAmount - total
+    : 0;
+  const cartKeyFor = (product, modifiers = []) =>
+    `${product.id}:${modifiers
+      .map((modifier) => modifier.id)
+      .sort((a, b) => a - b)
+      .join("-") || "base"}`;
   const addConfiguredItem = (product, modifiers = []) => {
     const modifierAdjustment = modifiers.reduce(
       (sum, modifier) => sum + Number(modifier.price_adjustment || 0),
       0,
     );
-    const cartKey = `${product.id}:${modifiers.map((modifier) => modifier.id).sort((a, b) => a - b).join("-") || "base"}`;
+    const cartKey = cartKeyFor(product, modifiers);
     setCart((current) => {
       const found = current.find((item) => item.cart_key === cartKey);
       return found
@@ -222,6 +326,7 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
               base_price: Number(product.price_retail || 0),
               price: Number(product.price_retail || 0) + modifierAdjustment,
               modifiers,
+              modifier_groups: product.modifier_groups || [],
               qty: 1,
             },
         ];
@@ -229,10 +334,58 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
   };
   const addItem = (product) => {
     if ((product.modifier_groups || []).length) {
+      setEditingCartKey(null);
       setPendingProduct(product);
       return;
     }
     addConfiguredItem(product);
+  };
+  const editCartModifiers = (cartKey) => {
+    const item = cart.find((row) => row.cart_key === cartKey);
+    if (!item) return;
+    const product = products.find((row) => String(row.id) === String(item.product_id)) || {
+      id: item.product_id,
+      name: item.name,
+      price_retail: item.base_price,
+      modifier_groups: item.modifier_groups || [],
+    };
+    if (!(product.modifier_groups || []).length) return;
+    setEditingCartKey(cartKey);
+    setPendingProduct(product);
+  };
+  const replaceConfiguredItem = (previousCartKey, product, modifiers = []) => {
+    const modifierAdjustment = modifiers.reduce(
+      (sum, modifier) => sum + Number(modifier.price_adjustment || 0),
+      0,
+    );
+    const nextCartKey = cartKeyFor(product, modifiers);
+    setCart((current) => {
+      const previous = current.find((item) => item.cart_key === previousCartKey);
+      if (!previous) return current;
+      const matching = current.find((item) => item.cart_key === nextCartKey);
+      if (matching && nextCartKey !== previousCartKey) {
+        return current
+          .filter((item) => item.cart_key !== previousCartKey)
+          .map((item) =>
+            item.cart_key === nextCartKey
+              ? { ...item, qty: Number(item.qty || 0) + Number(previous.qty || 0) }
+              : item,
+          );
+      }
+      return current.map((item) =>
+        item.cart_key === previousCartKey
+          ? {
+              ...item,
+              cart_key: nextCartKey,
+              name: product.name,
+              base_price: Number(product.price_retail || 0),
+              price: Number(product.price_retail || 0) + modifierAdjustment,
+              modifiers,
+              modifier_groups: product.modifier_groups || [],
+            }
+          : item,
+      );
+    });
   };
   const changeQty = (cartKey, qty) =>
     setCart((current) =>
@@ -261,8 +414,25 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
       setCouponError(error.response?.data?.error || error.message || "คูปองไม่สามารถใช้งานได้");
     }
   };
+  const manageCashShift = async () => {
+    if (currentShift) {
+      const closingCash = window.prompt(
+        `ยอดเงินสดที่ควรมี ${money(Number(currentShift.opening_cash || 0) + Number(currentShift.cash_sales || 0))}\nกรอกยอดที่นับได้เพื่อปิดกะ`,
+      );
+      if (closingCash === null) return;
+      const closed = await onCloseCashShift?.(currentShift.id, closingCash);
+      if (closed) window.alert(`ปิดกะแล้ว\nยอดต่าง: ${money(closed.difference_amount)}`);
+      return;
+    }
+    const openingCash = window.prompt("เงินทอนเริ่มกะ", "0");
+    if (openingCash === null) return;
+    await onOpenCashShift?.(openingCash);
+  };
   const submit = async () => {
     if (!cart.length) return;
+    if (paymentMethod === "CASH" && total > 0 && (!currentShift || receivedAmount < total)) {
+      return window.alert(!currentShift ? "กรุณาเปิดกะเงินสดก่อนรับเงินสด" : "ยอดที่รับต้องไม่น้อยกว่ายอดสุทธิ");
+    }
     const channel = channels.find(
       (item) => String(item.id) === String(channelId),
     );
@@ -275,6 +445,8 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
       customer_phone: customerPhone.trim(),
       manual_discount_amount: Number(manualDiscountAmount.toFixed(2)),
       coupon_code: appliedCoupon?.code || undefined,
+      payment_method: paymentMethod,
+      amount_received: paymentMethod === "CASH" ? receivedAmount : undefined,
       items: cart.map(({ product_id, qty, price, base_price, modifiers }) => ({
         product_id,
         qty,
@@ -291,6 +463,8 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
       setCouponCode("");
       setAppliedCoupon(null);
       setCouponError("");
+      setPaymentMethod("CASH");
+      setAmountReceived("");
     }
   };
   return (
@@ -382,6 +556,14 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
                         <p className="mt-1 text-xs text-violet-700">
                           {item.modifiers.map((modifier) => modifier.name).join(" · ")}
                         </p>
+                      ) : null}
+                      {(item.modifier_groups?.length || products.find((product) => String(product.id) === String(item.product_id))?.modifier_groups?.length) ? (
+                        <button
+                          className="mt-2 text-xs font-bold text-violet-700 hover:text-violet-900"
+                          onClick={() => editCartModifiers(item.cart_key)}
+                        >
+                          ปรับความหวาน / ท็อปปิ้ง
+                        </button>
                       ) : null}
                     </div>
                     <Button
@@ -507,6 +689,59 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
               ) : null}
               {couponError ? <p className="mt-2 text-xs font-medium text-rose-600">{couponError}</p> : null}
             </div>
+            <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold text-slate-700">การชำระเงิน</p>
+                <button className="text-xs font-semibold text-sky-700" onClick={manageCashShift}>
+                  {currentShift ? "ปิดกะเงินสด" : "เปิดกะเงินสด"}
+                </button>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {paymentOptions.map(([value, label]) => (
+                  <label
+                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold transition ${paymentMethod === value ? "border-amber-500 bg-white text-amber-800" : "border-amber-100 bg-white/70 text-slate-600"}`}
+                    key={value}
+                  >
+                    <input
+                      className="accent-amber-600"
+                      type="radio"
+                      name="admin-payment"
+                      checked={paymentMethod === value}
+                      onChange={() => setPaymentMethod(value)}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              {paymentMethod === "CASH" ? (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <label className="grid gap-1 text-xs font-medium text-slate-600">
+                    รับเงินสด
+                    <input
+                      className={inputClass}
+                      type="number"
+                      min={total}
+                      step="0.01"
+                      inputMode="decimal"
+                      value={amountReceived}
+                      onChange={(event) => setAmountReceived(event.target.value)}
+                      placeholder={total.toFixed(2)}
+                    />
+                  </label>
+                  <div className="rounded-xl bg-white/80 p-3 text-xs">
+                    <p className="text-slate-500">เงินทอน</p>
+                    <strong className="mt-1 block text-lg text-emerald-700">{money(changeAmount)}</strong>
+                  </div>
+                </div>
+              ) : null}
+              <p className={`mt-2 text-xs ${paymentMethod === "CASH" && !currentShift ? "text-rose-600" : "text-slate-500"}`}>
+                {paymentMethod === "CASH"
+                  ? currentShift
+                    ? `กะเปิดอยู่ · เงินทอนเริ่มกะ ${money(currentShift.opening_cash)}`
+                    : "ต้องเปิดกะเงินสดก่อนรับชำระด้วยเงินสด"
+                  : "การชำระเงินแบบนี้ไม่รวมในยอดเงินสดของกะ"}
+              </p>
+            </div>
             <div className="space-y-2 border-b border-sky-100 pb-4 text-sm">
               <div className="flex items-center justify-between text-slate-500">
                 <span>ยอดก่อนลด</span>
@@ -535,12 +770,19 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
       </aside>
       {pendingProduct ? (
         <MenuModifierPicker
-          key={pendingProduct.id}
+          key={`${pendingProduct.id}-${editingCartKey || "new"}`}
           product={pendingProduct}
-          onClose={() => setPendingProduct(null)}
-          onConfirm={(product, modifiers) => {
-            addConfiguredItem(product, modifiers);
+          initialModifiers={editingCartKey ? cart.find((item) => item.cart_key === editingCartKey)?.modifiers || [] : []}
+          actionLabel={editingCartKey ? "บันทึกการปรับแก้ว" : "เพิ่มลงตะกร้า"}
+          onClose={() => {
             setPendingProduct(null);
+            setEditingCartKey(null);
+          }}
+          onConfirm={(product, modifiers) => {
+            if (editingCartKey) replaceConfiguredItem(editingCartKey, product, modifiers);
+            else addConfiguredItem(product, modifiers);
+            setPendingProduct(null);
+            setEditingCartKey(null);
           }}
         />
       ) : null}
@@ -2751,9 +2993,12 @@ export default function GlassLayout({
   metrics,
   expenses,
   expenseRows,
+  currentShift,
   notice,
   onAdd,
   onValidateCoupon,
+  onOpenCashShift,
+  onCloseCashShift,
   onUpdate,
   onRestock,
   onCreateInventory,
@@ -2808,14 +3053,19 @@ export default function GlassLayout({
         expenseRows={expenseRows}
         isAdmin={user?.role === "admin"}
       />
+    ) : activeView === "kitchen" ? (
+      <KitchenDisplayPage orders={orders} onUpdate={onUpdate} />
     ) : (
       <div className="space-y-5">
         <OrdersPage orders={orders} onUpdate={onUpdate} />
         <PosPage
           channels={channels}
           products={products}
+          currentShift={currentShift}
           onAdd={onAdd}
           onValidateCoupon={onValidateCoupon}
+          onOpenCashShift={onOpenCashShift}
+          onCloseCashShift={onCloseCashShift}
         />
       </div>
     );

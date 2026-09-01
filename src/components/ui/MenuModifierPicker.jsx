@@ -8,20 +8,39 @@ const moneyDelta = (value) => {
   })}`;
 };
 
-const initialSelection = (groups) =>
-  Object.fromEntries(
-    groups.map((group) => [
-      group.id,
-      (group.options || [])
-        .filter((option) => option.is_active !== false)
-        .slice(0, Number(group.min_selection || 0))
-        .map((option) => Number(option.id)),
-    ]),
+const initialSelection = (groups, initialModifiers = []) => {
+  const initiallySelected = new Set(
+    initialModifiers
+      .map((modifier) => Number(modifier.id ?? modifier.option_id))
+      .filter((id) => Number.isFinite(id)),
   );
+  return Object.fromEntries(
+    groups.map((group) => {
+      const options = (group.options || []).filter((option) => option.is_active !== false);
+      const restored = options
+        .filter((option) => initiallySelected.has(Number(option.id)))
+        .map((option) => Number(option.id));
+      return [
+        group.id,
+        restored.length
+          ? restored
+          : options
+              .slice(0, Number(group.min_selection || 0))
+              .map((option) => Number(option.id)),
+      ];
+    }),
+  );
+};
 
-export default function MenuModifierPicker({ product, onClose, onConfirm }) {
+export default function MenuModifierPicker({
+  product,
+  initialModifiers = [],
+  actionLabel = "เพิ่มลงตะกร้า",
+  onClose,
+  onConfirm,
+}) {
   const groups = product?.modifier_groups || [];
-  const [selectedByGroup, setSelectedByGroup] = useState(() => initialSelection(groups));
+  const [selectedByGroup, setSelectedByGroup] = useState(() => initialSelection(groups, initialModifiers));
   const selectedOptions = useMemo(
     () =>
       groups.flatMap((group) =>
@@ -124,7 +143,7 @@ export default function MenuModifierPicker({ product, onClose, onConfirm }) {
             disabled={!isComplete}
             onClick={() => onConfirm(product, selectedOptions)}
           >
-            เพิ่มลงตะกร้า
+            {actionLabel}
           </button>
         </div>
       </section>

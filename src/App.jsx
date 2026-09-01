@@ -118,6 +118,7 @@ function App() {
   const [inventoryRows, setInventoryRows] = useState(inventory);
   const [expenses, setExpenses] = useState(0);
   const [expenseRows, setExpenseRows] = useState([]);
+  const [currentShift, setCurrentShift] = useState(null);
   const [metrics, setMetrics] = useState({
     gross: 0,
     net: 0,
@@ -172,6 +173,23 @@ function App() {
     setSession(null);
     setAnonymousMode(true);
     setActiveView("operations");
+    setCurrentShift(null);
+  };
+
+  const refreshCurrentShift = async () => {
+    if (!session?.token || !["admin", "staff"].includes(session.role)) {
+      setCurrentShift(null);
+      return null;
+    }
+    try {
+      const response = await axios.get(`${API_BASE}/api/shifts/current`);
+      const shift = response.data?.success ? response.data.data : null;
+      setCurrentShift(shift);
+      return shift;
+    } catch (error) {
+      console.warn("Cash shift sync unavailable.", error);
+      return null;
+    }
   };
 
   useEffect(() => {
@@ -206,6 +224,10 @@ function App() {
     return () => {
       active = false;
     };
+  }, [session?.token]);
+
+  useEffect(() => {
+    refreshCurrentShift();
   }, [session?.token]);
 
   useEffect(() => {
@@ -355,6 +377,11 @@ function App() {
         customer_phone: payload.customer_phone || undefined,
         manual_discount_amount: Number(payload.manual_discount_amount) || 0,
         coupon_code: payload.coupon_code || undefined,
+        payment_method: payload.payment_method || "OTHER",
+        amount_received:
+          payload.amount_received === undefined || payload.amount_received === ""
+            ? undefined
+            : Number(payload.amount_received),
       });
       if (response.data?.success) {
         setOrders((current) => [
@@ -366,6 +393,7 @@ function App() {
           ...current,
         ]);
         setNotice("NEW ORDER RECEIVED · ACCOUNTANT PRINTING");
+        if (payload.payment_method === "CASH") refreshCurrentShift();
         return true;
       }
     } catch (error) {
@@ -373,6 +401,40 @@ function App() {
       console.warn("Order API failed.", error);
     }
     return false;
+  };
+  const openCashShift = async (openingCash, openingNote = "") => {
+    try {
+      const response = await axios.post(`${API_BASE}/api/shifts/open`, {
+        opening_cash: Number(openingCash) || 0,
+        opening_note: openingNote,
+      });
+      if (response.data?.success) {
+        setCurrentShift(response.data.data);
+        setNotice("CASH SHIFT OPENED · READY FOR CASH SALES");
+        return true;
+      }
+    } catch (error) {
+      window.alert(error.response?.data?.error || "ไม่สามารถเปิดกะเงินสดได้");
+      console.warn("Cash shift open failed.", error);
+    }
+    return false;
+  };
+  const closeCashShift = async (shiftId, closingCash, closingNote = "") => {
+    try {
+      const response = await axios.post(`${API_BASE}/api/shifts/${shiftId}/close`, {
+        closing_cash: Number(closingCash),
+        closing_note: closingNote,
+      });
+      if (response.data?.success) {
+        setCurrentShift(null);
+        setNotice("CASH SHIFT CLOSED · DIFFERENCE CALCULATED");
+        return response.data.data;
+      }
+    } catch (error) {
+      window.alert(error.response?.data?.error || "ไม่สามารถปิดกะเงินสดได้");
+      console.warn("Cash shift close failed.", error);
+    }
+    return null;
   };
   const validateCoupon = async ({ code, amount }) => {
     const response = await axios.post(`${API_BASE}/api/coupons/validate`, {
@@ -399,7 +461,11 @@ function App() {
         setNotice(
           status === "COMPLETED"
             ? "PAYMENT RECEIVED · SECURE CASH DROP"
-            : "ORDER CANCELLED",
+            : status === "READY"
+              ? "ORDER READY FOR PICKUP"
+              : status === "CANCELLED"
+                ? "ORDER CANCELLED"
+                : "ORDER STATUS UPDATED",
         );
         return true;
       }
@@ -745,8 +811,11 @@ function App() {
         orders={orders}
         channels={channels}
         products={products}
+        currentShift={currentShift}
         onAdd={addOrder}
         onValidateCoupon={validateCoupon}
+        onOpenCashShift={openCashShift}
+        onCloseCashShift={closeCashShift}
         onUpdate={updateOrder}
         onLogout={logout}
       />
@@ -775,9 +844,12 @@ function App() {
         metrics={metrics}
         expenses={expenses}
         expenseRows={expenseRows}
+        currentShift={currentShift}
         notice={notice}
         onAdd={addOrder}
         onValidateCoupon={validateCoupon}
+        onOpenCashShift={openCashShift}
+        onCloseCashShift={closeCashShift}
         onUpdate={updateOrder}
         onRestock={handleRestock}
         onCreateInventory={createInventory}
