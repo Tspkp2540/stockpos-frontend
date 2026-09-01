@@ -19,6 +19,11 @@ const navigation = [
 
 const money = (amount) =>
   `฿${Number(amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+const localDateTimeValue = () => {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 16);
+};
 const inputClass =
   "w-full min-w-0 rounded-xl border border-sky-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100";
 const labelClass = "grid min-w-0 gap-1.5 text-xs font-semibold text-slate-600";
@@ -790,7 +795,148 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
   );
 }
 
-function IngredientsPage({ rows, onCreate, onUpdate, onDelete, onRestock }) {
+function StockReceivingPanel({ rows, suppliers, receipts, onCreateSupplier, onCreateReceipt }) {
+  const emptyLine = () => ({ ingredient_id: "", quantity: "", unit_cost: "" });
+  const [supplierId, setSupplierId] = useState("");
+  const [receivedAt, setReceivedAt] = useState(localDateTimeValue);
+  const [note, setNote] = useState("");
+  const [receiptItems, setReceiptItems] = useState([emptyLine()]);
+  const [showSupplierForm, setShowSupplierForm] = useState(false);
+  const [supplierForm, setSupplierForm] = useState({ name: "", contact_name: "", phone: "" });
+  const total = receiptItems.reduce(
+    (sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.unit_cost) || 0),
+    0,
+  );
+  const updateItem = (index, field, value) => {
+    setReceiptItems((current) => current.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      if (field !== "ingredient_id") return { ...item, [field]: value };
+      const ingredient = rows.find((row) => String(row.id) === String(value));
+      return {
+        ...item,
+        ingredient_id: value,
+        unit_cost: ingredient ? String(ingredient.cost_per_unit ?? "") : item.unit_cost,
+      };
+    }));
+  };
+  const submitSupplier = async (event) => {
+    event.preventDefault();
+    const saved = await onCreateSupplier?.(supplierForm);
+    if (!saved) return;
+    setSupplierId(String(saved.id));
+    setSupplierForm({ name: "", contact_name: "", phone: "" });
+    setShowSupplierForm(false);
+  };
+  const submitReceipt = async (event) => {
+    event.preventDefault();
+    const saved = await onCreateReceipt?.({
+      supplier_id: supplierId || undefined,
+      received_at: receivedAt,
+      note,
+      items: receiptItems,
+    });
+    if (!saved) return;
+    setReceivedAt(localDateTimeValue());
+    setNote("");
+    setReceiptItems([emptyLine()]);
+  };
+  return (
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">Purchase receiving</p>
+          <h2 className="mt-1 text-lg font-bold text-slate-900">รับวัตถุดิบเข้าคลัง</h2>
+          <p className="mt-1 text-sm text-slate-500">บันทึกผู้ขาย จำนวน ต้นทุน และปรับต้นทุนเฉลี่ยให้อัตโนมัติ</p>
+        </div>
+        <span className="rounded-full bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-700">รวม {money(total)}</span>
+      </div>
+      <form className="mt-5 grid gap-4" onSubmit={submitReceipt}>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <label className={labelClass}>
+            ผู้ขาย <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+            <select className={inputClass} value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
+              <option value="">ไม่ระบุผู้ขาย</option>
+              {suppliers.filter((supplier) => supplier.is_active !== false).map((supplier) => (
+                <option value={supplier.id} key={supplier.id}>{supplier.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className={labelClass}>
+            วันเวลารับของ
+            <input className={inputClass} type="datetime-local" value={receivedAt} onChange={(event) => setReceivedAt(event.target.value)} required />
+          </label>
+          <label className={labelClass}>
+            หมายเหตุ <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+            <input className={inputClass} value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="เช่น ใบส่งของ #A-102" />
+          </label>
+        </div>
+        <div className="space-y-3 rounded-2xl border border-sky-100 bg-sky-50/40 p-3 sm:p-4">
+          <div className="hidden grid-cols-[minmax(0,1fr)_120px_130px_40px] gap-2 px-1 text-xs font-bold text-slate-500 lg:grid">
+            <span>วัตถุดิบ</span><span>จำนวน</span><span>ต้นทุน/หน่วย</span><span />
+          </div>
+          {receiptItems.map((item, index) => {
+            const ingredient = rows.find((row) => String(row.id) === String(item.ingredient_id));
+            return (
+              <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_120px_130px_40px]" key={index}>
+                <label className={labelClass}>
+                  <span className="lg:hidden">วัตถุดิบ</span>
+                  <select className={inputClass} value={item.ingredient_id} onChange={(event) => updateItem(index, "ingredient_id", event.target.value)} required>
+                    <option value="">เลือกวัตถุดิบ</option>
+                    {rows.map((row) => <option key={row.id} value={row.id}>{row.name} · เหลือ {row.stock_qty} {row.unit}</option>)}
+                  </select>
+                </label>
+                <label className={labelClass}>
+                  <span className="lg:hidden">จำนวน</span>
+                  <input className={inputClass} type="number" min="0.001" step="0.001" inputMode="decimal" value={item.quantity} onChange={(event) => updateItem(index, "quantity", event.target.value)} placeholder={ingredient?.unit || "จำนวน"} required />
+                </label>
+                <label className={labelClass}>
+                  <span className="lg:hidden">ต้นทุนต่อหน่วย</span>
+                  <input className={inputClass} type="number" min="0" step="0.01" inputMode="decimal" value={item.unit_cost} onChange={(event) => updateItem(index, "unit_cost", event.target.value)} placeholder="0.00" required />
+                </label>
+                <Button type="button" className="self-end px-2" variant="danger" disabled={receiptItems.length === 1} onClick={() => setReceiptItems((current) => current.filter((_, itemIndex) => itemIndex !== index))}>×</Button>
+              </div>
+            );
+          })}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sky-100 pt-3">
+            <Button type="button" variant="secondary" onClick={() => setReceiptItems((current) => [...current, emptyLine()])}>+ เพิ่มรายการ</Button>
+            <Button type="submit" disabled={!rows.length}>บันทึกรับเข้าสต็อก</Button>
+          </div>
+        </div>
+      </form>
+      <div className="mt-4 border-t border-sky-100 pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-bold text-slate-800">ผู้ขาย</p>
+          <button className="text-xs font-bold text-sky-700 hover:text-sky-900" onClick={() => setShowSupplierForm((current) => !current)}>
+            {showSupplierForm ? "ซ่อนแบบฟอร์ม" : "+ เพิ่มผู้ขาย"}
+          </button>
+        </div>
+        {showSupplierForm ? (
+          <form className="mt-3 grid gap-2 sm:grid-cols-3" onSubmit={submitSupplier}>
+            <input className={inputClass} value={supplierForm.name} onChange={(event) => setSupplierForm((current) => ({ ...current, name: event.target.value }))} placeholder="ชื่อผู้ขาย" required />
+            <input className={inputClass} value={supplierForm.contact_name} onChange={(event) => setSupplierForm((current) => ({ ...current, contact_name: event.target.value }))} placeholder="ผู้ติดต่อ" />
+            <div className="flex gap-2"><input className={inputClass} value={supplierForm.phone} onChange={(event) => setSupplierForm((current) => ({ ...current, phone: event.target.value }))} placeholder="เบอร์โทร" /><Button type="submit" className="shrink-0">บันทึก</Button></div>
+          </form>
+        ) : null}
+        {suppliers.length ? <p className="mt-2 text-xs text-slate-500">{suppliers.filter((supplier) => supplier.is_active !== false).map((supplier) => supplier.name).join(" · ")}</p> : <p className="mt-2 text-xs text-slate-500">ยังไม่มีข้อมูลผู้ขาย</p>}
+      </div>
+      <div className="mt-4 border-t border-sky-100 pt-4">
+        <p className="text-sm font-bold text-slate-800">ประวัติรับของล่าสุด</p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {receipts.slice(0, 6).map((receipt) => (
+            <div className="rounded-xl border border-sky-100 bg-white p-3" key={receipt.id}>
+              <p className="font-bold text-slate-800">{receipt.receipt_no}</p>
+              <p className="mt-1 truncate text-xs text-slate-500">{receipt.supplier_name || "ไม่ระบุผู้ขาย"}</p>
+              <p className="mt-1 text-sm font-bold text-sky-700">{money(receipt.total_amount)}</p>
+            </div>
+          ))}
+          {!receipts.length ? <p className="text-sm text-slate-500">ยังไม่มีประวัติการรับของ</p> : null}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function IngredientsPage({ rows, suppliers, receipts, onCreate, onUpdate, onDelete, onRestock, onCreateSupplier, onCreateReceipt }) {
   const initial = {
     name: "",
     unit: "",
@@ -847,6 +993,13 @@ function IngredientsPage({ rows, onCreate, onUpdate, onDelete, onRestock }) {
             </Button>
           </div>
         }
+      />
+      <StockReceivingPanel
+        rows={rows}
+        suppliers={suppliers}
+        receipts={receipts}
+        onCreateSupplier={onCreateSupplier}
+        onCreateReceipt={onCreateReceipt}
       />
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
         <Card>
@@ -2990,6 +3143,8 @@ export default function GlassLayout({
   channels,
   products,
   inventoryRows,
+  suppliers,
+  stockReceipts,
   metrics,
   expenses,
   expenseRows,
@@ -3001,6 +3156,8 @@ export default function GlassLayout({
   onCloseCashShift,
   onUpdate,
   onRestock,
+  onCreateSupplier,
+  onCreateStockReceipt,
   onCreateInventory,
   onUpdateInventory,
   onDeleteInventory,
@@ -3018,10 +3175,14 @@ export default function GlassLayout({
     activeView === "inventory" ? (
       <IngredientsPage
         rows={inventoryRows}
+        suppliers={suppliers}
+        receipts={stockReceipts}
         onCreate={onCreateInventory}
         onUpdate={onUpdateInventory}
         onDelete={onDeleteInventory}
         onRestock={onRestock}
+        onCreateSupplier={onCreateSupplier}
+        onCreateReceipt={onCreateStockReceipt}
       />
     ) : activeView === "menu" ? (
       <MenusPage
