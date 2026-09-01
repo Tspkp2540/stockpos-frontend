@@ -83,9 +83,13 @@ const money = (amount) =>
 const formatItems = (items) =>
   Array.isArray(items)
     ? items
-        .map(
-          (item) =>
-            `${item.name || `Product #${item.product_id}`} x ${item.quantity || item.qty}`,
+      .map(
+          (item) => {
+            const modifiers = Array.isArray(item.modifiers) && item.modifiers.length
+              ? ` (${item.modifiers.map((modifier) => modifier.name).join(", ")})`
+              : "";
+            return `${item.name || `Product #${item.product_id}`} x ${item.quantity || item.qty}${modifiers}`;
+          },
         )
         .join(" · ")
     : String(items || "Order items");

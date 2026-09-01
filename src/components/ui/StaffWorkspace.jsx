@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
+import MenuModifierPicker from "./MenuModifierPicker";
 
 const money = (amount) =>
   `฿${Number(amount || 0).toLocaleString("en-US", {
@@ -59,6 +60,7 @@ export default function StaffWorkspace({
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerNickname, setCustomerNickname] = useState("");
   const [cart, setCart] = useState([]);
+  const [pendingProduct, setPendingProduct] = useState(null);
   const [discountType, setDiscountType] = useState("amount");
   const [discountValue, setDiscountValue] = useState("");
   const [couponCode, setCouponCode] = useState("");
@@ -93,29 +95,45 @@ export default function StaffWorkspace({
   const total = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
   const cookingOrders = orders.filter((order) => order.status === "COOKING").length;
 
-  const addProduct = (product) =>
+  const addConfiguredProduct = (product, modifiers = []) => {
+    const modifierAdjustment = modifiers.reduce(
+      (sum, modifier) => sum + Number(modifier.price_adjustment || 0),
+      0,
+    );
+    const cartKey = `${product.id}:${modifiers.map((modifier) => modifier.id).sort((a, b) => a - b).join("-") || "base"}`;
     setCart((current) => {
-      const existing = current.find((item) => item.product_id === product.id);
+      const existing = current.find((item) => item.cart_key === cartKey);
       return existing
         ? current.map((item) =>
-            item.product_id === product.id
+            item.cart_key === cartKey
               ? { ...item, qty: item.qty + 1 }
               : item,
           )
         : [
             ...current,
             {
+              cart_key: cartKey,
               product_id: product.id,
               name: product.name,
-              price: Number(product.price_retail || 0),
+              base_price: Number(product.price_retail || 0),
+              price: Number(product.price_retail || 0) + modifierAdjustment,
+              modifiers,
               qty: 1,
             },
-          ];
+        ];
     });
-  const updateQuantity = (productId, qty) =>
+  };
+  const addProduct = (product) => {
+    if ((product.modifier_groups || []).length) {
+      setPendingProduct(product);
+      return;
+    }
+    addConfiguredProduct(product);
+  };
+  const updateQuantity = (cartKey, qty) =>
     setCart((current) =>
       current.map((item) =>
-        item.product_id === productId
+        item.cart_key === cartKey
           ? { ...item, qty: Math.max(1, Number(qty) || 1) }
           : item,
       ),
@@ -151,10 +169,12 @@ export default function StaffWorkspace({
       customer_nickname: customerNickname.trim(),
       manual_discount_amount: Number(manualDiscountAmount.toFixed(2)),
       coupon_code: appliedCoupon?.code || undefined,
-      items: cart.map(({ product_id, qty, price }) => ({
+      items: cart.map(({ product_id, name, qty, price, base_price, modifiers }) => ({
         product_id,
+        name,
         qty,
-        price: Number(price),
+        price: Number(base_price ?? price),
+        modifiers: (modifiers || []).map((modifier) => ({ option_id: modifier.id })),
       })),
     });
     if (saved) {
@@ -326,18 +346,23 @@ export default function StaffWorkspace({
               <div className="my-4 space-y-3">
                 {cart.length ? (
                   cart.map((item) => (
-                    <div className="rounded-xl border border-sky-100 bg-white/75 p-3" key={item.product_id}>
+                    <div className="rounded-xl border border-sky-100 bg-white/75 p-3" key={item.cart_key}>
                       <div className="flex gap-3">
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-semibold text-slate-800">{item.name}</p>
                           <p className="text-sm text-sky-700">{money(item.price)}</p>
+                          {item.modifiers?.length ? (
+                            <p className="mt-1 text-xs text-violet-700">
+                              {item.modifiers.map((modifier) => modifier.name).join(" · ")}
+                            </p>
+                          ) : null}
                         </div>
                         <Button
                           className="px-2 py-1 text-xs"
                           variant="danger"
                           onClick={() =>
                             setCart((current) =>
-                              current.filter((row) => row.product_id !== item.product_id),
+                              current.filter((row) => row.cart_key !== item.cart_key),
                             )
                           }
                         >
@@ -351,7 +376,7 @@ export default function StaffWorkspace({
                           type="number"
                           min="1"
                           value={item.qty}
-                          onChange={(event) => updateQuantity(item.product_id, event.target.value)}
+                          onChange={(event) => updateQuantity(item.cart_key, event.target.value)}
                         />
                       </label>
                     </div>
@@ -507,6 +532,17 @@ export default function StaffWorkspace({
           </div>
         </section>
       </main>
+      {pendingProduct ? (
+        <MenuModifierPicker
+          key={pendingProduct.id}
+          product={pendingProduct}
+          onClose={() => setPendingProduct(null)}
+          onConfirm={(product, modifiers) => {
+            addConfiguredProduct(product, modifiers);
+            setPendingProduct(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
 import officeCoordinator from "../../assets/operations-office-coordinator.png";
 import stockCoordinator from "../../assets/operations-stock-coordinator.png";
 import OperationsRoom3D from "./OperationsRoom3D";
+import MenuModifierPicker from "./MenuModifierPicker";
 import { exportExcel } from "../../utils/exportExcel";
 import { maskPhone } from "../../utils/phone";
 
@@ -163,6 +164,7 @@ function OrdersPage({ orders, onUpdate }) {
 function PosPage({ channels, products, onAdd, onValidateCoupon }) {
   const [channelId, setChannelId] = useState(channels[0]?.id || "");
   const [cart, setCart] = useState([]);
+  const [pendingProduct, setPendingProduct] = useState(null);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [discountType, setDiscountType] = useState("amount");
@@ -197,29 +199,45 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
     return Math.min(eligibleAmount, cappedDiscount);
   }, [appliedCoupon, manualDiscountAmount, subtotal]);
   const total = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
-  const addItem = (product) =>
+  const addConfiguredItem = (product, modifiers = []) => {
+    const modifierAdjustment = modifiers.reduce(
+      (sum, modifier) => sum + Number(modifier.price_adjustment || 0),
+      0,
+    );
+    const cartKey = `${product.id}:${modifiers.map((modifier) => modifier.id).sort((a, b) => a - b).join("-") || "base"}`;
     setCart((current) => {
-      const found = current.find((item) => item.product_id === product.id);
+      const found = current.find((item) => item.cart_key === cartKey);
       return found
         ? current.map((item) =>
-            item.product_id === product.id
+            item.cart_key === cartKey
               ? { ...item, qty: item.qty + 1 }
               : item,
           )
         : [
             ...current,
             {
+              cart_key: cartKey,
               product_id: product.id,
               name: product.name,
-              price: Number(product.price_retail || 0),
+              base_price: Number(product.price_retail || 0),
+              price: Number(product.price_retail || 0) + modifierAdjustment,
+              modifiers,
               qty: 1,
             },
-          ];
+        ];
     });
-  const changeQty = (id, qty) =>
+  };
+  const addItem = (product) => {
+    if ((product.modifier_groups || []).length) {
+      setPendingProduct(product);
+      return;
+    }
+    addConfiguredItem(product);
+  };
+  const changeQty = (cartKey, qty) =>
     setCart((current) =>
       current.map((item) =>
-        item.product_id === id
+        item.cart_key === cartKey
           ? { ...item, qty: Math.max(1, Number(qty) || 1) }
           : item,
       ),
@@ -257,10 +275,11 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
       customer_phone: customerPhone.trim(),
       manual_discount_amount: Number(manualDiscountAmount.toFixed(2)),
       coupon_code: appliedCoupon?.code || undefined,
-      items: cart.map(({ product_id, qty, price }) => ({
+      items: cart.map(({ product_id, qty, price, base_price, modifiers }) => ({
         product_id,
         qty,
-        price: Number(price),
+        price: Number(base_price ?? price),
+        modifiers: (modifiers || []).map((modifier) => ({ option_id: modifier.id })),
       })),
     });
     if (saved) {
@@ -349,7 +368,7 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
               cart.map((item) => (
                 <div
                   className="rounded-xl border border-sky-100 p-3"
-                  key={item.product_id}
+                  key={item.cart_key}
                 >
                   <div className="flex gap-3">
                     <div className="min-w-0 flex-1">
@@ -359,6 +378,11 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
                       <p className="text-sm text-sky-700">
                         {money(item.price)}
                       </p>
+                      {item.modifiers?.length ? (
+                        <p className="mt-1 text-xs text-violet-700">
+                          {item.modifiers.map((modifier) => modifier.name).join(" · ")}
+                        </p>
+                      ) : null}
                     </div>
                     <Button
                       className="px-2 py-1 text-xs"
@@ -366,7 +390,7 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
                       onClick={() =>
                         setCart((current) =>
                           current.filter(
-                            (row) => row.product_id !== item.product_id,
+                            (row) => row.cart_key !== item.cart_key,
                           ),
                         )
                       }
@@ -382,7 +406,7 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
                       min="1"
                       value={item.qty}
                       onChange={(event) =>
-                        changeQty(item.product_id, event.target.value)
+                        changeQty(item.cart_key, event.target.value)
                       }
                     />
                   </label>
@@ -509,6 +533,17 @@ function PosPage({ channels, products, onAdd, onValidateCoupon }) {
           </div>
         </Card>
       </aside>
+      {pendingProduct ? (
+        <MenuModifierPicker
+          key={pendingProduct.id}
+          product={pendingProduct}
+          onClose={() => setPendingProduct(null)}
+          onConfirm={(product, modifiers) => {
+            addConfiguredItem(product, modifiers);
+            setPendingProduct(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -738,6 +773,7 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete }) {
     price_retail: "",
     price_wholesale: "",
     recipe: [],
+    modifiers: [],
   };
   const [form, setForm] = useState(initial);
   const [editingId, setEditingId] = useState(null);
@@ -754,6 +790,51 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete }) {
       ...current,
       recipe: current.recipe.map((item, itemIndex) =>
         itemIndex === index ? { ...item, [field]: value } : item,
+      ),
+    }));
+  const addModifierGroup = () =>
+    setForm((current) => ({
+      ...current,
+      modifiers: [
+        ...current.modifiers,
+        {
+          name: "",
+          min_selection: 0,
+          max_selection: 1,
+          options: [{ name: "", price_adjustment: 0 }],
+        },
+      ],
+    }));
+  const updateModifierGroup = (groupIndex, field, value) =>
+    setForm((current) => ({
+      ...current,
+      modifiers: current.modifiers.map((group, index) =>
+        index === groupIndex ? { ...group, [field]: value } : group,
+      ),
+    }));
+  const updateModifierOption = (groupIndex, optionIndex, field, value) =>
+    setForm((current) => ({
+      ...current,
+      modifiers: current.modifiers.map((group, index) =>
+        index === groupIndex
+          ? {
+              ...group,
+              options: group.options.map((option, currentOptionIndex) =>
+                currentOptionIndex === optionIndex
+                  ? { ...option, [field]: value }
+                  : option,
+              ),
+            }
+          : group,
+      ),
+    }));
+  const addModifierOption = (groupIndex) =>
+    setForm((current) => ({
+      ...current,
+      modifiers: current.modifiers.map((group, index) =>
+        index === groupIndex
+          ? { ...group, options: [...group.options, { name: "", price_adjustment: 0 }] }
+          : group,
       ),
     }));
   const save = async (event) => {
@@ -778,6 +859,15 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete }) {
       recipe: (product.recipe || []).map((item) => ({
         ingredient_id: item.ingredient_id,
         quantity_used: item.quantity_used,
+      })),
+      modifiers: (product.modifier_groups || []).map((group) => ({
+        name: group.name,
+        min_selection: group.min_selection,
+        max_selection: group.max_selection,
+        options: (group.options || []).map((option) => ({
+          name: option.name,
+          price_adjustment: option.price_adjustment,
+        })),
       })),
     });
   };
@@ -830,6 +920,9 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete }) {
                   </p>
                   <p className="mt-2 text-xs text-slate-500">
                     สูตร {product.recipe?.length || 0} วัตถุดิบ
+                  </p>
+                  <p className="mt-1 text-xs text-violet-600">
+                    ตัวเลือก {product.modifier_groups?.length || 0} กลุ่ม
                   </p>
                   <div className="mt-4 flex gap-2">
                     <Button
@@ -1000,6 +1093,104 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete }) {
                       กด “เพิ่ม” เพื่อระบุวัตถุดิบ
                     </p>
                   )}
+                </div>
+              </div>
+              <div className="rounded-xl border border-violet-100 bg-violet-50/60 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-bold text-slate-700">ตัวเลือกเมนู</p>
+                    <p className="mt-0.5 text-xs text-slate-500">เช่น ระดับหวาน ขนาดแก้ว หรือท็อปปิง</p>
+                  </div>
+                  <Button className="text-xs" type="button" variant="secondary" onClick={addModifierGroup}>
+                    + เพิ่มกลุ่ม
+                  </Button>
+                </div>
+                <div className="mt-3 space-y-4">
+                  {form.modifiers.map((group, groupIndex) => (
+                    <div className="rounded-xl border border-violet-100 bg-white/80 p-3" key={groupIndex}>
+                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_88px_88px_auto]">
+                        <input
+                          className={inputClass}
+                          value={group.name}
+                          onChange={(event) => updateModifierGroup(groupIndex, "name", event.target.value)}
+                          placeholder="ชื่อกลุ่ม เช่น ระดับหวาน"
+                          required
+                        />
+                        <input
+                          className={inputClass}
+                          type="number"
+                          min="0"
+                          value={group.min_selection}
+                          onChange={(event) => updateModifierGroup(groupIndex, "min_selection", event.target.value)}
+                          aria-label="จำนวนขั้นต่ำ"
+                          title="จำนวนที่ต้องเลือกขั้นต่ำ"
+                        />
+                        <input
+                          className={inputClass}
+                          type="number"
+                          min="1"
+                          value={group.max_selection}
+                          onChange={(event) => updateModifierGroup(groupIndex, "max_selection", event.target.value)}
+                          aria-label="จำนวนสูงสุด"
+                          title="จำนวนที่เลือกได้สูงสุด"
+                        />
+                        <Button
+                          className="sm:px-2"
+                          type="button"
+                          variant="danger"
+                          onClick={() => setForm((current) => ({
+                            ...current,
+                            modifiers: current.modifiers.filter((_, index) => index !== groupIndex),
+                          }))}
+                        >
+                          ลบ
+                        </Button>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">ช่องตัวเลข: ต้องเลือกขั้นต่ำ / เลือกได้สูงสุด</p>
+                      <div className="mt-3 space-y-2">
+                        {group.options.map((option, optionIndex) => (
+                          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px_auto]" key={optionIndex}>
+                            <input
+                              className={inputClass}
+                              value={option.name}
+                              onChange={(event) => updateModifierOption(groupIndex, optionIndex, "name", event.target.value)}
+                              placeholder="ตัวเลือก เช่น หวาน 50%"
+                              required
+                            />
+                            <input
+                              className={inputClass}
+                              type="number"
+                              step="0.01"
+                              value={option.price_adjustment}
+                              onChange={(event) => updateModifierOption(groupIndex, optionIndex, "price_adjustment", event.target.value)}
+                              placeholder="เพิ่มราคา"
+                              title="ส่วนเพิ่ม/ลดราคา"
+                            />
+                            <Button
+                              className="sm:px-2"
+                              type="button"
+                              variant="danger"
+                              disabled={group.options.length === 1}
+                              onClick={() => setForm((current) => ({
+                                ...current,
+                                modifiers: current.modifiers.map((currentGroup, index) =>
+                                  index === groupIndex
+                                    ? { ...currentGroup, options: currentGroup.options.filter((_, index) => index !== optionIndex) }
+                                    : currentGroup,
+                                ),
+                              }))}
+                            >
+                              ลบ
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                      <Button className="mt-3 text-xs" type="button" variant="secondary" onClick={() => addModifierOption(groupIndex)}>
+                        + เพิ่มตัวเลือก
+                      </Button>
+                    </div>
+                  ))}
+                  {!form.modifiers.length ? <p className="text-sm text-slate-500">ยังไม่มีตัวเลือก เมนูนี้จะถูกเพิ่มลงตะกร้าทันที</p> : null}
                 </div>
               </div>
               <div className="flex gap-2">
