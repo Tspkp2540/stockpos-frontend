@@ -606,6 +606,24 @@ function App() {
       console.warn("Restock API unavailable; request was not recorded.", error);
     }
   };
+  const adjustInventory = async (adjustment) => {
+    try {
+      const response = await axios.post(`${API_BASE}/api/inventory/adjustments`, adjustment);
+      if (response.data?.success) {
+        const result = response.data.data;
+        setInventoryRows((current) => current.map((item) =>
+          String(item.id) === String(result.ingredient.id) ? result.ingredient : item,
+        ));
+        const direction = Number(result.difference || 0) > 0 ? "+" : "";
+        setNotice(`${result.adjustment_type === "WASTE" ? "WASTE RECORDED" : "STOCK COUNT UPDATED"} · ${direction}${Number(result.difference || 0)}`);
+        return result;
+      }
+    } catch (error) {
+      window.alert(error.response?.data?.error || "ไม่สามารถบันทึกการปรับยอดสต็อกได้");
+      console.warn("Inventory adjustment failed.", error);
+    }
+    return null;
+  };
   const createSupplier = async (supplier) => {
     try {
       const response = await axios.post(`${API_BASE}/api/inventory/suppliers`, supplier);
@@ -907,6 +925,7 @@ function App() {
         onCloseCashShift={closeCashShift}
         onUpdate={updateOrder}
         onRestock={handleRestock}
+        onAdjustInventory={adjustInventory}
         onCreateSupplier={createSupplier}
         onCreateStockReceipt={createStockReceipt}
         onCreateInventory={createInventory}

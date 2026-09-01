@@ -24,6 +24,17 @@ const localDateTimeValue = () => {
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   return now.toISOString().slice(0, 16);
 };
+const expiryState = (value) => {
+  if (!value) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const expiry = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  const days = Math.ceil((expiry.getTime() - today.getTime()) / 86400000);
+  if (Number.isNaN(days)) return null;
+  if (days < 0) return { label: `หมดอายุแล้ว ${Math.abs(days)} วัน`, tone: "rose" };
+  if (days <= 7) return { label: days === 0 ? "หมดอายุวันนี้" : `หมดอายุใน ${days} วัน`, tone: "amber" };
+  return null;
+};
 const inputClass =
   "w-full min-w-0 rounded-xl border border-sky-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100";
 const labelClass = "grid min-w-0 gap-1.5 text-xs font-semibold text-slate-600";
@@ -936,7 +947,62 @@ function StockReceivingPanel({ rows, suppliers, receipts, onCreateSupplier, onCr
   );
 }
 
-function IngredientsPage({ rows, suppliers, receipts, onCreate, onUpdate, onDelete, onRestock, onCreateSupplier, onCreateReceipt }) {
+function InventoryAdjustmentPanel({ item, onSubmit, onClose }) {
+  const [adjustmentType, setAdjustmentType] = useState("STOCK_COUNT");
+  const [actualQuantity, setActualQuantity] = useState(String(item.stock_qty ?? item.stock ?? 0));
+  const [wasteQuantity, setWasteQuantity] = useState("");
+  const [note, setNote] = useState("");
+  const submit = async (event) => {
+    event.preventDefault();
+    const saved = await onSubmit?.({
+      ingredient_id: item.id,
+      adjustment_type: adjustmentType,
+      actual_quantity: adjustmentType === "STOCK_COUNT" ? actualQuantity : undefined,
+      waste_quantity: adjustmentType === "WASTE" ? wasteQuantity : undefined,
+      note,
+    });
+    if (saved) onClose();
+  };
+  return (
+    <Card className="border-amber-200 bg-amber-50/30">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">Stock control</p>
+          <h2 className="mt-1 text-lg font-bold text-slate-900">ตรวจนับ / บันทึกของเสีย: {item.name}</h2>
+          <p className="mt-1 text-sm text-slate-500">ยอดในระบบ {Number(item.stock_qty ?? item.stock ?? 0)} {item.unit || "หน่วย"}</p>
+        </div>
+        <Button type="button" variant="secondary" onClick={onClose}>ปิด</Button>
+      </div>
+      <form className="mt-5 grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end" onSubmit={submit}>
+        <label className={labelClass}>
+          รูปแบบ
+          <select className={inputClass} value={adjustmentType} onChange={(event) => setAdjustmentType(event.target.value)}>
+            <option value="STOCK_COUNT">ตรวจนับยอดจริง</option>
+            <option value="WASTE">ของเสีย / ทิ้ง</option>
+          </select>
+        </label>
+        {adjustmentType === "STOCK_COUNT" ? (
+          <label className={labelClass}>
+            ยอดที่นับได้จริง ({item.unit || "หน่วย"})
+            <input className={inputClass} type="number" min="0" step="0.001" inputMode="decimal" value={actualQuantity} onChange={(event) => setActualQuantity(event.target.value)} required />
+          </label>
+        ) : (
+          <label className={labelClass}>
+            จำนวนของเสีย ({item.unit || "หน่วย"})
+            <input className={inputClass} type="number" min="0.001" step="0.001" inputMode="decimal" value={wasteQuantity} onChange={(event) => setWasteQuantity(event.target.value)} required />
+          </label>
+        )}
+        <Button type="submit">บันทึกยอด</Button>
+        <label className={`${labelClass} sm:col-span-3`}>
+          {adjustmentType === "WASTE" ? "เหตุผลของของเสีย" : "หมายเหตุการตรวจนับ"}
+          <input className={inputClass} maxLength="1000" value={note} onChange={(event) => setNote(event.target.value)} placeholder={adjustmentType === "WASTE" ? "เช่น หมดอายุ / เสียหาย" : "เช่น ตรวจนับประจำวัน"} required={adjustmentType === "WASTE"} />
+        </label>
+      </form>
+    </Card>
+  );
+}
+
+function IngredientsPage({ rows, suppliers, receipts, onCreate, onUpdate, onDelete, onRestock, onAdjust, onCreateSupplier, onCreateReceipt }) {
   const initial = {
     name: "",
     unit: "",
@@ -947,6 +1013,7 @@ function IngredientsPage({ rows, suppliers, receipts, onCreate, onUpdate, onDele
   };
   const [form, setForm] = useState(initial);
   const [editingId, setEditingId] = useState(null);
+  const [adjustingItem, setAdjustingItem] = useState(null);
   const save = async (event) => {
     event.preventDefault();
     const saved = editingId
@@ -1001,6 +1068,14 @@ function IngredientsPage({ rows, suppliers, receipts, onCreate, onUpdate, onDele
         onCreateSupplier={onCreateSupplier}
         onCreateReceipt={onCreateReceipt}
       />
+      {adjustingItem ? (
+        <InventoryAdjustmentPanel
+          key={adjustingItem.id}
+          item={adjustingItem}
+          onSubmit={onAdjust}
+          onClose={() => setAdjustingItem(null)}
+        />
+      ) : null}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
         <Card>
           <div className="mb-4 flex items-center justify-between">
@@ -1015,13 +1090,14 @@ function IngredientsPage({ rows, suppliers, receipts, onCreate, onUpdate, onDele
                   item.is_low_stock ||
                   item.level === "low" ||
                   (item.min_stock_alert && qty <= Number(item.min_stock_alert));
+                const expiry = expiryState(item.expiry_date);
                 return (
                   <article
-                    className="flex flex-col gap-3 rounded-2xl border border-sky-100 p-4 sm:flex-row sm:items-center"
+                    className={`flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center ${expiry?.tone === "rose" ? "border-rose-200 bg-rose-50/30" : expiry?.tone === "amber" ? "border-amber-200 bg-amber-50/30" : "border-sky-100"}`}
                     key={item.id || item.code}
                   >
                     <span
-                      className={`h-3 w-3 rounded-full ${low ? "bg-amber-400" : "bg-emerald-400"}`}
+                      className={`h-3 w-3 rounded-full ${expiry?.tone === "rose" ? "bg-rose-500" : low || expiry ? "bg-amber-400" : "bg-emerald-400"}`}
                     />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-bold text-slate-800">
@@ -1032,6 +1108,7 @@ function IngredientsPage({ rows, suppliers, receipts, onCreate, onUpdate, onDele
                         {item.expiry_date &&
                           ` · หมดอายุ ${String(item.expiry_date).slice(0, 10)}`}
                       </p>
+                      {expiry ? <p className={`mt-1 text-xs font-bold ${expiry.tone === "rose" ? "text-rose-700" : "text-amber-700"}`}>{expiry.label}</p> : null}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button
@@ -1040,6 +1117,13 @@ function IngredientsPage({ rows, suppliers, receipts, onCreate, onUpdate, onDele
                         onClick={() => onRestock(item)}
                       >
                         เติมสต็อก
+                      </Button>
+                      <Button
+                        className="text-xs"
+                        variant="secondary"
+                        onClick={() => setAdjustingItem(item)}
+                      >
+                        ตรวจนับ / ของเสีย
                       </Button>
                       <Button
                         className="text-xs"
@@ -3156,6 +3240,7 @@ export default function GlassLayout({
   onCloseCashShift,
   onUpdate,
   onRestock,
+  onAdjustInventory,
   onCreateSupplier,
   onCreateStockReceipt,
   onCreateInventory,
@@ -3181,6 +3266,7 @@ export default function GlassLayout({
         onUpdate={onUpdateInventory}
         onDelete={onDeleteInventory}
         onRestock={onRestock}
+        onAdjust={onAdjustInventory}
         onCreateSupplier={onCreateSupplier}
         onCreateReceipt={onCreateStockReceipt}
       />
