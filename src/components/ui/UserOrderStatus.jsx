@@ -40,8 +40,10 @@ function ItemList({ items }) {
   );
 }
 
-export default function UserOrderStatus({ user, orders, onLogout }) {
+export default function UserOrderStatus({ user, orders, loyalty, onRefreshLoyalty, onLogout }) {
   const [query, setQuery] = useState("");
+  const account = loyalty?.account;
+  const rules = loyalty?.rules || { spend_per_point: 25, baht_per_point: 0.1 };
   const visibleOrders = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return normalized
@@ -90,6 +92,14 @@ export default function UserOrderStatus({ user, orders, onLogout }) {
           <p className="mt-2 text-sm text-sky-50">
             แสดงทุกออเดอร์ที่ระบุเบอร์โทร {maskPhone(user.phone) || "ของบัญชีคุณ"}
           </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
+            <div>
+              <p className="text-xs font-semibold text-sky-100">แต้มสมาชิกคงเหลือ</p>
+              <strong className="mt-0.5 block text-2xl text-white">{Number(account?.points_balance || 0).toLocaleString()} แต้ม</strong>
+            </div>
+            <p className="text-xs leading-5 text-sky-50">ทุก {Number(rules.spend_per_point || 25).toLocaleString()} บาท รับ 1 แต้ม<br />{Math.round(1 / Number(rules.baht_per_point || 0.1))} แต้ม ใช้ลดได้ 1 บาท</p>
+            <button className="ml-auto rounded-lg border border-white/30 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-white/10" type="button" onClick={onRefreshLoyalty}>รีเฟรช</button>
+          </div>
           <label className="mt-5 block max-w-xl">
             <span className="sr-only">ค้นหาประวัติออเดอร์</span>
             <input
@@ -151,6 +161,13 @@ export default function UserOrderStatus({ user, orders, onLogout }) {
                       {money(order.net_revenue)}
                     </strong>
                   </div>
+                  {order.status !== "CANCELLED" && (Number(order.loyalty_points_earned || 0) || Number(order.loyalty_points_redeemed || 0)) ? (
+                    <p className="mt-2 text-xs font-semibold text-violet-700">
+                      {Number(order.loyalty_points_earned || 0) ? `ได้รับ ${Number(order.loyalty_points_earned).toLocaleString()} แต้ม` : ""}
+                      {Number(order.loyalty_points_earned || 0) && Number(order.loyalty_points_redeemed || 0) ? " · " : ""}
+                      {Number(order.loyalty_points_redeemed || 0) ? `ใช้ ${Number(order.loyalty_points_redeemed).toLocaleString()} แต้ม ลด ${money(order.loyalty_discount_amount)}` : ""}
+                    </p>
+                  ) : null}
                 </article>
               ))
             ) : (

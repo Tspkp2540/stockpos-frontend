@@ -387,7 +387,7 @@ function KitchenDisplayPage({ orders, onUpdate }) {
   );
 }
 
-function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, onOpenCashShift, onCloseCashShift }) {
+function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onValidateCoupon, onOpenCashShift, onCloseCashShift }) {
   const [channelId, setChannelId] = useState(channels[0]?.id || "");
   const activeChannels = useMemo(
     () => channels.filter((channel) => channel.is_active !== false),
@@ -402,6 +402,9 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
   const [editingCartKey, setEditingCartKey] = useState(null);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [loyaltyData, setLoyaltyData] = useState(null);
+  const [loyaltyPoints, setLoyaltyPoints] = useState("");
+  const [loyaltyError, setLoyaltyError] = useState("");
   const [discountType, setDiscountType] = useState("amount");
   const [discountValue, setDiscountValue] = useState("");
   const [couponCode, setCouponCode] = useState("");
@@ -435,7 +438,13 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
       : rawDiscount;
     return Math.min(eligibleAmount, cappedDiscount);
   }, [appliedCoupon, manualDiscountAmount, subtotal]);
-  const total = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
+  const loyaltyBaseAmount = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
+  const loyaltyBalance = Math.max(0, Number(loyaltyData?.account?.points_balance || 0));
+  const loyaltyMaxPoints = Math.min(loyaltyBalance, Math.floor((loyaltyBaseAmount * 0.5) / 0.1));
+  const loyaltyPointsRedeemed = Math.min(loyaltyMaxPoints, Math.max(0, Math.floor(Number(loyaltyPoints) || 0)));
+  const loyaltyDiscountAmount = Number((loyaltyPointsRedeemed * 0.1).toFixed(2));
+  const total = Math.max(0, loyaltyBaseAmount - loyaltyDiscountAmount);
+  const estimatedLoyaltyPoints = customerPhone.replace(/\D/g, '').length >= 9 ? Math.floor(total / 25) : 0;
   const receivedAmount = Number(amountReceived || 0);
   const changeAmount = paymentMethod === "CASH" && receivedAmount >= total
     ? receivedAmount - total
@@ -557,6 +566,28 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
       setCouponError(error.response?.data?.error || error.message || "คูปองไม่สามารถใช้งานได้");
     }
   };
+  const lookupLoyalty = async (rawPhone = customerPhone) => {
+    const phone = String(rawPhone || "").replace(/\D/g, "");
+    if (!phone) {
+      setLoyaltyData(null);
+      setLoyaltyPoints("");
+      setLoyaltyError("");
+      return null;
+    }
+    if (!onLookupLoyalty) return null;
+    try {
+      const data = await onLookupLoyalty(phone);
+      setLoyaltyData(data || null);
+      setLoyaltyPoints("");
+      setLoyaltyError("");
+      return data;
+    } catch (error) {
+      setLoyaltyData(null);
+      setLoyaltyPoints("");
+      setLoyaltyError(error.response?.data?.error || error.message || "ไม่พบข้อมูลสมาชิก");
+      return null;
+    }
+  };
   const manageCashShift = async () => {
     if (currentShift) {
       const closingCash = window.prompt(
@@ -589,6 +620,7 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
       customer_phone: customerPhone.trim(),
       manual_discount_amount: Number(manualDiscountAmount.toFixed(2)),
       coupon_code: appliedCoupon?.code || undefined,
+      loyalty_points_redeemed: loyaltyPointsRedeemed,
       payment_method: paymentMethod,
       amount_received: paymentMethod === "CASH" ? receivedAmount : undefined,
       items: cart.map(({ product_id, qty, price, base_price, modifiers }) => ({
@@ -609,6 +641,8 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
       setCouponError("");
       setPaymentMethod("CASH");
       setAmountReceived("");
+      setLoyaltyPoints("");
+      setLoyaltyData(null);
     }
   };
   return (
@@ -772,11 +806,61 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
                   autoComplete="tel"
                   maxLength="20"
                   value={customerPhone}
-                  onChange={(event) => setCustomerPhone(event.target.value)}
+                  onChange={(event) => {
+                    setCustomerPhone(event.target.value);
+                    setLoyaltyData(null);
+                    setLoyaltyPoints("");
+                    setLoyaltyError("");
+                  }}
+                  onBlur={() => {
+                    const digits = customerPhone.replace(/\D/g, "");
+                    if (!digits || digits.length >= 9) lookupLoyalty();
+                  }}
                   placeholder="เช่น 0812345678"
                 />
               </label>
             </div>
+            {customerPhone ? (
+              <div className="rounded-xl border border-violet-100 bg-violet-50/70 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-bold text-violet-800">แต้มสมาชิก</p>
+                    <p className="mt-0.5 text-xs text-violet-700">ทุก 25 บาท รับ 1 แต้ม · 10 แต้ม ใช้ลดได้ 1 บาท</p>
+                  </div>
+                  <Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => lookupLoyalty()}>
+                    ตรวจคะแนน
+                  </Button>
+                </div>
+                {loyaltyData?.account ? (
+                  <div className="mt-3">
+                    <div className="flex flex-wrap items-end justify-between gap-2">
+                      <p className="text-sm font-semibold text-slate-700">คะแนนคงเหลือ <strong className="text-lg text-violet-700">{loyaltyBalance.toLocaleString()} แต้ม</strong></p>
+                      <button className="text-xs font-bold text-violet-700 hover:text-violet-900 disabled:opacity-50" type="button" disabled={!loyaltyMaxPoints} onClick={() => setLoyaltyPoints(String(loyaltyMaxPoints))}>ใช้ได้สูงสุด {loyaltyMaxPoints.toLocaleString()} แต้ม</button>
+                    </div>
+                    <label className="mt-2 grid gap-1 text-xs font-semibold text-slate-600">
+                      ใช้แต้มเป็นส่วนลด
+                      <input
+                        className={inputClass}
+                        type="number"
+                        min="0"
+                        max={loyaltyMaxPoints}
+                        step="1"
+                        inputMode="numeric"
+                        value={loyaltyPoints}
+                        onChange={(event) => setLoyaltyPoints(String(Math.min(loyaltyMaxPoints, Math.max(0, Math.floor(Number(event.target.value) || 0)))))}
+                        placeholder={`ใช้ได้สูงสุด ${loyaltyMaxPoints.toLocaleString()} แต้ม`}
+                      />
+                    </label>
+                    {loyaltyPointsRedeemed ? <p className="mt-2 text-xs font-semibold text-violet-700">ใช้ {loyaltyPointsRedeemed.toLocaleString()} แต้ม ลด {money(loyaltyDiscountAmount)}</p> : null}
+                  </div>
+                ) : loyaltyError ? (
+                  <p className="mt-2 text-xs font-medium text-rose-600">{loyaltyError}</p>
+                ) : (
+                  <p className="mt-2 text-xs text-violet-700">เบอร์นี้ยังไม่มีแต้ม เมื่อชำระออเดอร์ ระบบจะเริ่มสร้างบัญชีสะสมแต้มให้</p>
+                )}
+                {estimatedLoyaltyPoints ? <p className="mt-2 text-xs font-semibold text-emerald-700">ออเดอร์นี้คาดว่าจะได้รับ {estimatedLoyaltyPoints} แต้ม</p> : null}
+              </div>
+            ) : null}
             <div className="rounded-xl bg-sky-50/70 p-3">
               <p className="text-xs font-bold text-sky-700">ส่วนลดทั้งตะกร้า</p>
               <div className="mt-2 grid grid-cols-[110px_minmax(0,1fr)] gap-2">
@@ -908,6 +992,12 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
                 <div className="flex items-center justify-between text-emerald-700">
                   <span>คูปอง {appliedCoupon.code}</span>
                   <span>-{money(couponDiscountAmount)}</span>
+                </div>
+              ) : null}
+              {loyaltyPointsRedeemed ? (
+                <div className="flex items-center justify-between text-violet-700">
+                  <span>ใช้แต้มสมาชิก {loyaltyPointsRedeemed.toLocaleString()} แต้ม</span>
+                  <span>-{money(loyaltyDiscountAmount)}</span>
                 </div>
               ) : null}
             </div>
@@ -4365,6 +4455,7 @@ export default function GlassLayout({
   currentShift,
   notice,
   onAdd,
+  onLookupLoyalty,
   onValidateCoupon,
   onOpenCashShift,
   onCloseCashShift,
@@ -4482,6 +4573,7 @@ export default function GlassLayout({
           products={products}
           currentShift={currentShift}
           onAdd={onAdd}
+          onLookupLoyalty={onLookupLoyalty}
           onValidateCoupon={onValidateCoupon}
           onOpenCashShift={onOpenCashShift}
           onCloseCashShift={onCloseCashShift}

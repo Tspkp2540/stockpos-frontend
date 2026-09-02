@@ -123,6 +123,7 @@ function App() {
   const [orders, setOrders] = useState(initialOrders);
   const [restocked, setRestocked] = useState([]);
   const [notice, setNotice] = useState("LIVE SYNC · 14:32:08");
+  const [loyalty, setLoyalty] = useState({ account: null, rules: null });
   const [channels, setChannels] = useState(fallbackChannels);
   const [products, setProducts] = useState(fallbackProducts);
   const [inventoryRows, setInventoryRows] = useState(inventory);
@@ -310,6 +311,27 @@ function App() {
       return null;
     }
   };
+  const lookupLoyalty = async (phone) => {
+    const response = await axios.post(`${API_BASE}/api/loyalty/lookup`, { phone });
+    if (response.data?.success) return response.data.data;
+    throw new Error(response.data?.error || "ไม่สามารถค้นหาข้อมูลสมาชิกได้");
+  };
+  const refreshMyLoyalty = useCallback(async () => {
+    if (session?.role !== "user") {
+      setLoyalty({ account: null, rules: null });
+      return null;
+    }
+    try {
+      const response = await axios.get(`${API_BASE}/api/loyalty/me`);
+      if (response.data?.success) {
+        setLoyalty(response.data.data || { account: null, rules: null });
+        return response.data.data;
+      }
+    } catch (error) {
+      console.warn("Loyalty balance refresh unavailable.", error);
+    }
+    return null;
+  }, [session?.role]);
 
   useEffect(() => {
     if (session?.token)
@@ -348,6 +370,16 @@ function App() {
   useEffect(() => {
     refreshCurrentShift();
   }, [session?.token]);
+
+  useEffect(() => {
+    if (session?.role !== "user") {
+      setLoyalty({ account: null, rules: null });
+      return undefined;
+    }
+    refreshMyLoyalty();
+    const interval = window.setInterval(refreshMyLoyalty, 15000);
+    return () => window.clearInterval(interval);
+  }, [session?.role, session?.token, refreshMyLoyalty]);
 
   useEffect(() => {
     if (!session?.token) return undefined;
@@ -1140,7 +1172,7 @@ function App() {
       />
     );
   if (session.role === "user")
-    return <UserOrderStatus user={session} orders={orders} onLogout={logout} />;
+    return <UserOrderStatus user={session} orders={orders} loyalty={loyalty} onRefreshLoyalty={refreshMyLoyalty} onLogout={logout} />;
   if (session.role === "staff")
     return (
       <StaffWorkspace
@@ -1150,6 +1182,7 @@ function App() {
         products={products}
         currentShift={currentShift}
         onAdd={addOrder}
+        onLookupLoyalty={lookupLoyalty}
         onValidateCoupon={validateCoupon}
         onOpenCashShift={openCashShift}
         onCloseCashShift={closeCashShift}
@@ -1191,6 +1224,7 @@ function App() {
         currentShift={currentShift}
         notice={notice}
         onAdd={addOrder}
+        onLookupLoyalty={lookupLoyalty}
         onValidateCoupon={validateCoupon}
         onOpenCashShift={openCashShift}
         onCloseCashShift={closeCashShift}
