@@ -169,7 +169,32 @@ function LowStockMenuAlert({ products, className = "" }) {
 }
 
 function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
-  const visibleOrders = preview ? orders.slice(0, 5) : orders;
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [channelFilter, setChannelFilter] = useState("ALL");
+  const [dateFilter, setDateFilter] = useState("");
+  const channelOptions = useMemo(
+    () => [...new Set(orders.map((order) => order.channel_name).filter(Boolean))],
+    [orders],
+  );
+  const filteredOrders = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return orders.filter((order) => {
+      const searchable = [
+        order.order_no,
+        order.queue_no,
+        order.customer_name,
+        order.customer_nickname,
+        order.customer_phone,
+        order.channel_name,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return (!term || searchable.includes(term))
+        && (statusFilter === "ALL" || order.status === statusFilter)
+        && (channelFilter === "ALL" || order.channel_name === channelFilter)
+        && (!dateFilter || bangkokDate(order.created_at) === dateFilter);
+    });
+  }, [channelFilter, dateFilter, orders, search, statusFilter]);
+  const visibleOrders = preview ? orders.slice(0, 5) : filteredOrders;
   const headingAction = preview && orders.length > 5
     ? <Button type="button" variant="secondary" onClick={onViewAll}>ดูรายการออเดอร์ทั้งหมด →</Button>
     : onBack
@@ -183,6 +208,35 @@ function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
         description={preview ? `แสดง 5 รายการล่าสุดจากทั้งหมด ${orders.length} รายการ` : "ติดตามสถานะออเดอร์ทั้งหมดจากจุดเดียว"}
         action={headingAction}
       />
+      {!preview ? (
+        <Card className="p-3 sm:p-4">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_150px_180px_165px_auto]">
+            <input
+              aria-label="ค้นหาออเดอร์"
+              className={inputClass}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="ค้นหาเลขออเดอร์ คิว ชื่อลูกค้า หรือเบอร์โทร"
+            />
+            <select aria-label="กรองสถานะออเดอร์" className={inputClass} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option value="ALL">ทุกสถานะ</option>
+              <option value="COOKING">กำลังทำ</option>
+              <option value="READY">พร้อมรับ</option>
+              <option value="COMPLETED">สำเร็จ</option>
+              <option value="CANCELLED">ยกเลิก</option>
+            </select>
+            <select aria-label="กรองช่องทางขาย" className={inputClass} value={channelFilter} onChange={(event) => setChannelFilter(event.target.value)}>
+              <option value="ALL">ทุกช่องทาง</option>
+              {channelOptions.map((channel) => <option value={channel} key={channel}>{channel}</option>)}
+            </select>
+            <input aria-label="กรองวันที่ออเดอร์" className={inputClass} type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
+            <Button type="button" variant="secondary" onClick={() => { setSearch(""); setStatusFilter("ALL"); setChannelFilter("ALL"); setDateFilter(""); }}>
+              ล้างตัวกรอง
+            </Button>
+          </div>
+          <p className="mt-2 text-xs font-semibold text-slate-500">พบ {filteredOrders.length} จาก {orders.length} รายการ</p>
+        </Card>
+      ) : null}
       {preview && visibleOrders.length > 1 ? <p className="-mt-2 text-xs font-semibold text-sky-700">← เลื่อนซ้าย–ขวาเพื่อดูออเดอร์ล่าสุด →</p> : null}
       <div className={preview ? "flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 pr-1" : "grid gap-4 xl:grid-cols-2"}>
         {visibleOrders.length ? (
@@ -246,7 +300,7 @@ function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
             </article>
           ))
         ) : (
-          <Empty>ยังไม่มีออเดอร์</Empty>
+          <Empty>{preview ? "ยังไม่มีออเดอร์" : "ไม่พบออเดอร์ที่ตรงกับตัวกรอง"}</Empty>
         )}
       </div>
       {preview && orders.length > 5 ? (

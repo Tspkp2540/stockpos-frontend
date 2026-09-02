@@ -23,6 +23,18 @@ const statusClass = (status) =>
     : status === "CANCELLED"
       ? "bg-rose-50 text-rose-700"
       : "bg-amber-50 text-amber-700";
+const bangkokDate = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type) => parts.find((item) => item.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+};
 
 function LowStockMenuAlert({ products }) {
   const lowStockMenus = products.filter((product) => menuAvailability(product).isLowStock);
@@ -99,6 +111,27 @@ export default function StaffWorkspace({
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [amountReceived, setAmountReceived] = useState("");
   const [showAllOrders, setShowAllOrders] = useState(false);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderStatusFilter, setOrderStatusFilter] = useState("ALL");
+  const [orderChannelFilter, setOrderChannelFilter] = useState("ALL");
+  const [orderDateFilter, setOrderDateFilter] = useState("");
+  const orderChannels = useMemo(
+    () => [...new Set(orders.map((order) => order.channel_name).filter(Boolean))],
+    [orders],
+  );
+  const filteredOrders = useMemo(() => {
+    const term = orderSearch.trim().toLowerCase();
+    return orders.filter((order) => {
+      const searchable = [order.order_no, order.queue_no, order.customer_name, order.customer_nickname, order.customer_phone, order.channel_name]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return (!term || searchable.includes(term))
+        && (orderStatusFilter === "ALL" || order.status === orderStatusFilter)
+        && (orderChannelFilter === "ALL" || order.channel_name === orderChannelFilter)
+        && (!orderDateFilter || bangkokDate(order.created_at) === orderDateFilter);
+    });
+  }, [orderChannelFilter, orderDateFilter, orderSearch, orderStatusFilter, orders]);
   const subtotal = useMemo(
     () =>
       cart.reduce(
@@ -368,10 +401,17 @@ export default function StaffWorkspace({
               <h1 className="mt-1 text-2xl font-bold text-slate-900">รายการออเดอร์ทั้งหมด</h1>
               <p className="mt-1 text-sm text-slate-500">ติดตามและเปลี่ยนสถานะคิวจากจุดเดียว</p>
             </div>
-            <span className="rounded-full bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-700">{orders.length} รายการ</span>
+            <span className="rounded-full bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-700">{filteredOrders.length} / {orders.length} รายการ</span>
           </div>
+          <section className="shop-panel mb-5 grid gap-2 rounded-2xl border p-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_145px_175px_160px_auto]">
+            <input aria-label="ค้นหาออเดอร์" className={inputClass} value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="ค้นหาเลขออเดอร์ คิว ชื่อลูกค้า หรือเบอร์โทร" />
+            <select aria-label="กรองสถานะออเดอร์" className={inputClass} value={orderStatusFilter} onChange={(event) => setOrderStatusFilter(event.target.value)}><option value="ALL">ทุกสถานะ</option><option value="COOKING">กำลังทำ</option><option value="READY">พร้อมรับ</option><option value="COMPLETED">สำเร็จ</option><option value="CANCELLED">ยกเลิก</option></select>
+            <select aria-label="กรองช่องทางขาย" className={inputClass} value={orderChannelFilter} onChange={(event) => setOrderChannelFilter(event.target.value)}><option value="ALL">ทุกช่องทาง</option>{orderChannels.map((channel) => <option value={channel} key={channel}>{channel}</option>)}</select>
+            <input aria-label="กรองวันที่ออเดอร์" className={inputClass} type="date" value={orderDateFilter} onChange={(event) => setOrderDateFilter(event.target.value)} />
+            <Button type="button" variant="secondary" onClick={() => { setOrderSearch(""); setOrderStatusFilter("ALL"); setOrderChannelFilter("ALL"); setOrderDateFilter(""); }}>ล้างตัวกรอง</Button>
+          </section>
           <div className="grid gap-4 xl:grid-cols-2">
-            {orders.length ? orderCards(orders) : <div className="shop-panel rounded-2xl border border-dashed p-5 text-center text-sm text-slate-500 xl:col-span-2">ยังไม่มีออเดอร์</div>}
+            {filteredOrders.length ? orderCards(filteredOrders) : <div className="shop-panel rounded-2xl border border-dashed p-5 text-center text-sm text-slate-500 xl:col-span-2">ไม่พบออเดอร์ที่ตรงกับตัวกรอง</div>}
           </div>
         </main>
       </div>
