@@ -2360,7 +2360,96 @@ const storeAlertsFor = ({ products = [], inventoryRows = [], inventoryLots = [] 
   return alerts.sort((left, right) => priority[left.severity] - priority[right.severity] || left.title.localeCompare(right.title, "th"));
 };
 
-function AlertsPage({ products, inventoryRows, inventoryLots, onNavigate }) {
+function PurchaseRecommendationPanel({ inventoryRows, suppliers, onNavigate }) {
+  const recommendations = useMemo(
+    () => inventoryRows.filter(inventoryIsLow).map((item) => {
+      const currentQuantity = Number(item.stock_qty ?? item.stock ?? 0);
+      const minimumQuantity = Math.max(0, Number(item.min_stock_alert || 0));
+      const targetQuantity = minimumQuantity > 0 ? Math.max(minimumQuantity * 2, minimumQuantity + 1) : 1;
+      return {
+        id: String(item.id || item.code || item.name),
+        name: item.name || "วัตถุดิบไม่ระบุชื่อ",
+        unit: item.unit || "หน่วย",
+        currentQuantity,
+        minimumQuantity,
+        suggestedQuantity: Math.max(1, targetQuantity - currentQuantity),
+      };
+    }),
+    [inventoryRows],
+  );
+  const [supplierId, setSupplierId] = useState("");
+  const [quantityById, setQuantityById] = useState({});
+  useEffect(() => {
+    setQuantityById((current) => Object.fromEntries(
+      recommendations.map((item) => [item.id, current[item.id] ?? item.suggestedQuantity]),
+    ));
+  }, [recommendations]);
+  const exportRecommendations = () => {
+    const supplier = suppliers.find((item) => String(item.id) === String(supplierId));
+    exportExcel({
+      filename: `stockpos-purchase-recommendation-${todayInBangkok()}.xlsx`,
+      sheets: [{
+        name: "รายการสั่งซื้อแนะนำ",
+        columns: [
+          { key: "name", label: "วัตถุดิบ" },
+          { key: "current", label: "คงเหลือ" },
+          { key: "minimum", label: "จุดแจ้งเตือน" },
+          { key: "quantity", label: "แนะนำให้สั่ง" },
+          { key: "unit", label: "หน่วย" },
+          { key: "supplier", label: "ผู้ขาย" },
+        ],
+        rows: recommendations.map((item) => ({
+          name: item.name,
+          current: item.currentQuantity,
+          minimum: item.minimumQuantity,
+          quantity: Math.max(0, Number(quantityById[item.id] ?? item.suggestedQuantity) || 0),
+          unit: item.unit,
+          supplier: supplier?.name || "ไม่ระบุผู้ขาย",
+        })),
+      }],
+    });
+  };
+  return (
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">Purchase suggestion</p>
+          <h2 className="mt-1 text-lg font-bold text-slate-900">รายการสั่งซื้อแนะนำ</h2>
+          <p className="mt-1 text-sm text-slate-500">ระบบคำนวณให้กลับไปมีอย่างน้อย 2 เท่าของจุดแจ้งเตือน</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" className="text-xs" onClick={() => onNavigate("inventory")}>รับของเข้าคลัง</Button>
+          <Button type="button" className="text-xs" disabled={!recommendations.length} onClick={exportRecommendations}>Export Excel</Button>
+        </div>
+      </div>
+      {recommendations.length ? (
+        <>
+          <label className="mt-4 grid gap-1.5 text-xs font-semibold text-slate-600 sm:max-w-sm">
+            ผู้ขายสำหรับรายการนี้ <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+            <select className={inputClass} value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
+              <option value="">ไม่ระบุผู้ขาย</option>
+              {suppliers.filter((supplier) => supplier.is_active !== false).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+            </select>
+          </label>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {recommendations.map((item) => (
+              <article className="rounded-2xl border border-sky-100 bg-sky-50/45 p-4" key={item.id}>
+                <p className="truncate font-bold text-slate-900">{item.name}</p>
+                <p className="mt-1 text-xs text-slate-500">คงเหลือ {item.currentQuantity} {item.unit} · จุดเตือน {item.minimumQuantity}</p>
+                <label className="mt-3 grid gap-1 text-xs font-semibold text-slate-600">
+                  จำนวนที่จะสั่ง
+                  <input className={inputClass} type="number" min="0" step="0.001" value={quantityById[item.id] ?? item.suggestedQuantity} onChange={(event) => setQuantityById((current) => ({ ...current, [item.id]: event.target.value }))} />
+                </label>
+              </article>
+            ))}
+          </div>
+        </>
+      ) : <Empty>ยังไม่มีวัตถุดิบที่ต้องสั่งเพิ่ม</Empty>}
+    </Card>
+  );
+}
+
+function AlertsPage({ products, inventoryRows, inventoryLots, suppliers, onNavigate }) {
   const [filter, setFilter] = useState("all");
   const alerts = useMemo(
     () => storeAlertsFor({ products, inventoryRows, inventoryLots }),
@@ -2428,6 +2517,7 @@ function AlertsPage({ products, inventoryRows, inventoryLots, onNavigate }) {
           }) : <Empty>ไม่มีรายการในตัวกรองนี้</Empty>}
         </div>
       </Card>
+      <PurchaseRecommendationPanel inventoryRows={inventoryRows} suppliers={suppliers} onNavigate={onNavigate} />
     </div>
   );
 }
@@ -3494,6 +3584,7 @@ export default function GlassLayout({
         products={products}
         inventoryRows={inventoryRows}
         inventoryLots={inventoryLots}
+        suppliers={suppliers}
         onNavigate={setActiveView}
       />
     ) : activeView === "inventory" ? (
