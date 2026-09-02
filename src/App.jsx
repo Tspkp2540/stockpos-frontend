@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
 import GlassLayout from "./components/ui/GlassLayout";
@@ -131,6 +131,7 @@ function App() {
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [coupons, setCoupons] = useState([]);
   const [cashShifts, setCashShifts] = useState([]);
+  const [salesBreakdown, setSalesBreakdown] = useState({ channels: [], payments: [] });
   const [inventoryLots, setInventoryLots] = useState([]);
   const [expenses, setExpenses] = useState(0);
   const [expenseRows, setExpenseRows] = useState([]);
@@ -194,6 +195,24 @@ function App() {
     }
     return false;
   };
+  const refreshSalesBreakdown = useCallback(async (recordDate = todayInBangkok()) => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/sales-breakdown`, {
+        params: { date: recordDate },
+      });
+      if (response.data?.success) {
+        const data = response.data.data || {};
+        setSalesBreakdown({
+          channels: Array.isArray(data.channels) ? data.channels : [],
+          payments: Array.isArray(data.payments) ? data.payments : [],
+        });
+        return true;
+      }
+    } catch (error) {
+      console.warn("Sales breakdown refresh unavailable.", error);
+    }
+    return false;
+  }, []);
 
   const startSession = (data) => {
     const account = {
@@ -243,6 +262,7 @@ function App() {
     setActiveView("operations");
     setCurrentShift(null);
     setCashShifts([]);
+    setSalesBreakdown({ channels: [], payments: [] });
   };
 
   const refreshCurrentShift = async () => {
@@ -417,7 +437,7 @@ function App() {
       )
         setExpenseRows(expensesResponse.data.data);
       if (session.role === "admin") {
-        await Promise.all([refreshCoupons(), refreshCashShifts()]);
+        await Promise.all([refreshCoupons(), refreshCashShifts(), refreshSalesBreakdown()]);
       }
     };
     fetchOrders();
@@ -503,6 +523,7 @@ function App() {
         ]);
         setNotice("NEW ORDER RECEIVED · ACCOUNTANT PRINTING");
         if (payload.payment_method === "CASH") refreshCurrentShift();
+        if (session?.role === "admin") await refreshSalesBreakdown(payload.record_date || todayInBangkok());
         await refreshProducts();
         return true;
       }
@@ -579,6 +600,7 @@ function App() {
                 ? "ORDER CANCELLED"
                 : "ORDER STATUS UPDATED",
         );
+        if (session?.role === "admin") await refreshSalesBreakdown();
         return true;
       }
     } catch (error) {
@@ -626,6 +648,7 @@ function App() {
           ...current,
         ]);
         await refreshFinancialSummary();
+        await refreshSalesBreakdown(record.record_date || todayInBangkok());
         setNotice("SALES RECORD CREATED · FINANCIAL HUD UPDATED");
         return true;
       }
@@ -653,6 +676,7 @@ function App() {
           ),
         );
         await refreshFinancialSummary();
+        await refreshSalesBreakdown(record.record_date || todayInBangkok());
         setNotice("SALES RECORD UPDATED · FINANCIAL HUD UPDATED");
         return true;
       }
@@ -672,6 +696,7 @@ function App() {
       if (response.data?.success) {
         setOrders((current) => current.filter((item) => item.id !== order.id));
         await refreshFinancialSummary();
+        await refreshSalesBreakdown(todayInBangkok());
         setNotice("SALES RECORD DELETED · STOCK RESTORED");
       }
     } catch (error) {
@@ -1129,6 +1154,7 @@ function App() {
         purchaseOrders={purchaseOrders}
         coupons={coupons}
         cashShifts={cashShifts}
+        salesBreakdown={salesBreakdown}
         metrics={metrics}
         expenses={expenses}
         expenseRows={expenseRows}
@@ -1148,6 +1174,7 @@ function App() {
         onReceivePurchaseOrder={receivePurchaseOrder}
         onCreateCoupon={createCoupon}
         onUpdateCoupon={updateCoupon}
+        onRefreshSalesBreakdown={refreshSalesBreakdown}
         onCreateInventory={createInventory}
         onUpdateInventory={updateInventory}
         onDeleteInventory={deleteInventory}

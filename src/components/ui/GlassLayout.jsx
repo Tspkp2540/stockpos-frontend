@@ -17,6 +17,7 @@ const navigation = [
   { id: "inventory", icon: "□", label: "วัตถุดิบ" },
   { id: "menu", icon: "☷", label: "เมนูสินค้า" },
   { id: "finance", icon: "฿", label: "การเงิน" },
+  { id: "coupons", icon: "◇", label: "จัดการคูปอง", adminOnly: true },
 ];
 
 const money = (amount) =>
@@ -74,6 +75,36 @@ function Button({ children, className = "", variant = "primary", ...props }) {
     >
       {children}
     </button>
+  );
+}
+
+function Modal({ children, onClose, label = "หน้าต่างจัดการ", maxWidth = "max-w-4xl" }) {
+  return (
+    <div
+      className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-sm sm:p-6"
+      onMouseDown={onClose}
+    >
+      <div className="flex min-h-full items-center justify-center">
+        <section
+          aria-label={label}
+          aria-modal="true"
+          className={`relative w-full ${maxWidth} rounded-3xl shadow-2xl shadow-slate-900/30`}
+          onMouseDown={(event) => event.stopPropagation()}
+          role="dialog"
+        >
+          <Button
+            aria-label="ปิดหน้าต่าง"
+            className="absolute right-3 top-3 z-10 h-9 w-9 px-0 text-lg"
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+          >
+            ×
+          </Button>
+          {children}
+        </section>
+      </div>
+    </div>
   );
 }
 
@@ -847,13 +878,13 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
   );
 }
 
-function StockReceivingPanel({ rows, suppliers, receipts, onCreateSupplier, onCreateReceipt }) {
+function StockReceivingPanel({ rows, suppliers, receipts, onCreateSupplier, onCreateReceipt, onClose }) {
   const emptyLine = () => ({ ingredient_id: "", quantity: "", unit_cost: "", lot_no: "", expiry_date: "" });
   const [supplierId, setSupplierId] = useState("");
   const [receivedAt, setReceivedAt] = useState(localDateTimeValue);
   const [note, setNote] = useState("");
   const [receiptItems, setReceiptItems] = useState([emptyLine()]);
-  const [showSupplierForm, setShowSupplierForm] = useState(false);
+  const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [supplierForm, setSupplierForm] = useState({ name: "", contact_name: "", phone: "" });
   const total = receiptItems.reduce(
     (sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.unit_cost) || 0),
@@ -877,7 +908,7 @@ function StockReceivingPanel({ rows, suppliers, receipts, onCreateSupplier, onCr
     if (!saved) return;
     setSupplierId(String(saved.id));
     setSupplierForm({ name: "", contact_name: "", phone: "" });
-    setShowSupplierForm(false);
+    setShowSupplierModal(false);
   };
   const submitReceipt = async (event) => {
     event.preventDefault();
@@ -891,6 +922,7 @@ function StockReceivingPanel({ rows, suppliers, receipts, onCreateSupplier, onCr
     setReceivedAt(localDateTimeValue());
     setNote("");
     setReceiptItems([emptyLine()]);
+    onClose?.();
   };
   return (
     <Card>
@@ -966,17 +998,8 @@ function StockReceivingPanel({ rows, suppliers, receipts, onCreateSupplier, onCr
       <div className="mt-4 border-t border-sky-100 pt-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-bold text-slate-800">ผู้ขาย</p>
-          <button className="text-xs font-bold text-sky-700 hover:text-sky-900" onClick={() => setShowSupplierForm((current) => !current)}>
-            {showSupplierForm ? "ซ่อนแบบฟอร์ม" : "+ เพิ่มผู้ขาย"}
-          </button>
+          <Button className="text-xs" type="button" variant="secondary" onClick={() => setShowSupplierModal(true)}>+ เพิ่มผู้ขาย</Button>
         </div>
-        {showSupplierForm ? (
-          <form className="mt-3 grid gap-2 sm:grid-cols-3" onSubmit={submitSupplier}>
-            <input className={inputClass} value={supplierForm.name} onChange={(event) => setSupplierForm((current) => ({ ...current, name: event.target.value }))} placeholder="ชื่อผู้ขาย" required />
-            <input className={inputClass} value={supplierForm.contact_name} onChange={(event) => setSupplierForm((current) => ({ ...current, contact_name: event.target.value }))} placeholder="ผู้ติดต่อ" />
-            <div className="flex gap-2"><input className={inputClass} value={supplierForm.phone} onChange={(event) => setSupplierForm((current) => ({ ...current, phone: event.target.value }))} placeholder="เบอร์โทร" /><Button type="submit" className="shrink-0">บันทึก</Button></div>
-          </form>
-        ) : null}
         {suppliers.length ? <p className="mt-2 text-xs text-slate-500">{suppliers.filter((supplier) => supplier.is_active !== false).map((supplier) => supplier.name).join(" · ")}</p> : <p className="mt-2 text-xs text-slate-500">ยังไม่มีข้อมูลผู้ขาย</p>}
       </div>
       <div className="mt-4 border-t border-sky-100 pt-4">
@@ -993,6 +1016,20 @@ function StockReceivingPanel({ rows, suppliers, receipts, onCreateSupplier, onCr
           {!receipts.length ? <p className="text-sm text-slate-500">ยังไม่มีประวัติการรับของ</p> : null}
         </div>
       </div>
+      {showSupplierModal ? (
+        <Modal label="เพิ่มผู้ขาย" maxWidth="max-w-xl" onClose={() => setShowSupplierModal(false)}>
+          <Card className="border-sky-200 bg-white">
+            <h2 className="text-lg font-bold text-slate-900">เพิ่มผู้ขาย</h2>
+            <p className="mt-1 text-sm text-slate-500">บันทึกข้อมูลผู้ขายเพื่อเลือกใช้ในใบรับของครั้งถัดไป</p>
+            <form className="mt-5 grid gap-3" onSubmit={submitSupplier}>
+              <label className={labelClass}>ชื่อผู้ขาย<input className={inputClass} value={supplierForm.name} onChange={(event) => setSupplierForm((current) => ({ ...current, name: event.target.value }))} placeholder="ชื่อผู้ขาย" required /></label>
+              <label className={labelClass}>ผู้ติดต่อ<input className={inputClass} value={supplierForm.contact_name} onChange={(event) => setSupplierForm((current) => ({ ...current, contact_name: event.target.value }))} placeholder="ผู้ติดต่อ" /></label>
+              <label className={labelClass}>เบอร์โทร<input className={inputClass} value={supplierForm.phone} onChange={(event) => setSupplierForm((current) => ({ ...current, phone: event.target.value }))} placeholder="เบอร์โทร" /></label>
+              <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setShowSupplierModal(false)}>ยกเลิก</Button><Button type="submit">บันทึกผู้ขาย</Button></div>
+            </form>
+          </Card>
+        </Modal>
+      ) : null}
     </Card>
   );
 }
@@ -1098,6 +1135,8 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
   };
   const [form, setForm] = useState(initial);
   const [editingId, setEditingId] = useState(null);
+  const [ingredientModalOpen, setIngredientModalOpen] = useState(false);
+  const [receivingOpen, setReceivingOpen] = useState(false);
   const [adjustingItem, setAdjustingItem] = useState(null);
   const [viewingLotsItem, setViewingLotsItem] = useState(null);
   const save = async (event) => {
@@ -1108,6 +1147,7 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
     if (saved) {
       setForm(initial);
       setEditingId(null);
+      setIngredientModalOpen(false);
     }
   };
   const edit = (item) => {
@@ -1120,6 +1160,7 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
       min_stock_alert: item.min_stock_alert || "",
       expiry_date: String(item.expiry_date || "").slice(0, 10),
     });
+    setIngredientModalOpen(true);
   };
   const updateField = (field) => (event) =>
     setForm((current) => ({ ...current, [field]: event.target.value }));
@@ -1140,6 +1181,7 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
               onClick={() => {
                 setForm(initial);
                 setEditingId(null);
+                setIngredientModalOpen(true);
               }}
             >
               + เพิ่มวัตถุดิบ
@@ -1147,30 +1189,49 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
           </div>
         }
       />
-      <StockReceivingPanel
-        rows={rows}
-        suppliers={suppliers}
-        receipts={receipts}
-        onCreateSupplier={onCreateSupplier}
-        onCreateReceipt={onCreateReceipt}
-      />
+      <Card className="border-sky-200 bg-sky-50/50">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-700">Purchase receiving</p>
+            <h2 className="mt-1 text-lg font-bold text-slate-900">รับวัตถุดิบเข้าคลัง</h2>
+            <p className="mt-1 text-sm text-slate-500">บันทึกผู้ขาย จำนวน ต้นทุน และเลขล็อตในหน้าต่างแยก</p>
+          </div>
+          <Button type="button" onClick={() => setReceivingOpen(true)}>+ รับวัตถุดิบเข้าคลัง</Button>
+        </div>
+      </Card>
+      {receivingOpen ? (
+        <Modal label="รับวัตถุดิบเข้าคลัง" maxWidth="max-w-6xl" onClose={() => setReceivingOpen(false)}>
+          <StockReceivingPanel
+            rows={rows}
+            suppliers={suppliers}
+            receipts={receipts}
+            onCreateSupplier={onCreateSupplier}
+            onCreateReceipt={onCreateReceipt}
+            onClose={() => setReceivingOpen(false)}
+          />
+        </Modal>
+      ) : null}
       {adjustingItem ? (
-        <InventoryAdjustmentPanel
-          key={adjustingItem.id}
-          item={adjustingItem}
-          onSubmit={onAdjust}
-          onClose={() => setAdjustingItem(null)}
-        />
+        <Modal label="ตรวจนับหรือบันทึกของเสีย" maxWidth="max-w-3xl" onClose={() => setAdjustingItem(null)}>
+          <InventoryAdjustmentPanel
+            key={adjustingItem.id}
+            item={adjustingItem}
+            onSubmit={onAdjust}
+            onClose={() => setAdjustingItem(null)}
+          />
+        </Modal>
       ) : null}
       {viewingLotsItem ? (
-        <InventoryLotsPanel
-          key={viewingLotsItem.id}
-          item={viewingLotsItem}
-          lots={lots}
-          onClose={() => setViewingLotsItem(null)}
-        />
+        <Modal label="ล็อตวัตถุดิบ" maxWidth="max-w-5xl" onClose={() => setViewingLotsItem(null)}>
+          <InventoryLotsPanel
+            key={viewingLotsItem.id}
+            item={viewingLotsItem}
+            lots={lots}
+            onClose={() => setViewingLotsItem(null)}
+          />
+        </Modal>
       ) : null}
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
+      <div className="grid gap-5">
         <Card>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900">รายการวัตถุดิบ</h2>
@@ -1255,7 +1316,9 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
             )}
           </div>
         </Card>
-        <aside className="order-first xl:order-none xl:sticky xl:top-5 xl:self-start">
+        {ingredientModalOpen ? (
+        <Modal label={editingId ? "แก้ไขวัตถุดิบ" : "เพิ่มวัตถุดิบ"} maxWidth="max-w-xl" onClose={() => { setForm(initial); setEditingId(null); setIngredientModalOpen(false); }}>
+        <aside>
           <Card>
             <h2 className="text-lg font-bold text-slate-900">
               {editingId ? "แก้ไขวัตถุดิบ" : "เพิ่มวัตถุดิบ"}
@@ -1338,6 +1401,7 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
                     onClick={() => {
                       setForm(initial);
                       setEditingId(null);
+                      setIngredientModalOpen(false);
                     }}
                   >
                     ยกเลิก
@@ -1347,6 +1411,8 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
             </form>
           </Card>
         </aside>
+        </Modal>
+        ) : null}
       </div>
     </div>
   );
@@ -1363,6 +1429,7 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
   };
   const [form, setForm] = useState(initial);
   const [editingId, setEditingId] = useState(null);
+  const [menuModalOpen, setMenuModalOpen] = useState(false);
   const addRecipe = () =>
     setForm((current) => ({
       ...current,
@@ -1433,6 +1500,7 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
     if (saved) {
       setForm(initial);
       setEditingId(null);
+      setMenuModalOpen(false);
     }
   };
   const edit = (product) => {
@@ -1456,6 +1524,7 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
         })),
       })),
     });
+    setMenuModalOpen(true);
   };
   return (
     <div className="space-y-5">
@@ -1469,6 +1538,7 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
             onClick={() => {
               setForm(initial);
               setEditingId(null);
+              setMenuModalOpen(true);
             }}
           >
             + เพิ่มเมนู
@@ -1476,7 +1546,7 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
         }
       />
       <LowStockMenuAlert products={products} className="mb-5" />
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
+      <div className="grid gap-5">
         <Card>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900">รายการเมนู</h2>
@@ -1550,7 +1620,9 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
             )}
           </div>
         </Card>
-        <aside className="order-first xl:order-none xl:sticky xl:top-5 xl:self-start">
+        {menuModalOpen ? (
+        <Modal label={editingId ? "แก้ไขเมนู" : "เพิ่มเมนู"} maxWidth="max-w-3xl" onClose={() => { setForm(initial); setEditingId(null); setMenuModalOpen(false); }}>
+        <aside>
           <Card>
             <h2 className="text-lg font-bold text-slate-900">
               {editingId ? "แก้ไขเมนู" : "เพิ่มเมนู"}
@@ -1807,6 +1879,7 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
                     onClick={() => {
                       setForm(initial);
                       setEditingId(null);
+                      setMenuModalOpen(false);
                     }}
                   >
                     ยกเลิก
@@ -1816,6 +1889,8 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
             </form>
           </Card>
         </aside>
+        </Modal>
+        ) : null}
       </div>
     </div>
   );
@@ -2594,7 +2669,11 @@ function PurchaseOrderHistory({ orders, onUpdateStatus, onReceive }) {
   if (!orders.length) return null;
   return (
     <div className="grid gap-5">
-      {receivingOrder ? <ReceivePurchaseOrderPanel key={receivingOrder.id} order={receivingOrder} onClose={() => setReceivingOrder(null)} onReceive={onReceive} /> : null}
+      {receivingOrder ? (
+        <Modal label="ตรวจรับสินค้าตามใบสั่งซื้อ" maxWidth="max-w-6xl" onClose={() => setReceivingOrder(null)}>
+          <ReceivePurchaseOrderPanel key={receivingOrder.id} order={receivingOrder} onClose={() => setReceivingOrder(null)} onReceive={onReceive} />
+        </Modal>
+      ) : null}
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -2737,7 +2816,7 @@ const exportInventory = (rows) =>
     ],
   });
 
-const exportFinance = ({ selectedDate, orders, expenses, summary }) =>
+const exportFinance = ({ selectedDate, orders, expenses, summary, salesBreakdown }) =>
   exportExcel({
     filename: `stockpos-finance-${selectedDate}.xlsx`,
     sheets: [
@@ -2800,8 +2879,46 @@ const exportFinance = ({ selectedDate, orders, expenses, summary }) =>
           amount: Number(item.amount || 0),
         })),
       },
+      {
+        name: "ยอดตามช่องทาง",
+        columns: [
+          { key: "channel", label: "ช่องทางขาย" },
+          { key: "orders", label: "จำนวนออเดอร์" },
+          { key: "gross", label: "ยอดขายรวม" },
+          { key: "net", label: "รายรับสุทธิ" },
+        ],
+        rows: (salesBreakdown?.channels || []).map((item) => ({
+          channel: item.channel_name || "ไม่ระบุช่องทาง",
+          orders: Number(item.order_count || 0),
+          gross: Number(item.gross_amount || 0),
+          net: Number(item.net_revenue || 0),
+        })),
+      },
+      {
+        name: "วิธีชำระเงิน",
+        columns: [
+          { key: "method", label: "วิธีชำระเงิน" },
+          { key: "orders", label: "จำนวนออเดอร์" },
+          { key: "amount", label: "ยอดรับชำระ" },
+          { key: "change", label: "เงินทอน" },
+        ],
+        rows: (salesBreakdown?.payments || []).map((item) => ({
+          method: paymentMethodLabel(item.payment_method),
+          orders: Number(item.order_count || 0),
+          amount: Number(item.payment_amount || 0),
+          change: Number(item.change_amount || 0),
+        })),
+      },
     ],
   });
+
+const paymentMethodLabel = (value) => ({
+  CASH: "เงินสด",
+  QR: "QR พร้อมเพย์",
+  TRANSFER: "โอนเงิน",
+  CARD: "บัตร",
+  OTHER: "อื่น ๆ",
+}[value] || "อื่น ๆ");
 
 const blankCoupon = () => ({
   code: "",
@@ -2818,6 +2935,7 @@ const blankCoupon = () => ({
 function CouponManagementPanel({ coupons, onCreate, onUpdate }) {
   const [coupon, setCoupon] = useState(blankCoupon);
   const [editingId, setEditingId] = useState(null);
+  const [couponModalOpen, setCouponModalOpen] = useState(false);
   const today = todayInBangkok();
   const couponPayload = (value) => ({
     code: value.code.trim().toUpperCase(),
@@ -2838,6 +2956,7 @@ function CouponManagementPanel({ coupons, onCreate, onUpdate }) {
     if (!saved) return;
     setCoupon(blankCoupon());
     setEditingId(null);
+    setCouponModalOpen(false);
   };
   const edit = (item) => {
     setEditingId(item.id);
@@ -2852,8 +2971,14 @@ function CouponManagementPanel({ coupons, onCreate, onUpdate }) {
       valid_until: item.valid_until ? bangkokDate(item.valid_until) : "",
       is_active: item.is_active !== false,
     });
+    setCouponModalOpen(true);
   };
   const setValue = (field, value) => setCoupon((current) => ({ ...current, [field]: value }));
+  const openCreate = () => {
+    setCoupon(blankCoupon());
+    setEditingId(null);
+    setCouponModalOpen(true);
+  };
   const toggleAvailability = async (item) => {
     await onUpdate?.(item.id, {
       code: item.code,
@@ -2868,7 +2993,9 @@ function CouponManagementPanel({ coupons, onCreate, onUpdate }) {
     });
   };
   return (
-    <section className="grid gap-5 2xl:grid-cols-[0.9fr_1.1fr]">
+    <section className="space-y-5">
+      {couponModalOpen ? (
+      <Modal label={editingId ? "แก้ไขคูปอง" : "สร้างคูปอง"} maxWidth="max-w-2xl" onClose={() => { setCoupon(blankCoupon()); setEditingId(null); setCouponModalOpen(false); }}>
       <Card className="border-violet-200 bg-violet-50/30">
         <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-700">Coupon management</p>
         <h2 className="mt-1 text-lg font-bold text-slate-900">{editingId ? "แก้ไขคูปอง" : "สร้างคูปอง"}</h2>
@@ -2917,17 +3044,19 @@ function CouponManagementPanel({ coupons, onCreate, onUpdate }) {
           </label>
           <div className="flex flex-wrap gap-2">
             <Button type="submit" className="bg-violet-600 hover:bg-violet-700 focus:ring-violet-200">{editingId ? "บันทึกการแก้ไข" : "สร้างคูปอง"}</Button>
-            {editingId ? <Button type="button" variant="secondary" onClick={() => { setCoupon(blankCoupon()); setEditingId(null); }}>ยกเลิก</Button> : null}
+            <Button type="button" variant="secondary" onClick={() => { setCoupon(blankCoupon()); setEditingId(null); setCouponModalOpen(false); }}>ยกเลิก</Button>
           </div>
         </form>
       </Card>
+      </Modal>
+      ) : null}
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-700">Available promotions</p>
             <h2 className="mt-1 text-lg font-bold text-slate-900">คูปองในระบบ</h2>
           </div>
-          <span className="rounded-full bg-violet-50 px-3 py-1.5 text-sm font-bold text-violet-700">{coupons.length} รายการ</span>
+          <div className="flex items-center gap-2"><span className="rounded-full bg-violet-50 px-3 py-1.5 text-sm font-bold text-violet-700">{coupons.length} รายการ</span><Button type="button" onClick={openCreate}>+ สร้างคูปอง</Button></div>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {coupons.length ? coupons.map((item) => {
@@ -2953,10 +3082,27 @@ function CouponManagementPanel({ coupons, onCreate, onUpdate }) {
                 </div>
               </article>
             );
-          }) : <Empty>ยังไม่มีคูปอง สร้างรายการแรกจากแบบฟอร์มด้านซ้าย</Empty>}
+          }) : <Empty>ยังไม่มีคูปอง กด “สร้างคูปอง” เพื่อเพิ่มรายการแรก</Empty>}
         </div>
       </Card>
     </section>
+  );
+}
+
+function CouponPage({ coupons, onCreateCoupon, onUpdateCoupon }) {
+  return (
+    <div className="space-y-5">
+      <Heading
+        eyebrow="Promotion management"
+        title="จัดการคูปอง"
+        description="สร้าง แก้ไข เปิดหรือปิดคูปอง และกำหนดเงื่อนไขการใช้งาน"
+      />
+      <CouponManagementPanel
+        coupons={coupons}
+        onCreate={onCreateCoupon}
+        onUpdate={onUpdateCoupon}
+      />
+    </div>
   );
 }
 
@@ -3043,21 +3189,74 @@ function CashShiftAuditPanel({ shifts }) {
   );
 }
 
+function SalesBreakdownPanel({ data, selectedDate }) {
+  const channels = Array.isArray(data?.channels) ? data.channels : [];
+  const payments = Array.isArray(data?.payments) ? data.payments : [];
+  const channelTotal = channels.reduce((total, item) => total + Number(item.gross_amount || 0), 0);
+  const paymentTotal = payments.reduce((total, item) => total + Number(item.payment_amount || 0), 0);
+  return (
+    <section className="grid gap-5 xl:grid-cols-2">
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-700">Sales channels</p>
+            <h2 className="mt-1 text-lg font-bold text-slate-900">ยอดขายตามช่องทาง</h2>
+          </div>
+          <strong className="text-base text-sky-700">{money(channelTotal)}</strong>
+        </div>
+        <div className="mt-4 space-y-3">
+          {channels.length ? channels.map((item) => {
+            const gross = Number(item.gross_amount || 0);
+            const percent = channelTotal > 0 ? Math.round((gross / channelTotal) * 100) : 0;
+            return (
+              <div key={item.channel_name}>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="font-semibold text-slate-800">{item.channel_name}</span>
+                  <span className="font-bold text-sky-700">{money(gross)} · {percent}%</span>
+                </div>
+                <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-sky-50"><div className="h-full rounded-full bg-sky-500" style={{ width: `${percent}%` }} /></div>
+                <p className="mt-1 text-xs text-slate-500">{Number(item.order_count || 0)} ออเดอร์ · รายรับสุทธิ {money(item.net_revenue)}</p>
+              </div>
+            );
+          }) : <Empty>ยังไม่มีรายการขายในวันที่ {dateLabel(selectedDate)}</Empty>}
+        </div>
+      </Card>
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-700">Payment mix</p>
+            <h2 className="mt-1 text-lg font-bold text-slate-900">ยอดตามวิธีชำระเงิน</h2>
+          </div>
+          <strong className="text-base text-violet-700">{money(paymentTotal)}</strong>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {payments.length ? payments.map((item) => (
+            <div className="rounded-2xl border border-violet-100 bg-violet-50/50 p-3" key={item.payment_method}>
+              <p className="text-sm font-bold text-slate-800">{paymentMethodLabel(item.payment_method)}</p>
+              <strong className="mt-1 block text-lg text-violet-700">{money(item.payment_amount)}</strong>
+              <p className="mt-1 text-xs text-slate-500">{Number(item.order_count || 0)} ออเดอร์{Number(item.change_amount || 0) > 0 ? ` · เงินทอน ${money(item.change_amount)}` : ""}</p>
+            </div>
+          )) : <Empty>ยังไม่มีข้อมูลรับชำระในวันที่ {dateLabel(selectedDate)}</Empty>}
+        </div>
+      </Card>
+    </section>
+  );
+}
+
 function FinancePage({
   expenseRows,
   orders,
   channels,
   products,
-  coupons,
   cashShifts,
+  salesBreakdown,
   onCreateExpense,
   onUpdateExpense,
   onDeleteExpense,
   onCreateSales,
   onUpdateSales,
   onDeleteSales,
-  onCreateCoupon,
-  onUpdateCoupon,
+  onRefreshSalesBreakdown,
 }) {
   const [selectedDate, setSelectedDate] = useState(todayInBangkok);
   const newSales = () => ({
@@ -3074,22 +3273,31 @@ function FinancePage({
   });
   const [sales, setSales] = useState(newSales);
   const [salesEditingId, setSalesEditingId] = useState(null);
+  const [salesModalOpen, setSalesModalOpen] = useState(false);
   const [expense, setExpense] = useState({
     amount: "",
     category: "OPERATING_EXPENSE",
     description: "",
   });
   const [expenseEditingId, setExpenseEditingId] = useState(null);
+  const [expenseModalOpen, setExpenseModalOpen] = useState(false);
+  useEffect(() => {
+    onRefreshSalesBreakdown?.(selectedDate);
+  }, [onRefreshSalesBreakdown, selectedDate]);
   const filteredOrders = useMemo(
     () => orders.filter((order) => rowMatchesDate(order, selectedDate)),
     [orders, selectedDate],
+  );
+  const financialOrders = useMemo(
+    () => filteredOrders.filter((order) => String(order.status).toUpperCase() !== "CANCELLED"),
+    [filteredOrders],
   );
   const filteredExpenses = useMemo(
     () => expenseRows.filter((item) => rowMatchesDate(item, selectedDate)),
     [expenseRows, selectedDate],
   );
   const summary = useMemo(() => {
-    const salesTotals = filteredOrders.reduce(
+    const salesTotals = financialOrders.reduce(
       (totals, order) => ({
         gross:
           totals.gross + Number(order.gross_amount ?? order.net_revenue ?? 0),
@@ -3109,7 +3317,7 @@ function FinancePage({
       expenses: expenseTotal,
       profit: salesTotals.profit - expenseTotal,
     };
-  }, [filteredExpenses, filteredOrders]);
+  }, [filteredExpenses, financialOrders]);
   const statCards = [
     ["ยอดขายรวม", summary.gross],
     ["ยอดสุทธิ", summary.net],
@@ -3153,6 +3361,7 @@ function FinancePage({
     if (saved) {
       setSalesEditingId(null);
       setSales(newSales());
+      setSalesModalOpen(false);
     }
   };
   const editSales = (order) => {
@@ -3169,6 +3378,7 @@ function FinancePage({
         price: item.unit_price ?? item.price,
       })),
     });
+    setSalesModalOpen(true);
   };
   const saveExpense = async (event) => {
     event.preventDefault();
@@ -3193,15 +3403,18 @@ function FinancePage({
         description: "",
       });
       setExpenseEditingId(null);
+      setExpenseModalOpen(false);
     }
   };
   const resetSales = () => {
     setSalesEditingId(null);
     setSales(newSales());
+    setSalesModalOpen(false);
   };
   const resetExpense = () => {
     setExpenseEditingId(null);
     setExpense({ amount: "", category: "OPERATING_EXPENSE", description: "" });
+    setExpenseModalOpen(false);
   };
   return (
     <div className="space-y-5">
@@ -3232,9 +3445,15 @@ function FinancePage({
             <Button
               type="button"
               variant="secondary"
-              onClick={() => exportFinance({ selectedDate, orders: filteredOrders, expenses: filteredExpenses, summary })}
+              onClick={() => exportFinance({ selectedDate, orders: financialOrders, expenses: filteredExpenses, summary, salesBreakdown })}
             >
               ↓ Export Excel
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => { resetSales(); setSalesModalOpen(true); }}>
+              + เพิ่มยอดขาย
+            </Button>
+            <Button type="button" onClick={() => { resetExpense(); setExpenseModalOpen(true); }}>
+              + เพิ่มค่าใช้จ่าย
             </Button>
           </div>
         }
@@ -3258,9 +3477,10 @@ function FinancePage({
           </Card>
         ))}
       </div>
-      <CouponManagementPanel coupons={coupons} onCreate={onCreateCoupon} onUpdate={onUpdateCoupon} />
+      <SalesBreakdownPanel data={salesBreakdown} selectedDate={selectedDate} />
       <CashShiftAuditPanel shifts={cashShifts} />
-      <div className="grid gap-5 2xl:grid-cols-2">
+      {salesModalOpen ? (
+      <Modal label={salesEditingId ? "แก้ไขรายการขาย" : "เพิ่มรายการขาย"} maxWidth="max-w-3xl" onClose={resetSales}>
         <Card>
           <h2 className="text-lg font-bold text-slate-900">
             {salesEditingId ? "แก้ไขรายการขาย" : "เพิ่มรายการขาย"}
@@ -3414,6 +3634,10 @@ function FinancePage({
             </div>
           </form>
         </Card>
+      </Modal>
+      ) : null}
+      {expenseModalOpen ? (
+      <Modal label={expenseEditingId ? "แก้ไขค่าใช้จ่าย" : "เพิ่มค่าใช้จ่าย"} maxWidth="max-w-xl" onClose={resetExpense}>
         <Card>
           <h2 className="text-lg font-bold text-slate-900">
             {expenseEditingId ? "แก้ไขค่าใช้จ่าย" : "เพิ่มค่าใช้จ่าย"}
@@ -3487,7 +3711,8 @@ function FinancePage({
             </div>
           </form>
         </Card>
-      </div>
+      </Modal>
+      ) : null}
       <div className="grid gap-5 xl:grid-cols-2">
         <Card>
           <div className="flex items-center justify-between gap-3">
@@ -3578,6 +3803,7 @@ function FinancePage({
                           category: item.category,
                           description: item.description || "",
                         });
+                        setExpenseModalOpen(true);
                       }}
                     >
                       แก้ไข
@@ -3977,6 +4203,7 @@ export default function GlassLayout({
   purchaseOrders,
   coupons,
   cashShifts,
+  salesBreakdown,
   metrics,
   expenses,
   expenseRows,
@@ -3996,6 +4223,7 @@ export default function GlassLayout({
   onReceivePurchaseOrder,
   onCreateCoupon,
   onUpdateCoupon,
+  onRefreshSalesBreakdown,
   onCreateInventory,
   onUpdateInventory,
   onDeleteInventory,
@@ -4011,6 +4239,7 @@ export default function GlassLayout({
   onDeleteSales,
 }) {
   const alertCount = storeAlertsFor({ products, inventoryRows, inventoryLots }).length;
+  const visibleNavigation = navigation.filter((item) => !item.adminOnly || user?.role === "admin");
   const content =
     activeView === "alerts" ? (
       <AlertsPage
@@ -4047,6 +4276,12 @@ export default function GlassLayout({
         onDelete={onDeleteMenu}
         onSetAvailability={onSetMenuAvailability}
       />
+    ) : activeView === "coupons" && user?.role === "admin" ? (
+      <CouponPage
+        coupons={coupons}
+        onCreateCoupon={onCreateCoupon}
+        onUpdateCoupon={onUpdateCoupon}
+      />
     ) : activeView === "finance" ? (
       <FinancePage
         metrics={metrics}
@@ -4055,16 +4290,15 @@ export default function GlassLayout({
         orders={orders}
         channels={channels}
         products={products}
-        coupons={coupons}
         cashShifts={cashShifts}
+        salesBreakdown={salesBreakdown}
         onCreateExpense={onCreateExpense}
         onUpdateExpense={onUpdateExpense}
         onDeleteExpense={onDeleteExpense}
         onCreateSales={onCreateSales}
         onUpdateSales={onUpdateSales}
         onDeleteSales={onDeleteSales}
-        onCreateCoupon={onCreateCoupon}
-        onUpdateCoupon={onUpdateCoupon}
+        onRefreshSalesBreakdown={onRefreshSalesBreakdown}
       />
     ) : activeView === "operations" ? (
       <OperationsPage
@@ -4104,7 +4338,7 @@ export default function GlassLayout({
           </div>
         </div>
         <nav className="mt-10 grid gap-2">
-          {navigation.map((item) => {
+          {visibleNavigation.map((item) => {
             const selected = activeView === item.id || (item.id === "pos" && activeView === "orders");
             return (
               <button
@@ -4135,7 +4369,7 @@ export default function GlassLayout({
           <strong className="text-slate-900">STOCKPOS</strong>
         </div>
         <nav className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {navigation.map((item) => {
+          {visibleNavigation.map((item) => {
             const selected = activeView === item.id || (item.id === "pos" && activeView === "orders");
             return (
               <button
