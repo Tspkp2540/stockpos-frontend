@@ -118,6 +118,7 @@ function App() {
   const [inventoryRows, setInventoryRows] = useState(inventory);
   const [suppliers, setSuppliers] = useState([]);
   const [stockReceipts, setStockReceipts] = useState([]);
+  const [inventoryLots, setInventoryLots] = useState([]);
   const [expenses, setExpenses] = useState(0);
   const [expenseRows, setExpenseRows] = useState([]);
   const [currentShift, setCurrentShift] = useState(null);
@@ -256,6 +257,7 @@ function App() {
         axios.get(`${API_BASE}/api/channels`),
         axios.get(`${API_BASE}/api/products`),
         axios.get(`${API_BASE}/api/inventory`),
+        axios.get(`${API_BASE}/api/inventory/lots?active=true&limit=1000`),
         axios.get(`${API_BASE}/api/inventory/suppliers`),
         axios.get(`${API_BASE}/api/inventory/receipts?limit=20`),
         axios.get(`${API_BASE}/api/financial-summary`),
@@ -266,6 +268,7 @@ function App() {
         channelResult,
         productResult,
         inventoryResult,
+        inventoryLotsResult,
         suppliersResult,
         stockReceiptsResult,
         summaryResult,
@@ -277,6 +280,8 @@ function App() {
         productResult.status === "fulfilled" ? productResult.value : null;
       const inventoryResponse =
         inventoryResult.status === "fulfilled" ? inventoryResult.value : null;
+      const inventoryLotsResponse =
+        inventoryLotsResult.status === "fulfilled" ? inventoryLotsResult.value : null;
       const suppliersResponse =
         suppliersResult.status === "fulfilled" ? suppliersResult.value : null;
       const stockReceiptsResponse =
@@ -305,6 +310,11 @@ function App() {
         Array.isArray(inventoryResponse.data.data)
       )
         setInventoryRows(inventoryResponse.data.data);
+      if (
+        inventoryLotsResponse?.data?.success &&
+        Array.isArray(inventoryLotsResponse.data.data)
+      )
+        setInventoryLots(inventoryLotsResponse.data.data);
       if (
         suppliersResponse?.data?.success &&
         Array.isArray(suppliersResponse.data.data)
@@ -601,6 +611,8 @@ function App() {
         setInventoryRows((current) =>
           current.map((row) => (row.id === item.id ? response.data.data : row)),
         );
+        const lotsResponse = await axios.get(`${API_BASE}/api/inventory/lots?active=true&limit=1000`);
+        if (lotsResponse.data?.success) setInventoryLots(lotsResponse.data.data);
       }
     } catch (error) {
       console.warn("Restock API unavailable; request was not recorded.", error);
@@ -614,6 +626,8 @@ function App() {
         setInventoryRows((current) => current.map((item) =>
           String(item.id) === String(result.ingredient.id) ? result.ingredient : item,
         ));
+        const lotsResponse = await axios.get(`${API_BASE}/api/inventory/lots?active=true&limit=1000`);
+        if (lotsResponse.data?.success) setInventoryLots(lotsResponse.data.data);
         const direction = Number(result.difference || 0) > 0 ? "+" : "";
         setNotice(`${result.adjustment_type === "WASTE" ? "WASTE RECORDED" : "STOCK COUNT UPDATED"} · ${direction}${Number(result.difference || 0)}`);
         return result;
@@ -646,6 +660,8 @@ function App() {
         const created = response.data.data;
         const updates = new Map((created.updated_ingredients || []).map((item) => [String(item.id), item]));
         setInventoryRows((current) => current.map((item) => updates.get(String(item.id)) || item));
+        const lotsResponse = await axios.get(`${API_BASE}/api/inventory/lots?active=true&limit=1000`);
+        if (lotsResponse.data?.success) setInventoryLots(lotsResponse.data.data);
         const supplier = suppliers.find((item) => String(item.id) === String(created.supplier_id));
         setStockReceipts((current) => [{ ...created, supplier_name: supplier?.name || "" }, ...current].slice(0, 20));
         setNotice(`STOCK RECEIVED · ${created.receipt_no}`);
@@ -662,6 +678,8 @@ function App() {
       const response = await axios.post(`${API_BASE}/api/inventory`, item);
       if (response.data?.success) {
         setInventoryRows((current) => [...current, response.data.data]);
+        const lotsResponse = await axios.get(`${API_BASE}/api/inventory/lots?active=true&limit=1000`);
+        if (lotsResponse.data?.success) setInventoryLots(lotsResponse.data.data);
         setNotice("INVENTORY ITEM CREATED · WAREHOUSE UPDATED");
         return true;
       }
@@ -677,6 +695,8 @@ function App() {
         setInventoryRows((current) =>
           current.map((row) => (row.id === id ? response.data.data : row)),
         );
+        const lotsResponse = await axios.get(`${API_BASE}/api/inventory/lots?active=true&limit=1000`);
+        if (lotsResponse.data?.success) setInventoryLots(lotsResponse.data.data);
         setNotice("INVENTORY ITEM UPDATED · WAREHOUSE UPDATED");
         return true;
       }
@@ -912,6 +932,7 @@ function App() {
         channels={channels}
         products={products}
         inventoryRows={inventoryRows}
+        inventoryLots={inventoryLots}
         suppliers={suppliers}
         stockReceipts={stockReceipts}
         metrics={metrics}

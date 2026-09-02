@@ -807,7 +807,7 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
 }
 
 function StockReceivingPanel({ rows, suppliers, receipts, onCreateSupplier, onCreateReceipt }) {
-  const emptyLine = () => ({ ingredient_id: "", quantity: "", unit_cost: "" });
+  const emptyLine = () => ({ ingredient_id: "", quantity: "", unit_cost: "", lot_no: "", expiry_date: "" });
   const [supplierId, setSupplierId] = useState("");
   const [receivedAt, setReceivedAt] = useState(localDateTimeValue);
   const [note, setNote] = useState("");
@@ -882,27 +882,35 @@ function StockReceivingPanel({ rows, suppliers, receipts, onCreateSupplier, onCr
           </label>
         </div>
         <div className="space-y-3 rounded-2xl border border-sky-100 bg-sky-50/40 p-3 sm:p-4">
-          <div className="hidden grid-cols-[minmax(0,1fr)_120px_130px_40px] gap-2 px-1 text-xs font-bold text-slate-500 lg:grid">
-            <span>วัตถุดิบ</span><span>จำนวน</span><span>ต้นทุน/หน่วย</span><span />
+          <div className="hidden grid-cols-[minmax(0,1fr)_100px_115px_130px_145px_40px] gap-2 px-1 text-xs font-bold text-slate-500 xl:grid">
+            <span>วัตถุดิบ</span><span>จำนวน</span><span>ต้นทุน/หน่วย</span><span>เลขล็อต</span><span>วันหมดอายุ</span><span />
           </div>
           {receiptItems.map((item, index) => {
             const ingredient = rows.find((row) => String(row.id) === String(item.ingredient_id));
             return (
-              <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_120px_130px_40px]" key={index}>
+              <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_100px_115px_130px_145px_40px]" key={index}>
                 <label className={labelClass}>
-                  <span className="lg:hidden">วัตถุดิบ</span>
+                  <span className="xl:hidden">วัตถุดิบ</span>
                   <select className={inputClass} value={item.ingredient_id} onChange={(event) => updateItem(index, "ingredient_id", event.target.value)} required>
                     <option value="">เลือกวัตถุดิบ</option>
                     {rows.map((row) => <option key={row.id} value={row.id}>{row.name} · เหลือ {row.stock_qty} {row.unit}</option>)}
                   </select>
                 </label>
                 <label className={labelClass}>
-                  <span className="lg:hidden">จำนวน</span>
+                  <span className="xl:hidden">จำนวน</span>
                   <input className={inputClass} type="number" min="0.001" step="0.001" inputMode="decimal" value={item.quantity} onChange={(event) => updateItem(index, "quantity", event.target.value)} placeholder={ingredient?.unit || "จำนวน"} required />
                 </label>
                 <label className={labelClass}>
-                  <span className="lg:hidden">ต้นทุนต่อหน่วย</span>
+                  <span className="xl:hidden">ต้นทุนต่อหน่วย</span>
                   <input className={inputClass} type="number" min="0" step="0.01" inputMode="decimal" value={item.unit_cost} onChange={(event) => updateItem(index, "unit_cost", event.target.value)} placeholder="0.00" required />
+                </label>
+                <label className={labelClass}>
+                  <span className="xl:hidden">เลขล็อต</span>
+                  <input className={inputClass} value={item.lot_no} maxLength="100" onChange={(event) => updateItem(index, "lot_no", event.target.value)} placeholder="เช่น MILK-260902" />
+                </label>
+                <label className={labelClass}>
+                  <span className="xl:hidden">วันหมดอายุ</span>
+                  <input className={inputClass} type="date" value={item.expiry_date} onChange={(event) => updateItem(index, "expiry_date", event.target.value)} />
                 </label>
                 <Button type="button" className="self-end px-2" variant="danger" disabled={receiptItems.length === 1} onClick={() => setReceiptItems((current) => current.filter((_, itemIndex) => itemIndex !== index))}>×</Button>
               </div>
@@ -938,6 +946,7 @@ function StockReceivingPanel({ rows, suppliers, receipts, onCreateSupplier, onCr
               <p className="font-bold text-slate-800">{receipt.receipt_no}</p>
               <p className="mt-1 truncate text-xs text-slate-500">{receipt.supplier_name || "ไม่ระบุผู้ขาย"}</p>
               <p className="mt-1 text-sm font-bold text-sky-700">{money(receipt.total_amount)}</p>
+              {(receipt.items || []).some((item) => item.expiry_date) ? <p className="mt-1 text-xs text-amber-700">มีล็อตระบุวันหมดอายุ</p> : null}
             </div>
           ))}
           {!receipts.length ? <p className="text-sm text-slate-500">ยังไม่มีประวัติการรับของ</p> : null}
@@ -1002,7 +1011,42 @@ function InventoryAdjustmentPanel({ item, onSubmit, onClose }) {
   );
 }
 
-function IngredientsPage({ rows, suppliers, receipts, onCreate, onUpdate, onDelete, onRestock, onAdjust, onCreateSupplier, onCreateReceipt }) {
+function InventoryLotsPanel({ item, lots, onClose }) {
+  const itemLots = lots.filter((lot) => String(lot.ingredient_id) === String(item.id) && Number(lot.remaining_quantity || 0) > 0);
+  return (
+    <Card className="border-violet-200 bg-violet-50/30">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-700">Lot tracking · FEFO</p>
+          <h2 className="mt-1 text-lg font-bold text-slate-900">ล็อตคงเหลือ: {item.name}</h2>
+          <p className="mt-1 text-sm text-slate-500">ระบบจะตัดล็อตที่หมดอายุก่อนโดยอัตโนมัติ</p>
+        </div>
+        <Button type="button" variant="secondary" onClick={onClose}>ปิด</Button>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {itemLots.length ? itemLots.map((lot) => {
+          const expiry = expiryState(lot.expiry_date);
+          return (
+            <article className={`rounded-2xl border bg-white p-4 ${expiry?.tone === "rose" ? "border-rose-200" : expiry?.tone === "amber" ? "border-amber-200" : "border-violet-100"}`} key={lot.id}>
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-bold text-slate-800">{lot.lot_no || `ล็อต #${lot.id}`}</p>
+                <span className="rounded-full bg-violet-50 px-2 py-1 text-xs font-bold text-violet-700">เหลือ {Number(lot.remaining_quantity)} {item.unit}</span>
+              </div>
+              <p className="mt-2 text-xs text-slate-500">รับเข้า {String(lot.received_at || "").slice(0, 10)}</p>
+              <p className={`mt-1 text-xs font-bold ${expiry?.tone === "rose" ? "text-rose-700" : expiry?.tone === "amber" ? "text-amber-700" : "text-slate-600"}`}>
+                {lot.expiry_date ? `${String(lot.expiry_date).slice(0, 10)} · ${expiry?.label || "ยังไม่ใกล้หมดอายุ"}` : "ไม่ได้ระบุวันหมดอายุ"}
+              </p>
+              <p className="mt-2 text-sm font-bold text-slate-700">ต้นทุน {money(lot.unit_cost)} / {item.unit}</p>
+              {lot.supplier_name ? <p className="mt-1 text-xs text-slate-500">ผู้ขาย: {lot.supplier_name}</p> : null}
+            </article>
+          );
+        }) : <Empty>ยังไม่มีล็อตคงเหลือสำหรับวัตถุดิบนี้</Empty>}
+      </div>
+    </Card>
+  );
+}
+
+function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, onDelete, onRestock, onAdjust, onCreateSupplier, onCreateReceipt }) {
   const initial = {
     name: "",
     unit: "",
@@ -1014,6 +1058,7 @@ function IngredientsPage({ rows, suppliers, receipts, onCreate, onUpdate, onDele
   const [form, setForm] = useState(initial);
   const [editingId, setEditingId] = useState(null);
   const [adjustingItem, setAdjustingItem] = useState(null);
+  const [viewingLotsItem, setViewingLotsItem] = useState(null);
   const save = async (event) => {
     event.preventDefault();
     const saved = editingId
@@ -1076,6 +1121,14 @@ function IngredientsPage({ rows, suppliers, receipts, onCreate, onUpdate, onDele
           onClose={() => setAdjustingItem(null)}
         />
       ) : null}
+      {viewingLotsItem ? (
+        <InventoryLotsPanel
+          key={viewingLotsItem.id}
+          item={viewingLotsItem}
+          lots={lots}
+          onClose={() => setViewingLotsItem(null)}
+        />
+      ) : null}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
         <Card>
           <div className="mb-4 flex items-center justify-between">
@@ -1090,7 +1143,12 @@ function IngredientsPage({ rows, suppliers, receipts, onCreate, onUpdate, onDele
                   item.is_low_stock ||
                   item.level === "low" ||
                   (item.min_stock_alert && qty <= Number(item.min_stock_alert));
-                const expiry = expiryState(item.expiry_date);
+                const activeLots = lots.filter((lot) => String(lot.ingredient_id) === String(item.id) && Number(lot.remaining_quantity || 0) > 0);
+                const nextLotExpiry = activeLots
+                  .map((lot) => lot.expiry_date)
+                  .filter(Boolean)
+                  .sort()[0];
+                const expiry = expiryState(nextLotExpiry || item.next_expiry_date || item.expiry_date);
                 return (
                   <article
                     className={`flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center ${expiry?.tone === "rose" ? "border-rose-200 bg-rose-50/30" : expiry?.tone === "amber" ? "border-amber-200 bg-amber-50/30" : "border-sky-100"}`}
@@ -1105,9 +1163,10 @@ function IngredientsPage({ rows, suppliers, receipts, onCreate, onUpdate, onDele
                       </p>
                       <p className="mt-1 text-sm text-slate-500">
                         คงเหลือ {qty} {item.unit || "หน่วย"}
-                        {item.expiry_date &&
-                          ` · หมดอายุ ${String(item.expiry_date).slice(0, 10)}`}
+                        {(nextLotExpiry || item.next_expiry_date || item.expiry_date) &&
+                          ` · หมดอายุ ${String(nextLotExpiry || item.next_expiry_date || item.expiry_date).slice(0, 10)}`}
                       </p>
+                      {activeLots.length ? <p className="mt-1 text-xs font-semibold text-violet-700">{activeLots.length} ล็อตคงเหลือ</p> : null}
                       {expiry ? <p className={`mt-1 text-xs font-bold ${expiry.tone === "rose" ? "text-rose-700" : "text-amber-700"}`}>{expiry.label}</p> : null}
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -1124,6 +1183,13 @@ function IngredientsPage({ rows, suppliers, receipts, onCreate, onUpdate, onDele
                         onClick={() => setAdjustingItem(item)}
                       >
                         ตรวจนับ / ของเสีย
+                      </Button>
+                      <Button
+                        className="text-xs"
+                        variant="secondary"
+                        onClick={() => setViewingLotsItem(item)}
+                      >
+                        ดูล็อต
                       </Button>
                       <Button
                         className="text-xs"
@@ -3227,6 +3293,7 @@ export default function GlassLayout({
   channels,
   products,
   inventoryRows,
+  inventoryLots,
   suppliers,
   stockReceipts,
   metrics,
@@ -3260,6 +3327,7 @@ export default function GlassLayout({
     activeView === "inventory" ? (
       <IngredientsPage
         rows={inventoryRows}
+        lots={inventoryLots}
         suppliers={suppliers}
         receipts={stockReceipts}
         onCreate={onCreateInventory}
