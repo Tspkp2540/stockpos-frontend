@@ -2314,6 +2314,16 @@ const dateLabel = (date) =>
     month: "long",
     year: "numeric",
   }).format(new Date(`${date}T00:00:00Z`));
+const dateTimeLabel = (value) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("th-TH", {
+    timeZone: "Asia/Bangkok",
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+};
 const rowMatchesDate = (row, selectedDate) =>
   Boolean(row?.created_at) && bangkokDate(row.created_at) === selectedDate;
 const inventoryIsLow = (item) => {
@@ -2950,12 +2960,96 @@ function CouponManagementPanel({ coupons, onCreate, onUpdate }) {
   );
 }
 
+function CashShiftAuditPanel({ shifts }) {
+  const history = Array.isArray(shifts) ? shifts : [];
+  const closedShifts = history.filter((shift) => shift.status === "CLOSED");
+  const cashSales = history.reduce((total, shift) => total + Number(shift.cash_sales || 0), 0);
+  const differences = closedShifts.reduce(
+    (total, shift) => total + Number(shift.difference_amount || 0),
+    0,
+  );
+  return (
+    <section className="grid gap-5 2xl:grid-cols-[0.75fr_1.25fr]">
+      <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-white">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">
+          Cash shift audit
+        </p>
+        <h2 className="mt-1 text-lg font-bold text-slate-900">ตรวจสอบกะเงินสด</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          ดูประวัติ 50 กะล่าสุด พร้อมยอดคาดการณ์และยอดต่างก่อนส่งเงิน
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-white/80 p-3">
+            <p className="text-xs font-semibold text-slate-500">กะที่เปิดอยู่</p>
+            <strong className="mt-1 block text-xl text-amber-700">
+              {history.filter((shift) => shift.status === "OPEN").length} กะ
+            </strong>
+          </div>
+          <div className="rounded-xl bg-white/80 p-3">
+            <p className="text-xs font-semibold text-slate-500">ขายเงินสดรวม</p>
+            <strong className="mt-1 block text-base text-slate-900">{money(cashSales)}</strong>
+          </div>
+          <div className="col-span-2 rounded-xl bg-white/80 p-3">
+            <p className="text-xs font-semibold text-slate-500">ผลต่างสะสมจากกะที่ปิดแล้ว</p>
+            <strong className={`mt-1 block text-xl ${differences === 0 ? "text-emerald-700" : differences > 0 ? "text-sky-700" : "text-rose-700"}`}>
+              {differences > 0 ? "+" : ""}{money(differences)}
+            </strong>
+          </div>
+        </div>
+      </Card>
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">Shift history</p>
+            <h2 className="mt-1 text-lg font-bold text-slate-900">ประวัติปิดกะ</h2>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-bold text-slate-700">
+            {history.length} รายการ
+          </span>
+        </div>
+        <div className="mt-4 grid gap-3">
+          {history.length ? history.map((shift) => {
+            const isOpen = shift.status === "OPEN";
+            const expected = Number(
+              shift.expected_cash ?? Number(shift.opening_cash || 0) + Number(shift.cash_sales || 0),
+            );
+            const difference = Number(shift.difference_amount || 0);
+            const differenceClass = difference === 0 ? "text-emerald-700" : difference > 0 ? "text-sky-700" : "text-rose-700";
+            return (
+              <article className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4" key={shift.id}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-bold text-slate-900">กะ #{shift.id} · {shift.opened_by_name || "ไม่ระบุผู้เปิดกะ"}</p>
+                    <p className="mt-1 text-xs text-slate-500">เปิดกะ {dateTimeLabel(shift.opened_at)}</p>
+                    {!isOpen ? <p className="mt-1 text-xs text-slate-500">ปิดกะ {dateTimeLabel(shift.closed_at)} · {shift.closed_by_name || "ไม่ระบุผู้ปิดกะ"}</p> : null}
+                  </div>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${isOpen ? "bg-amber-100 text-amber-800" : "bg-emerald-50 text-emerald-700"}`}>
+                    {isOpen ? "กำลังเปิดกะ" : "ปิดกะแล้ว"}
+                  </span>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4">
+                  <div><p className="text-xs text-slate-500">เงินทอนเริ่มกะ</p><strong className="text-slate-800">{money(shift.opening_cash)}</strong></div>
+                  <div><p className="text-xs text-slate-500">ขายเงินสด</p><strong className="text-slate-800">{money(shift.cash_sales)}</strong></div>
+                  <div><p className="text-xs text-slate-500">ยอดที่ควรมี</p><strong className="text-slate-800">{money(expected)}</strong></div>
+                  <div><p className="text-xs text-slate-500">{isOpen ? "สถานะยอดนับ" : "ยอดนับจริง / ส่วนต่าง"}</p><strong className={isOpen ? "text-amber-700" : differenceClass}>{isOpen ? "รอปิดกะ" : `${money(shift.closing_cash)} · ${difference > 0 ? "+" : ""}${money(difference)}`}</strong></div>
+                </div>
+                {(shift.opening_note || shift.closing_note) ? <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500">{shift.opening_note ? `เปิดกะ: ${shift.opening_note}` : ""}{shift.opening_note && shift.closing_note ? " · " : ""}{shift.closing_note ? `ปิดกะ: ${shift.closing_note}` : ""}</p> : null}
+              </article>
+            );
+          }) : <Empty>ยังไม่มีประวัติกะเงินสด</Empty>}
+        </div>
+      </Card>
+    </section>
+  );
+}
+
 function FinancePage({
   expenseRows,
   orders,
   channels,
   products,
   coupons,
+  cashShifts,
   onCreateExpense,
   onUpdateExpense,
   onDeleteExpense,
@@ -3165,6 +3259,7 @@ function FinancePage({
         ))}
       </div>
       <CouponManagementPanel coupons={coupons} onCreate={onCreateCoupon} onUpdate={onUpdateCoupon} />
+      <CashShiftAuditPanel shifts={cashShifts} />
       <div className="grid gap-5 2xl:grid-cols-2">
         <Card>
           <h2 className="text-lg font-bold text-slate-900">
@@ -3881,6 +3976,7 @@ export default function GlassLayout({
   stockReceipts,
   purchaseOrders,
   coupons,
+  cashShifts,
   metrics,
   expenses,
   expenseRows,
@@ -3960,6 +4056,7 @@ export default function GlassLayout({
         channels={channels}
         products={products}
         coupons={coupons}
+        cashShifts={cashShifts}
         onCreateExpense={onCreateExpense}
         onUpdateExpense={onUpdateExpense}
         onDeleteExpense={onDeleteExpense}

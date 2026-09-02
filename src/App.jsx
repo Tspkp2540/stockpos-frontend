@@ -130,6 +130,7 @@ function App() {
   const [stockReceipts, setStockReceipts] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [coupons, setCoupons] = useState([]);
+  const [cashShifts, setCashShifts] = useState([]);
   const [inventoryLots, setInventoryLots] = useState([]);
   const [expenses, setExpenses] = useState(0);
   const [expenseRows, setExpenseRows] = useState([]);
@@ -181,6 +182,18 @@ function App() {
     }
     return false;
   };
+  const refreshCashShifts = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/shifts`);
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        setCashShifts(response.data.data);
+        return true;
+      }
+    } catch (error) {
+      console.warn("Cash shift history refresh unavailable.", error);
+    }
+    return false;
+  };
 
   const startSession = (data) => {
     const account = {
@@ -229,6 +242,7 @@ function App() {
     setAnonymousMode(true);
     setActiveView("operations");
     setCurrentShift(null);
+    setCashShifts([]);
   };
 
   const refreshCurrentShift = async () => {
@@ -402,7 +416,9 @@ function App() {
         Array.isArray(expensesResponse.data.data)
       )
         setExpenseRows(expensesResponse.data.data);
-      if (session.role === "admin") await refreshCoupons();
+      if (session.role === "admin") {
+        await Promise.all([refreshCoupons(), refreshCashShifts()]);
+      }
     };
     fetchOrders();
     fetchDashboardData();
@@ -504,6 +520,7 @@ function App() {
       });
       if (response.data?.success) {
         setCurrentShift(response.data.data);
+        if (session?.role === "admin") await refreshCashShifts();
         setNotice("CASH SHIFT OPENED · READY FOR CASH SALES");
         return true;
       }
@@ -521,6 +538,7 @@ function App() {
       });
       if (response.data?.success) {
         setCurrentShift(null);
+        if (session?.role === "admin") await refreshCashShifts();
         setNotice("CASH SHIFT CLOSED · DIFFERENCE CALCULATED");
         return response.data.data;
       }
@@ -1110,6 +1128,7 @@ function App() {
         stockReceipts={stockReceipts}
         purchaseOrders={purchaseOrders}
         coupons={coupons}
+        cashShifts={cashShifts}
         metrics={metrics}
         expenses={expenses}
         expenseRows={expenseRows}
