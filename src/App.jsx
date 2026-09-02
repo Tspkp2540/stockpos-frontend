@@ -213,6 +213,36 @@ function App() {
     }
     return false;
   }, []);
+  const createChannel = async (channel) => {
+    try {
+      const response = await axios.post(`${API_BASE}/api/channels`, channel);
+      if (response.data?.success) {
+        setChannels((current) => [...current, response.data.data]);
+        setNotice("SALES CHANNEL CREATED · READY FOR POS");
+        return response.data.data;
+      }
+    } catch (error) {
+      window.alert(error.response?.data?.error || "ไม่สามารถเพิ่มช่องทางขายได้");
+      console.warn("Sales channel create failed.", error);
+    }
+    return null;
+  };
+  const updateChannel = async (id, channel) => {
+    try {
+      const response = await axios.put(`${API_BASE}/api/channels/${id}`, channel);
+      if (response.data?.success) {
+        setChannels((current) => current.map((item) =>
+          String(item.id) === String(id) ? response.data.data : item,
+        ));
+        setNotice("SALES CHANNEL UPDATED · POS OPTIONS SYNCED");
+        return response.data.data;
+      }
+    } catch (error) {
+      window.alert(error.response?.data?.error || "ไม่สามารถแก้ไขช่องทางขายได้");
+      console.warn("Sales channel update failed.", error);
+    }
+    return null;
+  };
 
   const startSession = (data) => {
     const account = {
@@ -1174,6 +1204,8 @@ function App() {
         onReceivePurchaseOrder={receivePurchaseOrder}
         onCreateCoupon={createCoupon}
         onUpdateCoupon={updateCoupon}
+        onCreateChannel={createChannel}
+        onUpdateChannel={updateChannel}
         onRefreshSalesBreakdown={refreshSalesBreakdown}
         onCreateInventory={createInventory}
         onUpdateInventory={updateInventory}

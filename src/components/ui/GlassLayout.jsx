@@ -16,6 +16,7 @@ const navigation = [
   { id: "alerts", icon: "⚠", label: "แจ้งเตือน" },
   { id: "inventory", icon: "□", label: "วัตถุดิบ" },
   { id: "menu", icon: "☷", label: "เมนูสินค้า" },
+  { id: "sales-channels", icon: "◫", label: "ช่องทางขาย", adminOnly: true },
   { id: "finance", icon: "฿", label: "การเงิน" },
   { id: "coupons", icon: "◇", label: "จัดการคูปอง", adminOnly: true },
 ];
@@ -388,6 +389,14 @@ function KitchenDisplayPage({ orders, onUpdate }) {
 
 function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, onOpenCashShift, onCloseCashShift }) {
   const [channelId, setChannelId] = useState(channels[0]?.id || "");
+  const activeChannels = useMemo(
+    () => channels.filter((channel) => channel.is_active !== false),
+    [channels],
+  );
+  useEffect(() => {
+    if (activeChannels.some((channel) => String(channel.id) === String(channelId))) return;
+    setChannelId(activeChannels[0]?.id || "");
+  }, [activeChannels, channelId]);
   const [cart, setCart] = useState([]);
   const [pendingProduct, setPendingProduct] = useState(null);
   const [editingCartKey, setEditingCartKey] = useState(null);
@@ -567,9 +576,10 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
     if (paymentMethod === "CASH" && total > 0 && (!currentShift || receivedAmount < total)) {
       return window.alert(!currentShift ? "กรุณาเปิดกะเงินสดก่อนรับเงินสด" : "ยอดที่รับต้องไม่น้อยกว่ายอดสุทธิ");
     }
-    const channel = channels.find(
+    const channel = activeChannels.find(
       (item) => String(item.id) === String(channelId),
     );
+    if (!channel) return window.alert("กรุณาเลือกช่องทางขายที่เปิดใช้งาน");
     const saved = await onAdd({
       channel_id: Number(channelId),
       channel_name: channel?.name,
@@ -616,7 +626,7 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
               ช่องทางการขาย
             </legend>
             <div className="grid gap-2 sm:grid-cols-2">
-              {channels.map((channel) => (
+              {activeChannels.map((channel) => (
                 <label
                   className={`flex cursor-pointer items-center justify-between rounded-xl border px-3 py-3 transition ${String(channel.id) === String(channelId) ? "border-sky-500 bg-sky-50" : "border-sky-100 hover:border-sky-300"}`}
                   key={channel.id}
@@ -633,6 +643,7 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
                   />
                 </label>
               ))}
+              {!activeChannels.length ? <p className="text-sm text-rose-600 sm:col-span-2">ยังไม่มีช่องทางขายที่เปิดใช้งาน กรุณาให้ Admin เปิดหรือเพิ่มช่องทางขายก่อน</p> : null}
             </div>
           </fieldset>
         </Card>
@@ -3160,6 +3171,96 @@ function CouponPage({ coupons, onCreateCoupon, onUpdateCoupon }) {
   );
 }
 
+function SalesChannelsPage({ channels, onCreateChannel, onUpdateChannel }) {
+  const blankChannel = () => ({ name: "", gp_percent: "0", is_active: true });
+  const [channel, setChannel] = useState(blankChannel);
+  const [editingId, setEditingId] = useState(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const resetForm = () => {
+    setChannel(blankChannel());
+    setEditingId(null);
+    setFormOpen(false);
+  };
+  const save = async (event) => {
+    event.preventDefault();
+    const payload = {
+      name: channel.name.trim(),
+      gp_percent: Number(channel.gp_percent),
+      is_active: Boolean(channel.is_active),
+    };
+    const saved = editingId
+      ? await onUpdateChannel?.(editingId, payload)
+      : await onCreateChannel?.(payload);
+    if (saved) resetForm();
+  };
+  const edit = (item) => {
+    setEditingId(item.id);
+    setChannel({
+      name: item.name || "",
+      gp_percent: String(item.gp_percent ?? 0),
+      is_active: item.is_active !== false,
+    });
+    setFormOpen(true);
+  };
+  const toggleActive = (item) => onUpdateChannel?.(item.id, {
+    name: item.name,
+    gp_percent: Number(item.gp_percent || 0),
+    is_active: item.is_active === false,
+  });
+  return (
+    <div className="space-y-5">
+      <Heading
+        eyebrow="Sales channel settings"
+        title="ช่องทางขาย"
+        description="กำหนดช่องทางที่เลือกได้ใน POS และเปอร์เซ็นต์ค่าธรรมเนียมที่หักจากรายรับ"
+        action={<Button type="button" onClick={() => { setChannel(blankChannel()); setEditingId(null); setFormOpen(true); }}>+ เพิ่มช่องทางขาย</Button>}
+      />
+      <Card className="border-amber-200 bg-amber-50/50">
+        <p className="text-sm font-semibold text-amber-900">ค่าธรรมเนียมมีผลกับรายรับสุทธิของออเดอร์ใหม่ เช่น GrabFood หรือ LINE MAN</p>
+        <p className="mt-1 text-xs text-amber-700">การปิดใช้งานจะซ่อนช่องทางนั้นจากหน้า POS ของพนักงาน โดยไม่กระทบข้อมูลออเดอร์เดิม</p>
+      </Card>
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {channels.length ? channels.map((item) => {
+          const active = item.is_active !== false;
+          return (
+            <Card className={active ? "" : "border-slate-200 bg-slate-50/70"} key={item.id}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-700">Sales channel</p>
+                  <h2 className="mt-1 text-lg font-bold text-slate-900">{item.name}</h2>
+                </div>
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${active ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>{active ? "เปิดใช้งาน" : "ปิดใช้งาน"}</span>
+              </div>
+              <div className="mt-4 rounded-xl bg-sky-50/70 p-3">
+                <p className="text-xs text-slate-500">ค่าธรรมเนียมช่องทาง</p>
+                <strong className="mt-1 block text-2xl text-sky-700">{Number(item.gp_percent || 0)}%</strong>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button type="button" className="text-xs" variant="secondary" onClick={() => edit(item)}>แก้ไข</Button>
+                <Button type="button" className="text-xs" variant={active ? "danger" : "secondary"} onClick={() => toggleActive(item)}>{active ? "ปิดใช้งาน" : "เปิดใช้งาน"}</Button>
+              </div>
+            </Card>
+          );
+        }) : <Empty>ยังไม่มีช่องทางขาย เพิ่มรายการแรกเพื่อใช้งานใน POS</Empty>}
+      </section>
+      {formOpen ? (
+        <Modal label={editingId ? "แก้ไขช่องทางขาย" : "เพิ่มช่องทางขาย"} maxWidth="max-w-xl" onClose={resetForm}>
+          <Card className="border-sky-200 bg-white">
+            <h2 className="text-lg font-bold text-slate-900">{editingId ? "แก้ไขช่องทางขาย" : "เพิ่มช่องทางขาย"}</h2>
+            <p className="mt-1 text-sm text-slate-500">ตั้งชื่อช่องทางและค่าธรรมเนียมที่ระบบใช้คำนวณรายรับสุทธิ</p>
+            <form className="mt-5 grid gap-4" onSubmit={save}>
+              <label className={labelClass}>ชื่อช่องทางขาย<input className={inputClass} value={channel.name} maxLength="120" onChange={(event) => setChannel((current) => ({ ...current, name: event.target.value }))} placeholder="เช่น ShopeeFood" required /></label>
+              <label className={labelClass}>ค่าธรรมเนียมช่องทาง (%)<input className={inputClass} type="number" min="0" max="100" step="0.01" inputMode="decimal" value={channel.gp_percent} onChange={(event) => setChannel((current) => ({ ...current, gp_percent: event.target.value }))} required /></label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input className="h-4 w-4 accent-sky-600" type="checkbox" checked={channel.is_active} onChange={(event) => setChannel((current) => ({ ...current, is_active: event.target.checked }))} />เปิดใช้งานใน POS ทันที</label>
+              <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={resetForm}>ยกเลิก</Button><Button type="submit">{editingId ? "บันทึกการแก้ไข" : "เพิ่มช่องทางขาย"}</Button></div>
+            </form>
+          </Card>
+        </Modal>
+      ) : null}
+    </div>
+  );
+}
+
 function CashShiftAuditPanel({ shifts }) {
   const history = Array.isArray(shifts) ? shifts : [];
   const closedShifts = history.filter((shift) => shift.status === "CLOSED");
@@ -4277,6 +4378,8 @@ export default function GlassLayout({
   onReceivePurchaseOrder,
   onCreateCoupon,
   onUpdateCoupon,
+  onCreateChannel,
+  onUpdateChannel,
   onRefreshSalesBreakdown,
   onCreateInventory,
   onUpdateInventory,
@@ -4335,6 +4438,12 @@ export default function GlassLayout({
         coupons={coupons}
         onCreateCoupon={onCreateCoupon}
         onUpdateCoupon={onUpdateCoupon}
+      />
+    ) : activeView === "sales-channels" && user?.role === "admin" ? (
+      <SalesChannelsPage
+        channels={channels}
+        onCreateChannel={onCreateChannel}
+        onUpdateChannel={onUpdateChannel}
       />
     ) : activeView === "finance" ? (
       <FinancePage
