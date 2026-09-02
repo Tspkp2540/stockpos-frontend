@@ -2481,37 +2481,128 @@ function PurchaseRecommendationPanel({ inventoryRows, suppliers, onNavigate, onC
   );
 }
 
+function ReceivePurchaseOrderPanel({ order, onClose, onReceive }) {
+  const [receivedAt, setReceivedAt] = useState(localDateTimeValue);
+  const [note, setNote] = useState("");
+  const [items, setItems] = useState(() => (order.items || []).map((item) => ({
+    ingredient_id: item.ingredient_id,
+    ingredient_name: item.ingredient_name,
+    unit: item.unit,
+    quantity: String(item.quantity ?? ""),
+    unit_cost: String(item.unit_cost ?? ""),
+    lot_no: "",
+    expiry_date: "",
+  })));
+  const total = items.reduce(
+    (sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.unit_cost) || 0),
+    0,
+  );
+  const updateItem = (index, field, value) => {
+    setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item));
+  };
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!window.confirm(`ยืนยันรับของตาม ${order.po_no} เข้าคลังหรือไม่? รายการนี้จะสร้างล็อตและปรับยอดคงเหลือทันที`)) return;
+    const saved = await onReceive?.(order, { received_at: receivedAt, note, items });
+    if (saved) onClose();
+  };
+  return (
+    <Card className="border-emerald-200 bg-emerald-50/30">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Purchase order receiving</p>
+          <h2 className="mt-1 text-lg font-bold text-slate-900">ตรวจรับสินค้า: {order.po_no}</h2>
+          <p className="mt-1 text-sm text-slate-600">ตรวจจำนวนและต้นทุนจริงก่อนรับเข้า พร้อมระบุเลขล็อตหรือวันหมดอายุได้</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-sm font-bold text-emerald-800">รวม {money(total)}</span>
+          <Button type="button" variant="secondary" onClick={onClose}>ปิด</Button>
+        </div>
+      </div>
+      <form className="mt-5 grid gap-4" onSubmit={submit}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className={labelClass}>
+            วันเวลารับของ
+            <input className={inputClass} type="datetime-local" value={receivedAt} onChange={(event) => setReceivedAt(event.target.value)} required />
+          </label>
+          <label className={labelClass}>
+            หมายเหตุ <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+            <input className={inputClass} value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="เช่น ใบส่งของ #A-102" />
+          </label>
+        </div>
+        <div className="space-y-3 rounded-2xl border border-emerald-100 bg-white/80 p-3 sm:p-4">
+          <div className="hidden grid-cols-[minmax(0,1fr)_100px_115px_130px_145px] gap-2 px-1 text-xs font-bold text-slate-500 xl:grid">
+            <span>วัตถุดิบ</span><span>จำนวนจริง</span><span>ต้นทุน/หน่วย</span><span>เลขล็อต</span><span>วันหมดอายุ</span>
+          </div>
+          {items.map((item, index) => (
+            <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_100px_115px_130px_145px]" key={item.ingredient_id}>
+              <label className={labelClass}>
+                <span className="xl:hidden">วัตถุดิบ</span>
+                <div className="flex min-h-[42px] items-center rounded-xl border border-sky-100 bg-slate-50 px-3 text-sm font-semibold text-slate-700">{item.ingredient_name} <span className="ml-1 font-normal text-slate-400">({item.unit || "หน่วย"})</span></div>
+              </label>
+              <label className={labelClass}>
+                <span className="xl:hidden">จำนวนจริง ({item.unit || "หน่วย"})</span>
+                <input className={inputClass} type="number" min="0.001" step="0.001" inputMode="decimal" value={item.quantity} onChange={(event) => updateItem(index, "quantity", event.target.value)} required />
+              </label>
+              <label className={labelClass}>
+                <span className="xl:hidden">ต้นทุนต่อหน่วย</span>
+                <input className={inputClass} type="number" min="0" step="0.01" inputMode="decimal" value={item.unit_cost} onChange={(event) => updateItem(index, "unit_cost", event.target.value)} required />
+              </label>
+              <label className={labelClass}>
+                <span className="xl:hidden">เลขล็อต</span>
+                <input className={inputClass} value={item.lot_no} maxLength="100" onChange={(event) => updateItem(index, "lot_no", event.target.value)} placeholder="เว้นว่างเพื่อให้ระบบสร้าง" />
+              </label>
+              <label className={labelClass}>
+                <span className="xl:hidden">วันหมดอายุ</span>
+                <input className={inputClass} type="date" value={item.expiry_date} onChange={(event) => updateItem(index, "expiry_date", event.target.value)} />
+              </label>
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+          <span>เมื่อยืนยันแล้ว ระบบจะสร้างใบรับของ เพิ่มล็อต และปรับยอดวัตถุดิบในคลังทันที</span>
+          <Button type="submit" className="shrink-0">ยืนยันรับเข้าคลัง</Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
 function PurchaseOrderHistory({ orders, onUpdateStatus, onReceive }) {
+  const [receivingOrder, setReceivingOrder] = useState(null);
   if (!orders.length) return null;
   return (
-    <Card>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">Purchase orders</p>
-          <h2 className="mt-1 text-lg font-bold text-slate-900">ใบสั่งซื้อล่าสุด</h2>
+    <div className="grid gap-5">
+      {receivingOrder ? <ReceivePurchaseOrderPanel key={receivingOrder.id} order={receivingOrder} onClose={() => setReceivingOrder(null)} onReceive={onReceive} /> : null}
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">Purchase orders</p>
+            <h2 className="mt-1 text-lg font-bold text-slate-900">ใบสั่งซื้อล่าสุด</h2>
+          </div>
+          <span className="rounded-full bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700">{orders.length} ฉบับ</span>
         </div>
-        <span className="rounded-full bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700">{orders.length} ฉบับ</span>
-      </div>
-      <div className="mt-4 grid gap-3">
-        {orders.slice(0, 10).map((order) => (
-          <article className="flex flex-col gap-3 rounded-2xl border border-sky-100 bg-white p-4 sm:flex-row sm:items-center" key={order.id}>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="font-bold text-slate-900">{order.po_no}</h3>
-                <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${order.status === "RECEIVED" ? "bg-emerald-50 text-emerald-700" : order.status === "CANCELLED" ? "bg-slate-100 text-slate-600" : order.status === "SENT" ? "bg-sky-50 text-sky-700" : "bg-amber-50 text-amber-700"}`}>{purchaseOrderStatusLabel(order.status)}</span>
+        <div className="mt-4 grid gap-3">
+          {orders.slice(0, 10).map((order) => (
+            <article className="flex flex-col gap-3 rounded-2xl border border-sky-100 bg-white p-4 sm:flex-row sm:items-center" key={order.id}>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-bold text-slate-900">{order.po_no}</h3>
+                  <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${order.status === "RECEIVED" ? "bg-emerald-50 text-emerald-700" : order.status === "CANCELLED" ? "bg-slate-100 text-slate-600" : order.status === "SENT" ? "bg-sky-50 text-sky-700" : "bg-amber-50 text-amber-700"}`}>{purchaseOrderStatusLabel(order.status)}</span>
+                </div>
+                <p className="mt-1 text-sm text-slate-600">{order.supplier_name || "ไม่ระบุผู้ขาย"} · {order.items?.length || 0} รายการ{order.expected_date ? ` · คาดว่าจะได้ ${String(order.expected_date).slice(0, 10)}` : ""}</p>
+                {order.receipt_no ? <p className="mt-1 text-xs font-semibold text-emerald-700">รับเข้าคลังแล้ว: {order.receipt_no}</p> : null}
               </div>
-              <p className="mt-1 text-sm text-slate-600">{order.supplier_name || "ไม่ระบุผู้ขาย"} · {order.items?.length || 0} รายการ{order.expected_date ? ` · คาดว่าจะได้ ${String(order.expected_date).slice(0, 10)}` : ""}</p>
-              {order.receipt_no ? <p className="mt-1 text-xs font-semibold text-emerald-700">รับเข้าคลังแล้ว: {order.receipt_no}</p> : null}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {order.status === "DRAFT" ? <Button type="button" variant="secondary" className="text-xs" onClick={() => onUpdateStatus(order, "SENT")}>ส่งให้ผู้ขาย</Button> : null}
-              {["DRAFT", "SENT"].includes(order.status) ? <Button type="button" className="text-xs" onClick={() => onReceive(order)}>รับของเข้าคลัง</Button> : null}
-              {["DRAFT", "SENT"].includes(order.status) ? <Button type="button" variant="danger" className="text-xs" onClick={() => onUpdateStatus(order, "CANCELLED")}>ยกเลิก</Button> : null}
-            </div>
-          </article>
-        ))}
-      </div>
-    </Card>
+              <div className="flex flex-wrap gap-2">
+                {order.status === "DRAFT" ? <Button type="button" variant="secondary" className="text-xs" onClick={() => onUpdateStatus(order, "SENT")}>ส่งให้ผู้ขาย</Button> : null}
+                {["DRAFT", "SENT"].includes(order.status) ? <Button type="button" className="text-xs" onClick={() => setReceivingOrder(order)}>ตรวจรับของ</Button> : null}
+                {["DRAFT", "SENT"].includes(order.status) ? <Button type="button" variant="danger" className="text-xs" onClick={() => onUpdateStatus(order, "CANCELLED")}>ยกเลิก</Button> : null}
+              </div>
+            </article>
+          ))}
+        </div>
+      </Card>
+    </div>
   );
 }
 

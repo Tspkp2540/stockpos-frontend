@@ -752,10 +752,22 @@ function App() {
     }
     return null;
   };
-  const receivePurchaseOrder = async (purchaseOrder) => {
-    if (!window.confirm(`รับวัตถุดิบตามใบสั่งซื้อ ${purchaseOrder.po_no} เข้าคลังตามจำนวนที่สั่งหรือไม่?`)) return null;
+  const receivePurchaseOrder = async (purchaseOrder, receiptInput = {}) => {
     try {
-      const response = await axios.post(`${API_BASE}/api/purchase-orders/${purchaseOrder.id}/receive`);
+      const items = Array.isArray(receiptInput.items) && receiptInput.items.length
+        ? receiptInput.items.map((item) => ({
+          ingredient_id: item.ingredient_id,
+          quantity: item.quantity,
+          unit_cost: item.unit_cost,
+          lot_no: item.lot_no || undefined,
+          expiry_date: item.expiry_date || undefined,
+        }))
+        : undefined;
+      const response = await axios.post(`${API_BASE}/api/purchase-orders/${purchaseOrder.id}/receive`, {
+        received_at: receiptInput.received_at || undefined,
+        note: receiptInput.note?.trim() || undefined,
+        items,
+      });
       if (response.data?.success) {
         const { purchase_order: updatedOrder, receipt } = response.data.data;
         const updates = new Map((receipt.updated_ingredients || []).map((item) => [String(item.id), item]));
