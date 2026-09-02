@@ -2793,17 +2793,177 @@ const exportFinance = ({ selectedDate, orders, expenses, summary }) =>
     ],
   });
 
+const blankCoupon = () => ({
+  code: "",
+  discount_type: "PERCENT",
+  discount_value: "",
+  min_order_amount: "",
+  max_discount_amount: "",
+  usage_limit: "",
+  valid_from: "",
+  valid_until: "",
+  is_active: true,
+});
+
+function CouponManagementPanel({ coupons, onCreate, onUpdate }) {
+  const [coupon, setCoupon] = useState(blankCoupon);
+  const [editingId, setEditingId] = useState(null);
+  const today = todayInBangkok();
+  const couponPayload = (value) => ({
+    code: value.code.trim().toUpperCase(),
+    discount_type: value.discount_type,
+    discount_value: Number(value.discount_value),
+    min_order_amount: Number(value.min_order_amount || 0),
+    max_discount_amount: value.max_discount_amount === "" ? null : Number(value.max_discount_amount),
+    usage_limit: value.usage_limit === "" ? null : Number(value.usage_limit),
+    valid_from: value.valid_from ? `${value.valid_from}T00:00:00+07:00` : null,
+    valid_until: value.valid_until ? `${value.valid_until}T23:59:59+07:00` : null,
+    is_active: Boolean(value.is_active),
+  });
+  const submit = async (event) => {
+    event.preventDefault();
+    const saved = editingId
+      ? await onUpdate?.(editingId, couponPayload(coupon))
+      : await onCreate?.(couponPayload(coupon));
+    if (!saved) return;
+    setCoupon(blankCoupon());
+    setEditingId(null);
+  };
+  const edit = (item) => {
+    setEditingId(item.id);
+    setCoupon({
+      code: item.code || "",
+      discount_type: item.discount_type || "PERCENT",
+      discount_value: String(item.discount_value ?? ""),
+      min_order_amount: String(item.min_order_amount ?? ""),
+      max_discount_amount: item.max_discount_amount == null ? "" : String(item.max_discount_amount),
+      usage_limit: item.usage_limit == null ? "" : String(item.usage_limit),
+      valid_from: item.valid_from ? bangkokDate(item.valid_from) : "",
+      valid_until: item.valid_until ? bangkokDate(item.valid_until) : "",
+      is_active: item.is_active !== false,
+    });
+  };
+  const setValue = (field, value) => setCoupon((current) => ({ ...current, [field]: value }));
+  const toggleAvailability = async (item) => {
+    await onUpdate?.(item.id, {
+      code: item.code,
+      discount_type: item.discount_type,
+      discount_value: Number(item.discount_value),
+      min_order_amount: Number(item.min_order_amount || 0),
+      max_discount_amount: item.max_discount_amount ?? null,
+      usage_limit: item.usage_limit ?? null,
+      valid_from: item.valid_from || null,
+      valid_until: item.valid_until || null,
+      is_active: !item.is_active,
+    });
+  };
+  return (
+    <section className="grid gap-5 2xl:grid-cols-[0.9fr_1.1fr]">
+      <Card className="border-violet-200 bg-violet-50/30">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-700">Coupon management</p>
+        <h2 className="mt-1 text-lg font-bold text-slate-900">{editingId ? "แก้ไขคูปอง" : "สร้างคูปอง"}</h2>
+        <p className="mt-1 text-sm text-slate-500">กำหนดส่วนลด เงื่อนไข และช่วงเวลาการใช้งาน</p>
+        <form className="mt-4 grid gap-3" onSubmit={submit}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className={labelClass}>
+              รหัสคูปอง
+              <input className={inputClass} value={coupon.code} maxLength="64" onChange={(event) => setValue("code", event.target.value.toUpperCase())} placeholder="เช่น WELCOME10" required />
+            </label>
+            <label className={labelClass}>
+              รูปแบบส่วนลด
+              <select className={inputClass} value={coupon.discount_type} onChange={(event) => setValue("discount_type", event.target.value)}>
+                <option value="PERCENT">เปอร์เซ็นต์ (%)</option>
+                <option value="AMOUNT">จำนวนเงิน (บาท)</option>
+              </select>
+            </label>
+            <label className={labelClass}>
+              {coupon.discount_type === "PERCENT" ? "ส่วนลด (%)" : "ส่วนลด (บาท)"}
+              <input className={inputClass} type="number" min="0.01" max={coupon.discount_type === "PERCENT" ? "100" : undefined} step="0.01" inputMode="decimal" value={coupon.discount_value} onChange={(event) => setValue("discount_value", event.target.value)} required />
+            </label>
+            <label className={labelClass}>
+              ยอดสั่งซื้อขั้นต่ำ (บาท)
+              <input className={inputClass} type="number" min="0" step="0.01" inputMode="decimal" value={coupon.min_order_amount} onChange={(event) => setValue("min_order_amount", event.target.value)} placeholder="ไม่กำหนด" />
+            </label>
+            <label className={labelClass}>
+              ลดสูงสุด (บาท) <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+              <input className={inputClass} type="number" min="0.01" step="0.01" inputMode="decimal" value={coupon.max_discount_amount} onChange={(event) => setValue("max_discount_amount", event.target.value)} placeholder="ไม่กำหนด" />
+            </label>
+            <label className={labelClass}>
+              จำนวนสิทธิ์ <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+              <input className={inputClass} type="number" min="1" step="1" inputMode="numeric" value={coupon.usage_limit} onChange={(event) => setValue("usage_limit", event.target.value)} placeholder="ไม่จำกัด" />
+            </label>
+            <label className={labelClass}>
+              เริ่มใช้วันที่ <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+              <input className={inputClass} type="date" value={coupon.valid_from} onChange={(event) => setValue("valid_from", event.target.value)} />
+            </label>
+            <label className={labelClass}>
+              ใช้ได้ถึงวันที่ <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+              <input className={inputClass} type="date" value={coupon.valid_until} onChange={(event) => setValue("valid_until", event.target.value)} />
+            </label>
+          </div>
+          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <input className="h-4 w-4 accent-violet-600" type="checkbox" checked={coupon.is_active} onChange={(event) => setValue("is_active", event.target.checked)} />
+            เปิดใช้คูปองทันที
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" className="bg-violet-600 hover:bg-violet-700 focus:ring-violet-200">{editingId ? "บันทึกการแก้ไข" : "สร้างคูปอง"}</Button>
+            {editingId ? <Button type="button" variant="secondary" onClick={() => { setCoupon(blankCoupon()); setEditingId(null); }}>ยกเลิก</Button> : null}
+          </div>
+        </form>
+      </Card>
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-700">Available promotions</p>
+            <h2 className="mt-1 text-lg font-bold text-slate-900">คูปองในระบบ</h2>
+          </div>
+          <span className="rounded-full bg-violet-50 px-3 py-1.5 text-sm font-bold text-violet-700">{coupons.length} รายการ</span>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {coupons.length ? coupons.map((item) => {
+            const startsLater = item.valid_from && bangkokDate(item.valid_from) > today;
+            const expired = item.valid_until && bangkokDate(item.valid_until) < today;
+            const exhausted = item.usage_limit !== null && Number(item.used_count || 0) >= Number(item.usage_limit);
+            const available = item.is_active && !startsLater && !expired && !exhausted;
+            return (
+              <article className="rounded-2xl border border-violet-100 bg-white p-4" key={item.id}>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-mono text-base font-black tracking-wide text-violet-700">{item.code}</p>
+                    <p className="mt-1 text-sm font-bold text-slate-800">ลด {item.discount_type === "PERCENT" ? `${Number(item.discount_value)}%` : money(item.discount_value)}</p>
+                  </div>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${available ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{available ? "ใช้งานได้" : expired ? "หมดอายุ" : startsLater ? "รอเริ่ม" : exhausted ? "ใช้ครบ" : "ปิดใช้งาน"}</span>
+                </div>
+                <p className="mt-3 text-xs text-slate-500">ขั้นต่ำ {money(item.min_order_amount)}{Number(item.max_discount_amount || 0) > 0 ? ` · ลดสูงสุด ${money(item.max_discount_amount)}` : ""}</p>
+                <p className="mt-1 text-xs text-slate-500">ใช้แล้ว {Number(item.used_count || 0)}{item.usage_limit !== null ? ` / ${item.usage_limit}` : " ครั้ง · ไม่จำกัดสิทธิ์"}</p>
+                <p className="mt-1 text-xs text-slate-500">{item.valid_from || item.valid_until ? `${item.valid_from ? `เริ่ม ${dateLabel(bangkokDate(item.valid_from))}` : "เริ่มได้ทันที"}${item.valid_until ? ` · ถึง ${dateLabel(bangkokDate(item.valid_until))}` : ""}` : "ไม่กำหนดช่วงเวลา"}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button type="button" variant="secondary" className="text-xs" onClick={() => edit(item)}>แก้ไข</Button>
+                  <Button type="button" variant={item.is_active ? "danger" : "secondary"} className="text-xs" onClick={() => toggleAvailability(item)}>{item.is_active ? "ปิดใช้" : "เปิดใช้"}</Button>
+                </div>
+              </article>
+            );
+          }) : <Empty>ยังไม่มีคูปอง สร้างรายการแรกจากแบบฟอร์มด้านซ้าย</Empty>}
+        </div>
+      </Card>
+    </section>
+  );
+}
+
 function FinancePage({
   expenseRows,
   orders,
   channels,
   products,
+  coupons,
   onCreateExpense,
   onUpdateExpense,
   onDeleteExpense,
   onCreateSales,
   onUpdateSales,
   onDeleteSales,
+  onCreateCoupon,
+  onUpdateCoupon,
 }) {
   const [selectedDate, setSelectedDate] = useState(todayInBangkok);
   const newSales = () => ({
@@ -3004,6 +3164,7 @@ function FinancePage({
           </Card>
         ))}
       </div>
+      <CouponManagementPanel coupons={coupons} onCreate={onCreateCoupon} onUpdate={onUpdateCoupon} />
       <div className="grid gap-5 2xl:grid-cols-2">
         <Card>
           <h2 className="text-lg font-bold text-slate-900">
@@ -3719,6 +3880,7 @@ export default function GlassLayout({
   suppliers,
   stockReceipts,
   purchaseOrders,
+  coupons,
   metrics,
   expenses,
   expenseRows,
@@ -3736,6 +3898,8 @@ export default function GlassLayout({
   onCreatePurchaseOrder,
   onUpdatePurchaseOrderStatus,
   onReceivePurchaseOrder,
+  onCreateCoupon,
+  onUpdateCoupon,
   onCreateInventory,
   onUpdateInventory,
   onDeleteInventory,
@@ -3795,12 +3959,15 @@ export default function GlassLayout({
         orders={orders}
         channels={channels}
         products={products}
+        coupons={coupons}
         onCreateExpense={onCreateExpense}
         onUpdateExpense={onUpdateExpense}
         onDeleteExpense={onDeleteExpense}
         onCreateSales={onCreateSales}
         onUpdateSales={onUpdateSales}
         onDeleteSales={onDeleteSales}
+        onCreateCoupon={onCreateCoupon}
+        onUpdateCoupon={onUpdateCoupon}
       />
     ) : activeView === "operations" ? (
       <OperationsPage

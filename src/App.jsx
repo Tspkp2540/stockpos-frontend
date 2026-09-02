@@ -129,6 +129,7 @@ function App() {
   const [suppliers, setSuppliers] = useState([]);
   const [stockReceipts, setStockReceipts] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [coupons, setCoupons] = useState([]);
   const [inventoryLots, setInventoryLots] = useState([]);
   const [expenses, setExpenses] = useState(0);
   const [expenseRows, setExpenseRows] = useState([]);
@@ -165,6 +166,18 @@ function App() {
       }
     } catch (error) {
       console.warn("Purchase order refresh unavailable.", error);
+    }
+    return false;
+  };
+  const refreshCoupons = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/coupons`);
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        setCoupons(response.data.data);
+        return true;
+      }
+    } catch (error) {
+      console.warn("Coupon refresh unavailable.", error);
     }
     return false;
   };
@@ -389,6 +402,7 @@ function App() {
         Array.isArray(expensesResponse.data.data)
       )
         setExpenseRows(expensesResponse.data.data);
+      if (session.role === "admin") await refreshCoupons();
     };
     fetchOrders();
     fetchDashboardData();
@@ -797,6 +811,34 @@ function App() {
     }
     return null;
   };
+  const createCoupon = async (coupon) => {
+    try {
+      const response = await axios.post(`${API_BASE}/api/coupons`, coupon);
+      if (response.data?.success) {
+        setCoupons((current) => [response.data.data, ...current]);
+        setNotice(`COUPON CREATED · ${response.data.data.code}`);
+        return response.data.data;
+      }
+    } catch (error) {
+      window.alert(error.response?.data?.error || "ไม่สามารถสร้างคูปองได้");
+      console.warn("Coupon create failed.", error);
+    }
+    return null;
+  };
+  const updateCoupon = async (couponId, coupon) => {
+    try {
+      const response = await axios.put(`${API_BASE}/api/coupons/${couponId}`, coupon);
+      if (response.data?.success) {
+        setCoupons((current) => current.map((item) => item.id === couponId ? response.data.data : item));
+        setNotice(`COUPON UPDATED · ${response.data.data.code}`);
+        return response.data.data;
+      }
+    } catch (error) {
+      window.alert(error.response?.data?.error || "ไม่สามารถแก้ไขคูปองได้");
+      console.warn("Coupon update failed.", error);
+    }
+    return null;
+  };
   const createInventory = async (item) => {
     try {
       const response = await axios.post(`${API_BASE}/api/inventory`, item);
@@ -1067,6 +1109,7 @@ function App() {
         suppliers={suppliers}
         stockReceipts={stockReceipts}
         purchaseOrders={purchaseOrders}
+        coupons={coupons}
         metrics={metrics}
         expenses={expenses}
         expenseRows={expenseRows}
@@ -1084,6 +1127,8 @@ function App() {
         onCreatePurchaseOrder={createPurchaseOrder}
         onUpdatePurchaseOrderStatus={updatePurchaseOrderStatus}
         onReceivePurchaseOrder={receivePurchaseOrder}
+        onCreateCoupon={createCoupon}
+        onUpdateCoupon={updateCoupon}
         onCreateInventory={createInventory}
         onUpdateInventory={updateInventory}
         onDeleteInventory={deleteInventory}
