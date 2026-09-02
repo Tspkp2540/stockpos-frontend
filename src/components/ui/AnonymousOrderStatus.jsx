@@ -15,6 +15,27 @@ const statusClass = (status) =>
     : status === "CANCELLED"
       ? "bg-rose-50 text-rose-700"
       : "bg-amber-50 text-amber-700";
+const todayInBangkok = () => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const value = (name) => parts.find((part) => part.type === name)?.value;
+  return `${value("year")}-${value("month")}-${value("day")}`;
+};
+const dateLabel = (value) => new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
+  dateStyle: "full",
+}).format(new Date(`${value}T00:00:00+07:00`));
+const timeLabel = (value) => value
+  ? new Intl.DateTimeFormat("th-TH", {
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value))
+  : "ไม่ระบุเวลา";
 
 function ItemList({ items }) {
   if (!Array.isArray(items) || !items.length)
@@ -48,7 +69,6 @@ export default function AnonymousOrderStatus({ apiBase, onBack }) {
         if (!response.data?.success)
           throw new Error(response.data?.error || "ไม่สามารถโหลดออเดอร์ได้");
         setOrders(response.data.data || []);
-        setActivePhone(filterPhone);
       } catch (requestError) {
         setOrders([]);
         setError(
@@ -62,15 +82,18 @@ export default function AnonymousOrderStatus({ apiBase, onBack }) {
     [apiBase],
   );
   useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
+    loadOrders(activePhone);
+  }, [activePhone, loadOrders]);
   const filter = (event) => {
     event.preventDefault();
-    loadOrders(phone.trim());
+    const nextPhone = phone.trim();
+    if (nextPhone === activePhone) loadOrders(nextPhone);
+    else setActivePhone(nextPhone);
   };
   const clearFilter = () => {
     setPhone("");
-    loadOrders();
+    if (activePhone) setActivePhone("");
+    else loadOrders("");
   };
 
   return (
@@ -101,11 +124,11 @@ export default function AnonymousOrderStatus({ apiBase, onBack }) {
             Public dashboard
           </p>
           <h1 className="mt-2 text-2xl font-bold sm:text-3xl">
-            รายการออเดอร์ล่าสุด
+            คิวออเดอร์รายวัน
           </h1>
           <p className="mt-2 text-sm text-sky-50">
-            ดู Dashboard ได้เลยโดยไม่ต้องสมัครสมาชิก
-            ใช้เบอร์โทรเมื่อต้องการค้นหาและกรองออเดอร์
+            ดูคิวของวันนี้ได้เลยโดยไม่ต้องสมัครสมาชิก
+            ใช้เบอร์โทรเมื่อต้องการค้นหาและกรองออเดอร์ของวันนี้
           </p>
           <form
             className="mt-5 flex max-w-xl flex-col gap-3 sm:flex-row"
@@ -154,12 +177,12 @@ export default function AnonymousOrderStatus({ apiBase, onBack }) {
               <h2 className="text-lg font-bold text-slate-900">
                 {activePhone
                   ? `ผลการค้นหา: ${maskPhone(activePhone)}`
-                  : "Dashboard ออเดอร์"}
+                  : "Dashboard คิวออเดอร์"}
               </h2>
               <p className="mt-1 text-sm text-slate-500">
                 {activePhone
-                  ? "แสดงเฉพาะออเดอร์ของเบอร์ที่ค้นหา"
-                  : "แสดงออเดอร์ล่าสุดทั้งหมด"}
+                  ? `แสดงเฉพาะออเดอร์ของเบอร์ที่ค้นหาในวันนี้ ${dateLabel(todayInBangkok())}`
+                  : `แสดงคิวทั้งหมดของวันนี้ ${dateLabel(todayInBangkok())}`}
               </p>
             </div>
             <span className="text-sm text-slate-500">
@@ -188,6 +211,9 @@ export default function AnonymousOrderStatus({ apiBase, onBack }) {
                       <p className="mt-1 text-sm text-slate-500">
                         #{order.order_no} · {order.channel_name || "ร้านค้า"}
                       </p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        เวลา {timeLabel(order.created_at)}
+                      </p>
                     </div>
                     <span
                       className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusClass(order.status)}`}
@@ -203,8 +229,8 @@ export default function AnonymousOrderStatus({ apiBase, onBack }) {
             ) : (
               <div className="shop-panel rounded-2xl border border-dashed p-8 text-center text-sm text-slate-500 md:col-span-2">
                 {activePhone
-                  ? "ไม่พบออเดอร์สำหรับเบอร์โทรนี้"
-                  : "ยังไม่มีออเดอร์"}
+                  ? "ไม่พบออเดอร์สำหรับเบอร์โทรนี้ในวันที่เลือก"
+                  : "ยังไม่มีออเดอร์ในวันที่เลือก"}
               </div>
             )}
           </div>

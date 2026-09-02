@@ -105,6 +105,16 @@ const normalizeOrder = (order) => {
     items: formatItems(rawItems.length ? rawItems : order.items),
   };
 };
+const todayInBangkok = () => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const value = (name) => parts.find((part) => part.type === name)?.value;
+  return `${value("year")}-${value("month")}-${value("day")}`;
+};
 
 function App() {
   const [session, setSession] = useState(loadSession);
@@ -433,6 +443,7 @@ function App() {
       const response = await axios.post(`${API_BASE}/api/orders`, {
         order_no: `POS-${nextNumber}`,
         channel_id: payload.channel_id || channels[0]?.id,
+        record_date: payload.record_date || todayInBangkok(),
         items: payload.items || [
           {
             product_id: products[0]?.id,

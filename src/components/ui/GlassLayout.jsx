@@ -137,19 +137,27 @@ function LowStockMenuAlert({ products, className = "" }) {
   );
 }
 
-function OrdersPage({ orders, onUpdate }) {
+function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
+  const visibleOrders = preview ? orders.slice(0, 5) : orders;
+  const headingAction = preview && orders.length > 5
+    ? <Button type="button" variant="secondary" onClick={onViewAll}>ดูรายการออเดอร์ทั้งหมด →</Button>
+    : onBack
+      ? <Button type="button" variant="secondary" onClick={onBack}>← กลับหน้าขาย</Button>
+      : null;
   return (
     <div className="space-y-5">
       <Heading
         eyebrow="Order management"
-        title="รายการขายและออเดอร์"
-        description="ติดตามสถานะออเดอร์ทั้งหมดจากจุดเดียว"
+        title={preview ? "ออเดอร์ล่าสุด" : "รายการออเดอร์ทั้งหมด"}
+        description={preview ? `แสดง 5 รายการล่าสุดจากทั้งหมด ${orders.length} รายการ` : "ติดตามสถานะออเดอร์ทั้งหมดจากจุดเดียว"}
+        action={headingAction}
       />
-      <div className="grid gap-4 xl:grid-cols-2">
-        {orders.length ? (
-          orders.map((order) => (
+      {preview && visibleOrders.length > 1 ? <p className="-mt-2 text-xs font-semibold text-sky-700">← เลื่อนซ้าย–ขวาเพื่อดูออเดอร์ล่าสุด →</p> : null}
+      <div className={preview ? "flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 pr-1" : "grid gap-4 xl:grid-cols-2"}>
+        {visibleOrders.length ? (
+          visibleOrders.map((order) => (
             <article
-              className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm"
+              className={`rounded-2xl border border-sky-100 bg-white p-4 shadow-sm ${preview ? "w-[86vw] max-w-[360px] shrink-0 snap-start sm:w-[360px]" : ""}`}
               key={order.id}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -210,6 +218,11 @@ function OrdersPage({ orders, onUpdate }) {
           <Empty>ยังไม่มีออเดอร์</Empty>
         )}
       </div>
+      {preview && orders.length > 5 ? (
+        <div className="flex justify-center">
+          <Button type="button" variant="secondary" onClick={onViewAll}>ดูรายการออเดอร์ทั้งหมด ({orders.length}) →</Button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2302,9 +2315,7 @@ const dateLabel = (date) =>
     year: "numeric",
   }).format(new Date(`${date}T00:00:00Z`));
 const rowMatchesDate = (row, selectedDate) =>
-  !row?.created_at
-    ? selectedDate === todayInBangkok()
-    : bangkokDate(row.created_at) === selectedDate;
+  Boolean(row?.created_at) && bangkokDate(row.created_at) === selectedDate;
 const inventoryIsLow = (item) => {
   const quantity = Number(item.stock_qty ?? item.stock ?? 0);
   return (
@@ -3800,9 +3811,11 @@ export default function GlassLayout({
       />
     ) : activeView === "kitchen" ? (
       <KitchenDisplayPage orders={orders} onUpdate={onUpdate} />
+    ) : activeView === "orders" ? (
+      <OrdersPage orders={orders} onUpdate={onUpdate} onBack={() => setActiveView("pos")} />
     ) : (
       <div className="space-y-5">
-        <OrdersPage orders={orders} onUpdate={onUpdate} />
+        <OrdersPage orders={orders} onUpdate={onUpdate} preview onViewAll={() => setActiveView("orders")} />
         <PosPage
           channels={channels}
           products={products}
@@ -3827,17 +3840,20 @@ export default function GlassLayout({
           </div>
         </div>
         <nav className="mt-10 grid gap-2">
-          {navigation.map((item) => (
-            <button
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${activeView === item.id ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
-              key={item.id}
-              onClick={() => setActiveView(item.id)}
-            >
-              <span className="w-5 text-center">{item.icon}</span>
-              <span className="flex-1">{item.label}</span>
-              {item.id === "alerts" && alertCount ? <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">{alertCount}</span> : null}
-            </button>
-          ))}
+          {navigation.map((item) => {
+            const selected = activeView === item.id || (item.id === "pos" && activeView === "orders");
+            return (
+              <button
+                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${selected ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
+                key={item.id}
+                onClick={() => setActiveView(item.id)}
+              >
+                <span className="w-5 text-center">{item.icon}</span>
+                <span className="flex-1">{item.label}</span>
+                {item.id === "alerts" && alertCount ? <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">{alertCount}</span> : null}
+              </button>
+            );
+          })}
         </nav>
         <div className="mt-auto rounded-2xl border border-sky-100 bg-sky-50/80 p-4 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wider text-sky-600">
@@ -3855,15 +3871,18 @@ export default function GlassLayout({
           <strong className="text-slate-900">STOCKPOS</strong>
         </div>
         <nav className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {navigation.map((item) => (
-            <button
-              className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold ${activeView === item.id ? "bg-sky-600 text-white" : "bg-sky-50 text-sky-700"}`}
-              key={item.id}
-              onClick={() => setActiveView(item.id)}
-            >
-              {item.icon} {item.label}{item.id === "alerts" && alertCount ? ` (${alertCount})` : ""}
-            </button>
-          ))}
+          {navigation.map((item) => {
+            const selected = activeView === item.id || (item.id === "pos" && activeView === "orders");
+            return (
+              <button
+                className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold ${selected ? "bg-sky-600 text-white" : "bg-sky-50 text-sky-700"}`}
+                key={item.id}
+                onClick={() => setActiveView(item.id)}
+              >
+                {item.icon} {item.label}{item.id === "alerts" && alertCount ? ` (${alertCount})` : ""}
+              </button>
+            );
+          })}
         </nav>
       </header>
       <main className="relative mx-auto w-full max-w-[1600px] p-4 pb-10 sm:p-6 lg:ml-64 lg:w-[calc(100%-16rem)] lg:p-8">

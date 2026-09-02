@@ -98,6 +98,7 @@ export default function StaffWorkspace({
   const [couponError, setCouponError] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [amountReceived, setAmountReceived] = useState("");
+  const [showAllOrders, setShowAllOrders] = useState(false);
   const subtotal = useMemo(
     () =>
       cart.reduce(
@@ -303,6 +304,79 @@ export default function StaffWorkspace({
       setAmountReceived("");
     }
   };
+  const orderCards = (rows, horizontal = false) => rows.map((order) => (
+    <article className={`shop-panel rounded-2xl border p-4 ${horizontal ? "w-[86vw] max-w-[360px] shrink-0 snap-start sm:w-[360px]" : ""}`} key={order.id}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="font-bold text-slate-900">
+            คิว {order.queue_no || "-"} · #{order.order_no}
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            {order.customer_nickname || "ไม่ระบุชื่อเล่น"} · {order.channel_name}
+          </p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${statusClass(order.status)}`}>
+          {order.status}
+        </span>
+      </div>
+      <div className="mt-3 line-clamp-2"><ItemList items={order.items} /></div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <strong className="text-lg text-sky-700">{money(order.net_revenue)}</strong>
+        {order.status === "COOKING" ? (
+          <div className="flex gap-2">
+            <Button className="text-xs" onClick={() => onUpdate(order.id, "READY")}>
+              พร้อมรับ
+            </Button>
+            <Button className="text-xs" variant="danger" onClick={() => onUpdate(order.id, "CANCELLED")}>
+              ยกเลิก
+            </Button>
+          </div>
+        ) : order.status === "READY" ? (
+          <div className="flex gap-2">
+            <Button className="text-xs" onClick={() => onUpdate(order.id, "COMPLETED")}>
+              ส่งมอบแล้ว
+            </Button>
+            <Button className="text-xs" variant="secondary" onClick={() => printReceipt(order)}>
+              ใบเสร็จ
+            </Button>
+          </div>
+        ) : (
+          <Button className="text-xs" variant="secondary" onClick={() => printReceipt(order)}>
+            ใบเสร็จ
+          </Button>
+        )}
+      </div>
+    </article>
+  ));
+
+  if (showAllOrders) {
+    return (
+      <div className="shop-scene min-h-screen text-slate-800">
+        <header className="shop-topbar relative z-10 border-b">
+          <div className="mx-auto flex w-full max-w-[1500px] items-center justify-between gap-4 p-4 sm:p-6">
+            <div className="flex items-center gap-3">
+              <span className="shop-orb grid h-10 w-10 place-items-center rounded-xl bg-sky-600 font-black text-white">S</span>
+              <div><p className="font-bold text-slate-900">STOCKPOS</p><p className="text-xs text-sky-600">Front counter workspace</p></div>
+            </div>
+            <Button type="button" variant="secondary" onClick={() => setShowAllOrders(false)}>← กลับหน้าขาย</Button>
+          </div>
+        </header>
+        <main className="relative mx-auto w-full max-w-[1500px] p-4 pb-10 sm:p-6">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">Order management</p>
+              <h1 className="mt-1 text-2xl font-bold text-slate-900">รายการออเดอร์ทั้งหมด</h1>
+              <p className="mt-1 text-sm text-slate-500">ติดตามและเปลี่ยนสถานะคิวจากจุดเดียว</p>
+            </div>
+            <span className="rounded-full bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-700">{orders.length} รายการ</span>
+          </div>
+          <div className="grid gap-4 xl:grid-cols-2">
+            {orders.length ? orderCards(orders) : <div className="shop-panel rounded-2xl border border-dashed p-5 text-center text-sm text-slate-500 xl:col-span-2">ยังไม่มีออเดอร์</div>}
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="shop-scene text-slate-800">
@@ -674,61 +748,15 @@ export default function StaffWorkspace({
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">Order management</p>
               <h2 className="mt-1 text-xl font-bold text-slate-900">ออเดอร์ล่าสุด</h2>
+              <p className="mt-1 text-sm text-slate-500">แสดง 5 รายการล่าสุดจากทั้งหมด {orders.length} รายการ</p>
+              {orders.length > 1 ? <p className="mt-1 text-xs font-semibold text-sky-700">← เลื่อนซ้าย–ขวาเพื่อดูคิวล่าสุด →</p> : null}
             </div>
-            <span className="text-sm text-slate-500">{orders.length} รายการ</span>
+            {orders.length > 5 ? <Button type="button" variant="secondary" className="text-xs" onClick={() => setShowAllOrders(true)}>ดูทั้งหมด →</Button> : <span className="text-sm text-slate-500">{orders.length} รายการ</span>}
           </div>
-          <div className="grid gap-4 xl:grid-cols-2">
-            {orders.length ? (
-              orders.map((order) => (
-                <article className="shop-panel rounded-2xl border p-4" key={order.id}>
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="font-bold text-slate-900">
-                        คิว {order.queue_no || "-"} · #{order.order_no}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {order.customer_nickname || "ไม่ระบุชื่อเล่น"} · {order.channel_name}
-                      </p>
-                    </div>
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${statusClass(order.status)}`}>
-                      {order.status}
-                    </span>
-                  </div>
-                  <div className="mt-3 line-clamp-2"><ItemList items={order.items} /></div>
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                    <strong className="text-lg text-sky-700">{money(order.net_revenue)}</strong>
-                    {order.status === "COOKING" ? (
-                      <div className="flex gap-2">
-                        <Button className="text-xs" onClick={() => onUpdate(order.id, "READY")}>
-                          พร้อมรับ
-                        </Button>
-                        <Button className="text-xs" variant="danger" onClick={() => onUpdate(order.id, "CANCELLED")}>
-                          ยกเลิก
-                        </Button>
-                      </div>
-                    ) : order.status === "READY" ? (
-                      <div className="flex gap-2">
-                        <Button className="text-xs" onClick={() => onUpdate(order.id, "COMPLETED")}>
-                          ส่งมอบแล้ว
-                        </Button>
-                        <Button className="text-xs" variant="secondary" onClick={() => printReceipt(order)}>
-                          ใบเสร็จ
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button className="text-xs" variant="secondary" onClick={() => printReceipt(order)}>
-                        ใบเสร็จ
-                      </Button>
-                    )}
-                  </div>
-                </article>
-              ))
-            ) : (
-              <div className="shop-panel rounded-2xl border border-dashed p-5 text-center text-sm text-slate-500 xl:col-span-2">
-                ยังไม่มีออเดอร์
-              </div>
-            )}
+          <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 pr-1">
+            {orders.length ? orderCards(orders.slice(0, 5), true) : <div className="shop-panel w-full rounded-2xl border border-dashed p-5 text-center text-sm text-slate-500">ยังไม่มีออเดอร์</div>}
           </div>
+          {orders.length > 5 ? <div className="mt-4 flex justify-center"><Button type="button" variant="secondary" onClick={() => setShowAllOrders(true)}>ดูรายการออเดอร์ทั้งหมด ({orders.length}) →</Button></div> : null}
         </section>
       </main>
       {pendingProduct ? (
