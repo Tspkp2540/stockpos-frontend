@@ -13,6 +13,7 @@ const navigation = [
   { id: "pos", icon: "▣", label: "ขายและออเดอร์" },
   { id: "kitchen", icon: "☕", label: "จอเตรียมสินค้า" },
   { id: "operations", icon: "◉", label: "ศูนย์ปฏิบัติการ" },
+  { id: "alerts", icon: "⚠", label: "แจ้งเตือน" },
   { id: "inventory", icon: "□", label: "วัตถุดิบ" },
   { id: "menu", icon: "☷", label: "เมนูสินค้า" },
   { id: "finance", icon: "฿", label: "การเงิน" },
@@ -2313,6 +2314,124 @@ const inventoryIsLow = (item) => {
   );
 };
 
+const storeAlertsFor = ({ products = [], inventoryRows = [], inventoryLots = [] }) => {
+  const alerts = [];
+  products.forEach((product) => {
+    const availability = menuAvailability(product);
+    if (!availability.isLowStock) return;
+    alerts.push({
+      id: `menu-${product.id}`,
+      severity: "warning",
+      category: "เมนูใกล้หมด",
+      title: product.name || "เมนูไม่ระบุชื่อ",
+      detail: `ทำได้อีกประมาณ ${availability.availableQuantity} แก้วจากล็อตที่ยังไม่หมดอายุ`,
+      target: "menu",
+      action: "ดูเมนู",
+    });
+  });
+  inventoryRows.forEach((item) => {
+    if (!inventoryIsLow(item)) return;
+    const quantity = Number(item.stock_qty ?? item.stock ?? 0);
+    const minimum = Number(item.min_stock_alert || 0);
+    alerts.push({
+      id: `ingredient-${item.id || item.code || item.name}`,
+      severity: "warning",
+      category: "วัตถุดิบใกล้หมด",
+      title: item.name || "วัตถุดิบไม่ระบุชื่อ",
+      detail: `คงเหลือ ${quantity} ${item.unit || "หน่วย"}${minimum > 0 ? ` · จุดแจ้งเตือน ${minimum}` : ""}`,
+      target: "inventory",
+      action: "ดูวัตถุดิบ",
+    });
+  });
+  inventoryLots.forEach((lot) => {
+    const expiry = expiryState(lot.expiry_date);
+    if (!expiry) return;
+    alerts.push({
+      id: `lot-${lot.id}`,
+      severity: expiry.tone === "rose" ? "critical" : "warning",
+      category: expiry.tone === "rose" ? "ล็อตหมดอายุ" : "ล็อตใกล้หมดอายุ",
+      title: `${lot.ingredient_name || "วัตถุดิบ"} · ${lot.lot_no || `ล็อต #${lot.id}`}`,
+      detail: `${expiry.label} · เหลือ ${Number(lot.remaining_quantity || 0)} ${lot.unit || "หน่วย"}`,
+      target: "inventory",
+      action: "ดูวัตถุดิบ",
+    });
+  });
+  const priority = { critical: 0, warning: 1 };
+  return alerts.sort((left, right) => priority[left.severity] - priority[right.severity] || left.title.localeCompare(right.title, "th"));
+};
+
+function AlertsPage({ products, inventoryRows, inventoryLots, onNavigate }) {
+  const [filter, setFilter] = useState("all");
+  const alerts = useMemo(
+    () => storeAlertsFor({ products, inventoryRows, inventoryLots }),
+    [products, inventoryRows, inventoryLots],
+  );
+  const criticalCount = alerts.filter((alert) => alert.severity === "critical").length;
+  const warningCount = alerts.filter((alert) => alert.severity === "warning").length;
+  const visibleAlerts = filter === "all" ? alerts : alerts.filter((alert) => alert.severity === filter);
+  const filters = [
+    ["all", "ทั้งหมด", alerts.length],
+    ["critical", "เร่งด่วน", criticalCount],
+    ["warning", "ต้องติดตาม", warningCount],
+  ];
+  return (
+    <div className="space-y-5">
+      <Heading
+        eyebrow="Live alerts"
+        title="ศูนย์แจ้งเตือน"
+        description="รวมสัญญาณที่ต้องดำเนินการจากเมนู วัตถุดิบ และล็อตคงเหลือ"
+        action={<span className={`rounded-full px-3 py-2 text-xs font-bold ${criticalCount ? "bg-rose-50 text-rose-700" : alerts.length ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>{criticalCount ? `${criticalCount} รายการเร่งด่วน` : alerts.length ? `${alerts.length} รายการต้องติดตาม` : "● ทุกอย่างปกติ"}</span>}
+      />
+      <section className="grid gap-3 sm:grid-cols-3">
+        {[
+          ["ทั้งหมด", alerts.length, "bg-sky-50 text-sky-700"],
+          ["เร่งด่วน", criticalCount, "bg-rose-50 text-rose-700"],
+          ["ต้องติดตาม", warningCount, "bg-amber-50 text-amber-700"],
+        ].map(([label, count, tone]) => (
+          <div className={`rounded-2xl p-4 ${tone}`} key={label}>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] opacity-75">{label}</p>
+            <strong className="mt-1 block text-3xl">{count}</strong>
+            <p className="mt-1 text-xs">รายการ</p>
+          </div>
+        ))}
+      </section>
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">รายการที่ต้องดำเนินการ</h2>
+            <p className="mt-1 text-sm text-slate-500">ข้อมูลจะเปลี่ยนตามยอดสต็อกและล็อตล่าสุด</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {filters.map(([value, label, count]) => (
+              <Button key={value} type="button" variant={filter === value ? "primary" : "secondary"} className="text-xs" onClick={() => setFilter(value)}>
+                {label} {count}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3">
+          {visibleAlerts.length ? visibleAlerts.map((alert) => {
+            const critical = alert.severity === "critical";
+            return (
+              <article className={`flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center ${critical ? "border-rose-200 bg-rose-50/50" : "border-amber-200 bg-amber-50/45"}`} key={alert.id}>
+                <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg ${critical ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>{critical ? "!" : "⚠"}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${critical ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>{alert.category}</span>
+                    <h3 className="truncate font-bold text-slate-900">{alert.title}</h3>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-600">{alert.detail}</p>
+                </div>
+                <Button type="button" variant="secondary" className="shrink-0 text-xs" onClick={() => onNavigate(alert.target)}>{alert.action}</Button>
+              </article>
+            );
+          }) : <Empty>ไม่มีรายการในตัวกรองนี้</Empty>}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 const exportInventory = (rows) =>
   exportExcel({
     filename: `stockpos-inventory-${todayInBangkok()}.xlsx`,
@@ -3368,8 +3487,16 @@ export default function GlassLayout({
   onUpdateSales,
   onDeleteSales,
 }) {
+  const alertCount = storeAlertsFor({ products, inventoryRows, inventoryLots }).length;
   const content =
-    activeView === "inventory" ? (
+    activeView === "alerts" ? (
+      <AlertsPage
+        products={products}
+        inventoryRows={inventoryRows}
+        inventoryLots={inventoryLots}
+        onNavigate={setActiveView}
+      />
+    ) : activeView === "inventory" ? (
       <IngredientsPage
         rows={inventoryRows}
         lots={inventoryLots}
@@ -3450,7 +3577,8 @@ export default function GlassLayout({
               onClick={() => setActiveView(item.id)}
             >
               <span className="w-5 text-center">{item.icon}</span>
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.id === "alerts" && alertCount ? <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">{alertCount}</span> : null}
             </button>
           ))}
         </nav>
@@ -3476,7 +3604,7 @@ export default function GlassLayout({
               key={item.id}
               onClick={() => setActiveView(item.id)}
             >
-              {item.icon} {item.label}
+              {item.icon} {item.label}{item.id === "alerts" && alertCount ? ` (${alertCount})` : ""}
             </button>
           ))}
         </nav>
