@@ -119,6 +119,23 @@ function Empty({ children }) {
   );
 }
 
+function LowStockMenuAlert({ products, className = "" }) {
+  const lowStockMenus = products.filter((product) => menuAvailability(product).isLowStock);
+  if (!lowStockMenus.length) return null;
+  return (
+    <div className={`rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 shadow-sm ${className}`} role="status">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-bold">⚠ เมนูใกล้หมด {lowStockMenus.length} รายการ</span>
+        <span className="text-xs text-amber-800">ตรวจรับวัตถุดิบหรือปิดขายชั่วคราวก่อนหมด</span>
+      </div>
+      <p className="mt-1 text-sm font-medium text-amber-900">
+        {lowStockMenus.slice(0, 3).map((product) => `${product.name} (${menuAvailability(product).availableQuantity} แก้ว)`).join(" · ")}
+        {lowStockMenus.length > 3 ? ` และอีก ${lowStockMenus.length - 3} รายการ` : ""}
+      </p>
+    </div>
+  );
+}
+
 function OrdersPage({ orders, onUpdate }) {
   return (
     <div className="space-y-5">
@@ -493,6 +510,7 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
           title="เปิดรายการขาย"
           description="เลือกช่องทางและเมนู แล้วส่งออเดอร์ได้ทันที"
         />
+        <LowStockMenuAlert products={products} className="mb-5" />
         <Card>
           <fieldset>
             <legend className="mb-3 text-sm font-bold text-slate-800">
@@ -1443,6 +1461,7 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
           </Button>
         }
       />
+      <LowStockMenuAlert products={products} className="mb-5" />
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
         <Card>
           <div className="mb-4 flex items-center justify-between">

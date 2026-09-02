@@ -24,6 +24,20 @@ const statusClass = (status) =>
       ? "bg-rose-50 text-rose-700"
       : "bg-amber-50 text-amber-700";
 
+function LowStockMenuAlert({ products }) {
+  const lowStockMenus = products.filter((product) => menuAvailability(product).isLowStock);
+  if (!lowStockMenus.length) return null;
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 shadow-sm" role="status">
+      <p className="font-bold">⚠ เมนูใกล้หมด {lowStockMenus.length} รายการ</p>
+      <p className="mt-1 text-sm text-amber-900">
+        {lowStockMenus.slice(0, 3).map((product) => `${product.name} (${menuAvailability(product).availableQuantity} แก้ว)`).join(" · ")}
+        {lowStockMenus.length > 3 ? ` และอีก ${lowStockMenus.length - 3} รายการ` : ""}
+      </p>
+    </div>
+  );
+}
+
 function Button({ children, className = "", variant = "primary", ...props }) {
   const styles =
     variant === "danger"
@@ -345,6 +359,8 @@ export default function StaffWorkspace({
             aria-hidden="true"
           />
         </section>
+
+        <LowStockMenuAlert products={products} />
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="space-y-5">
