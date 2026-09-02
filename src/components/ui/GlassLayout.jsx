@@ -2360,7 +2360,14 @@ const storeAlertsFor = ({ products = [], inventoryRows = [], inventoryLots = [] 
   return alerts.sort((left, right) => priority[left.severity] - priority[right.severity] || left.title.localeCompare(right.title, "th"));
 };
 
-function PurchaseRecommendationPanel({ inventoryRows, suppliers, onNavigate }) {
+const purchaseOrderStatusLabel = (status) => ({
+  DRAFT: "ฉบับร่าง",
+  SENT: "ส่งให้ผู้ขายแล้ว",
+  RECEIVED: "รับของแล้ว",
+  CANCELLED: "ยกเลิกแล้ว",
+}[status] || status);
+
+function PurchaseRecommendationPanel({ inventoryRows, suppliers, onNavigate, onCreatePurchaseOrder }) {
   const recommendations = useMemo(
     () => inventoryRows.filter(inventoryIsLow).map((item) => {
       const currentQuantity = Number(item.stock_qty ?? item.stock ?? 0);
@@ -2368,16 +2375,19 @@ function PurchaseRecommendationPanel({ inventoryRows, suppliers, onNavigate }) {
       const targetQuantity = minimumQuantity > 0 ? Math.max(minimumQuantity * 2, minimumQuantity + 1) : 1;
       return {
         id: String(item.id || item.code || item.name),
+        ingredientId: item.id,
         name: item.name || "วัตถุดิบไม่ระบุชื่อ",
         unit: item.unit || "หน่วย",
         currentQuantity,
         minimumQuantity,
+        unitCost: Number(item.cost_per_unit || 0),
         suggestedQuantity: Math.max(1, targetQuantity - currentQuantity),
       };
     }),
     [inventoryRows],
   );
   const [supplierId, setSupplierId] = useState("");
+  const [expectedDate, setExpectedDate] = useState("");
   const [quantityById, setQuantityById] = useState({});
   useEffect(() => {
     setQuantityById((current) => Object.fromEntries(
@@ -2409,6 +2419,23 @@ function PurchaseRecommendationPanel({ inventoryRows, suppliers, onNavigate }) {
       }],
     });
   };
+  const savePurchaseOrder = async () => {
+    const items = recommendations
+      .map((item) => ({
+        ingredient_id: item.ingredientId,
+        quantity: Math.max(0, Number(quantityById[item.id] ?? item.suggestedQuantity) || 0),
+        unit_cost: item.unitCost,
+      }))
+      .filter((item) => item.ingredient_id && item.quantity > 0);
+    if (!items.length) return window.alert("กรุณาระบุจำนวนที่จะสั่งอย่างน้อย 1 รายการ");
+    const created = await onCreatePurchaseOrder({
+      supplier_id: supplierId || null,
+      expected_date: expectedDate || null,
+      note: "สร้างจากรายการสั่งซื้อแนะนำ",
+      items,
+    });
+    if (created) setExpectedDate("");
+  };
   return (
     <Card>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2420,6 +2447,7 @@ function PurchaseRecommendationPanel({ inventoryRows, suppliers, onNavigate }) {
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" className="text-xs" onClick={() => onNavigate("inventory")}>รับของเข้าคลัง</Button>
           <Button type="button" className="text-xs" disabled={!recommendations.length} onClick={exportRecommendations}>Export Excel</Button>
+          <Button type="button" className="text-xs" disabled={!recommendations.length} onClick={savePurchaseOrder}>บันทึกใบสั่งซื้อ</Button>
         </div>
       </div>
       {recommendations.length ? (
@@ -2430,6 +2458,10 @@ function PurchaseRecommendationPanel({ inventoryRows, suppliers, onNavigate }) {
               <option value="">ไม่ระบุผู้ขาย</option>
               {suppliers.filter((supplier) => supplier.is_active !== false).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
             </select>
+          </label>
+          <label className="mt-4 grid gap-1.5 text-xs font-semibold text-slate-600 sm:max-w-sm">
+            วันที่คาดว่าจะได้รับ <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+            <input className={inputClass} type="date" value={expectedDate} onChange={(event) => setExpectedDate(event.target.value)} />
           </label>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {recommendations.map((item) => (
@@ -2449,7 +2481,41 @@ function PurchaseRecommendationPanel({ inventoryRows, suppliers, onNavigate }) {
   );
 }
 
-function AlertsPage({ products, inventoryRows, inventoryLots, suppliers, onNavigate }) {
+function PurchaseOrderHistory({ orders, onUpdateStatus, onReceive }) {
+  if (!orders.length) return null;
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">Purchase orders</p>
+          <h2 className="mt-1 text-lg font-bold text-slate-900">ใบสั่งซื้อล่าสุด</h2>
+        </div>
+        <span className="rounded-full bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700">{orders.length} ฉบับ</span>
+      </div>
+      <div className="mt-4 grid gap-3">
+        {orders.slice(0, 10).map((order) => (
+          <article className="flex flex-col gap-3 rounded-2xl border border-sky-100 bg-white p-4 sm:flex-row sm:items-center" key={order.id}>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-bold text-slate-900">{order.po_no}</h3>
+                <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${order.status === "RECEIVED" ? "bg-emerald-50 text-emerald-700" : order.status === "CANCELLED" ? "bg-slate-100 text-slate-600" : order.status === "SENT" ? "bg-sky-50 text-sky-700" : "bg-amber-50 text-amber-700"}`}>{purchaseOrderStatusLabel(order.status)}</span>
+              </div>
+              <p className="mt-1 text-sm text-slate-600">{order.supplier_name || "ไม่ระบุผู้ขาย"} · {order.items?.length || 0} รายการ{order.expected_date ? ` · คาดว่าจะได้ ${String(order.expected_date).slice(0, 10)}` : ""}</p>
+              {order.receipt_no ? <p className="mt-1 text-xs font-semibold text-emerald-700">รับเข้าคลังแล้ว: {order.receipt_no}</p> : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {order.status === "DRAFT" ? <Button type="button" variant="secondary" className="text-xs" onClick={() => onUpdateStatus(order, "SENT")}>ส่งให้ผู้ขาย</Button> : null}
+              {["DRAFT", "SENT"].includes(order.status) ? <Button type="button" className="text-xs" onClick={() => onReceive(order)}>รับของเข้าคลัง</Button> : null}
+              {["DRAFT", "SENT"].includes(order.status) ? <Button type="button" variant="danger" className="text-xs" onClick={() => onUpdateStatus(order, "CANCELLED")}>ยกเลิก</Button> : null}
+            </div>
+          </article>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function AlertsPage({ products, inventoryRows, inventoryLots, suppliers, purchaseOrders, onNavigate, onCreatePurchaseOrder, onUpdatePurchaseOrderStatus, onReceivePurchaseOrder }) {
   const [filter, setFilter] = useState("all");
   const alerts = useMemo(
     () => storeAlertsFor({ products, inventoryRows, inventoryLots }),
@@ -2517,7 +2583,8 @@ function AlertsPage({ products, inventoryRows, inventoryLots, suppliers, onNavig
           }) : <Empty>ไม่มีรายการในตัวกรองนี้</Empty>}
         </div>
       </Card>
-      <PurchaseRecommendationPanel inventoryRows={inventoryRows} suppliers={suppliers} onNavigate={onNavigate} />
+      <PurchaseRecommendationPanel inventoryRows={inventoryRows} suppliers={suppliers} onNavigate={onNavigate} onCreatePurchaseOrder={onCreatePurchaseOrder} />
+      <PurchaseOrderHistory orders={purchaseOrders} onUpdateStatus={onUpdatePurchaseOrderStatus} onReceive={onReceivePurchaseOrder} />
     </div>
   );
 }
@@ -3549,6 +3616,7 @@ export default function GlassLayout({
   inventoryLots,
   suppliers,
   stockReceipts,
+  purchaseOrders,
   metrics,
   expenses,
   expenseRows,
@@ -3563,6 +3631,9 @@ export default function GlassLayout({
   onAdjustInventory,
   onCreateSupplier,
   onCreateStockReceipt,
+  onCreatePurchaseOrder,
+  onUpdatePurchaseOrderStatus,
+  onReceivePurchaseOrder,
   onCreateInventory,
   onUpdateInventory,
   onDeleteInventory,
@@ -3585,7 +3656,11 @@ export default function GlassLayout({
         inventoryRows={inventoryRows}
         inventoryLots={inventoryLots}
         suppliers={suppliers}
+        purchaseOrders={purchaseOrders}
         onNavigate={setActiveView}
+        onCreatePurchaseOrder={onCreatePurchaseOrder}
+        onUpdatePurchaseOrderStatus={onUpdatePurchaseOrderStatus}
+        onReceivePurchaseOrder={onReceivePurchaseOrder}
       />
     ) : activeView === "inventory" ? (
       <IngredientsPage

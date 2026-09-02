@@ -118,6 +118,7 @@ function App() {
   const [inventoryRows, setInventoryRows] = useState(inventory);
   const [suppliers, setSuppliers] = useState([]);
   const [stockReceipts, setStockReceipts] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [inventoryLots, setInventoryLots] = useState([]);
   const [expenses, setExpenses] = useState(0);
   const [expenseRows, setExpenseRows] = useState([]);
@@ -142,6 +143,18 @@ function App() {
       }
     } catch (error) {
       console.warn("Product availability refresh unavailable.", error);
+    }
+    return false;
+  };
+  const refreshPurchaseOrders = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/purchase-orders?limit=30`);
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        setPurchaseOrders(response.data.data);
+        return true;
+      }
+    } catch (error) {
+      console.warn("Purchase order refresh unavailable.", error);
     }
     return false;
   };
@@ -276,6 +289,7 @@ function App() {
         axios.get(`${API_BASE}/api/inventory/lots?active=true&limit=1000`),
         axios.get(`${API_BASE}/api/inventory/suppliers`),
         axios.get(`${API_BASE}/api/inventory/receipts?limit=20`),
+        axios.get(`${API_BASE}/api/purchase-orders?limit=30`),
         axios.get(`${API_BASE}/api/financial-summary`),
         axios.get(`${API_BASE}/api/expenses`),
       ]);
@@ -287,6 +301,7 @@ function App() {
         inventoryLotsResult,
         suppliersResult,
         stockReceiptsResult,
+        purchaseOrdersResult,
         summaryResult,
         expensesResult,
       ] = responses;
@@ -302,6 +317,8 @@ function App() {
         suppliersResult.status === "fulfilled" ? suppliersResult.value : null;
       const stockReceiptsResponse =
         stockReceiptsResult.status === "fulfilled" ? stockReceiptsResult.value : null;
+      const purchaseOrdersResponse =
+        purchaseOrdersResult.status === "fulfilled" ? purchaseOrdersResult.value : null;
       const summaryResponse =
         summaryResult.status === "fulfilled" ? summaryResult.value : null;
       const expensesResponse =
@@ -341,6 +358,11 @@ function App() {
         Array.isArray(stockReceiptsResponse.data.data)
       )
         setStockReceipts(stockReceiptsResponse.data.data);
+      if (
+        purchaseOrdersResponse?.data?.success &&
+        Array.isArray(purchaseOrdersResponse.data.data)
+      )
+        setPurchaseOrders(purchaseOrdersResponse.data.data);
       if (summaryResponse?.data?.success) {
         const data = summaryResponse.data.data || {};
         setMetrics({
@@ -693,6 +715,65 @@ function App() {
     }
     return null;
   };
+  const createPurchaseOrder = async (purchaseOrder) => {
+    try {
+      const response = await axios.post(`${API_BASE}/api/purchase-orders`, {
+        supplier_id: purchaseOrder.supplier_id || null,
+        expected_date: purchaseOrder.expected_date || null,
+        note: purchaseOrder.note || "",
+        items: purchaseOrder.items.map((item) => ({
+          ingredient_id: Number(item.ingredient_id),
+          quantity: Number(item.quantity),
+          unit_cost: Number(item.unit_cost || 0),
+        })),
+      });
+      if (response.data?.success) {
+        setPurchaseOrders((current) => [response.data.data, ...current.filter((item) => item.id !== response.data.data.id)]);
+        setNotice(`PURCHASE ORDER CREATED · ${response.data.data.po_no}`);
+        return response.data.data;
+      }
+    } catch (error) {
+      window.alert(error.response?.data?.error || "ไม่สามารถสร้างใบสั่งซื้อได้");
+      console.warn("Purchase order create failed.", error);
+    }
+    return null;
+  };
+  const updatePurchaseOrderStatus = async (purchaseOrder, status) => {
+    try {
+      const response = await axios.patch(`${API_BASE}/api/purchase-orders/${purchaseOrder.id}/status`, { status });
+      if (response.data?.success) {
+        setPurchaseOrders((current) => current.map((item) => item.id === purchaseOrder.id ? response.data.data : item));
+        setNotice(status === "SENT" ? `PURCHASE ORDER SENT · ${purchaseOrder.po_no}` : `PURCHASE ORDER CANCELLED · ${purchaseOrder.po_no}`);
+        return response.data.data;
+      }
+    } catch (error) {
+      window.alert(error.response?.data?.error || "ไม่สามารถเปลี่ยนสถานะใบสั่งซื้อได้");
+      console.warn("Purchase order status update failed.", error);
+    }
+    return null;
+  };
+  const receivePurchaseOrder = async (purchaseOrder) => {
+    if (!window.confirm(`รับวัตถุดิบตามใบสั่งซื้อ ${purchaseOrder.po_no} เข้าคลังตามจำนวนที่สั่งหรือไม่?`)) return null;
+    try {
+      const response = await axios.post(`${API_BASE}/api/purchase-orders/${purchaseOrder.id}/receive`);
+      if (response.data?.success) {
+        const { purchase_order: updatedOrder, receipt } = response.data.data;
+        const updates = new Map((receipt.updated_ingredients || []).map((item) => [String(item.id), item]));
+        setInventoryRows((current) => current.map((item) => updates.get(String(item.id)) || item));
+        const lotsResponse = await axios.get(`${API_BASE}/api/inventory/lots?active=true&limit=1000`);
+        if (lotsResponse.data?.success) setInventoryLots(lotsResponse.data.data);
+        await refreshProducts();
+        setPurchaseOrders((current) => current.map((item) => item.id === updatedOrder.id ? updatedOrder : item));
+        setStockReceipts((current) => [{ ...receipt, supplier_name: updatedOrder.supplier_name || "" }, ...current].slice(0, 20));
+        setNotice(`PURCHASE ORDER RECEIVED · ${updatedOrder.po_no}`);
+        return response.data.data;
+      }
+    } catch (error) {
+      window.alert(error.response?.data?.error || "ไม่สามารถรับของตามใบสั่งซื้อได้");
+      console.warn("Purchase order receive failed.", error);
+    }
+    return null;
+  };
   const createInventory = async (item) => {
     try {
       const response = await axios.post(`${API_BASE}/api/inventory`, item);
@@ -962,6 +1043,7 @@ function App() {
         inventoryLots={inventoryLots}
         suppliers={suppliers}
         stockReceipts={stockReceipts}
+        purchaseOrders={purchaseOrders}
         metrics={metrics}
         expenses={expenses}
         expenseRows={expenseRows}
@@ -976,6 +1058,9 @@ function App() {
         onAdjustInventory={adjustInventory}
         onCreateSupplier={createSupplier}
         onCreateStockReceipt={createStockReceipt}
+        onCreatePurchaseOrder={createPurchaseOrder}
+        onUpdatePurchaseOrderStatus={updatePurchaseOrderStatus}
+        onReceivePurchaseOrder={receivePurchaseOrder}
         onCreateInventory={createInventory}
         onUpdateInventory={updateInventory}
         onDeleteInventory={deleteInventory}
