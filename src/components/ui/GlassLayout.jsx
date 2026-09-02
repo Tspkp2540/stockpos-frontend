@@ -5,6 +5,7 @@ import stockCoordinator from "../../assets/operations-stock-coordinator.png";
 import OperationsRoom3D from "./OperationsRoom3D";
 import MenuModifierPicker from "./MenuModifierPicker";
 import { exportExcel } from "../../utils/exportExcel";
+import { menuAvailability, menuAvailabilityLabel } from "../../utils/menuAvailability";
 import { maskPhone } from "../../utils/phone";
 import { printReceipt } from "../../utils/printReceipt";
 
@@ -349,6 +350,7 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
     });
   };
   const addItem = (product) => {
+    if (!menuAvailability(product).isAvailable) return;
     if ((product.modifier_groups || []).length) {
       setEditingCartKey(null);
       setPendingProduct(product);
@@ -525,23 +527,30 @@ function PosPage({ channels, products, currentShift, onAdd, onValidateCoupon, on
             </span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {products.map((product) => (
-              <button
-                className="min-w-0 rounded-2xl border border-sky-100 bg-sky-50/40 p-4 text-left transition hover:border-sky-400 hover:bg-sky-50 focus:outline-none focus:ring-4 focus:ring-sky-100"
-                key={product.id}
-                onClick={() => addItem(product)}
-              >
-                <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-lg shadow-sm">
-                  {product.icon || "▦"}
-                </span>
-                <p className="mt-3 truncate font-bold text-slate-800">
-                  {product.name}
-                </p>
-                <p className="mt-1 text-sm font-semibold text-sky-700">
-                  {money(product.price_retail)}
-                </p>
-              </button>
-            ))}
+            {products.map((product) => {
+              const availability = menuAvailability(product);
+              return (
+                <button
+                  className={`min-w-0 rounded-2xl border p-4 text-left transition focus:outline-none focus:ring-4 ${availability.isAvailable ? "border-sky-100 bg-sky-50/40 hover:border-sky-400 hover:bg-sky-50 focus:ring-sky-100" : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-65 focus:ring-slate-100"}`}
+                  disabled={!availability.isAvailable}
+                  key={product.id}
+                  onClick={() => addItem(product)}
+                >
+                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-lg shadow-sm">
+                    {product.icon || "▦"}
+                  </span>
+                  <p className="mt-3 truncate font-bold text-slate-800">
+                    {product.name}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-sky-700">
+                    {money(product.price_retail)}
+                  </p>
+                  <p className={`mt-2 text-xs font-semibold ${availability.isAvailable ? "text-emerald-700" : "text-rose-600"}`}>
+                    {menuAvailabilityLabel(product)}
+                  </p>
+                </button>
+              );
+            })}
           </div>
         </Card>
       </div>
@@ -1311,7 +1320,7 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
   );
 }
 
-function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete }) {
+function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetAvailability }) {
   const initial = {
     name: "",
     category: "",
@@ -1444,11 +1453,13 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete }) {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {products.length ? (
-              products.map((product) => (
-                <article
-                  className="rounded-2xl border border-sky-100 p-4"
-                  key={product.id}
-                >
+              products.map((product) => {
+                const availability = menuAvailability(product);
+                return (
+                  <article
+                    className="rounded-2xl border border-sky-100 p-4"
+                    key={product.id}
+                  >
                   <div className="flex items-start justify-between gap-3">
                     <span className="grid h-11 w-11 place-items-center rounded-xl bg-sky-50 text-xl">
                       {product.icon || "▦"}
@@ -1469,7 +1480,13 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete }) {
                   <p className="mt-1 text-xs text-violet-600">
                     ตัวเลือก {product.modifier_groups?.length || 0} กลุ่ม
                   </p>
-                  <div className="mt-4 flex gap-2">
+                  <p className={`mt-2 text-xs font-bold ${availability.isAvailable ? "text-emerald-700" : "text-rose-600"}`}>
+                    {menuAvailabilityLabel(product)}
+                  </p>
+                  {!availability.isAvailable && !availability.manuallySoldOut ? (
+                    <p className="mt-1 text-xs text-slate-500">เปิดขายได้อัตโนมัติเมื่อมีล็อตวัตถุดิบที่ยังไม่หมดอายุเพียงพอ</p>
+                  ) : null}
+                  <div className="mt-4 flex flex-wrap gap-2">
                     <Button
                       className="flex-1 text-xs"
                       variant="secondary"
@@ -1479,14 +1496,22 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete }) {
                     </Button>
                     <Button
                       className="text-xs"
+                      variant={availability.manuallySoldOut ? "primary" : "secondary"}
+                      onClick={() => onSetAvailability(product, !availability.manuallySoldOut)}
+                    >
+                      {availability.manuallySoldOut ? "เปิดขาย" : "ปิดขาย"}
+                    </Button>
+                    <Button
+                      className="text-xs"
                       variant="danger"
                       onClick={() => onDelete(product)}
                     >
                       ลบ
                     </Button>
                   </div>
-                </article>
-              ))
+                  </article>
+                );
+              })
             ) : (
               <Empty>ยังไม่มีเมนูสินค้า</Empty>
             )}
@@ -3316,6 +3341,7 @@ export default function GlassLayout({
   onCreateMenu,
   onUpdateMenu,
   onDeleteMenu,
+  onSetMenuAvailability,
   onCreateExpense,
   onUpdateExpense,
   onDeleteExpense,
@@ -3345,6 +3371,7 @@ export default function GlassLayout({
         onCreate={onCreateMenu}
         onUpdate={onUpdateMenu}
         onDelete={onDeleteMenu}
+        onSetAvailability={onSetMenuAvailability}
       />
     ) : activeView === "finance" ? (
       <FinancePage

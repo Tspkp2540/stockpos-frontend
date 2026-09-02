@@ -130,6 +130,22 @@ function App() {
     profit: 0,
   });
 
+  const refreshProducts = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/products`);
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        setProducts(response.data.data.map((product) => ({
+          ...product,
+          icon: product.icon || "▦",
+        })));
+        return true;
+      }
+    } catch (error) {
+      console.warn("Product availability refresh unavailable.", error);
+    }
+    return false;
+  };
+
   const startSession = (data) => {
     const account = {
       ...data.user,
@@ -424,6 +440,7 @@ function App() {
         ]);
         setNotice("NEW ORDER RECEIVED · ACCOUNTANT PRINTING");
         if (payload.payment_method === "CASH") refreshCurrentShift();
+        await refreshProducts();
         return true;
       }
     } catch (error) {
@@ -613,6 +630,7 @@ function App() {
         );
         const lotsResponse = await axios.get(`${API_BASE}/api/inventory/lots?active=true&limit=1000`);
         if (lotsResponse.data?.success) setInventoryLots(lotsResponse.data.data);
+        await refreshProducts();
       }
     } catch (error) {
       console.warn("Restock API unavailable; request was not recorded.", error);
@@ -628,6 +646,7 @@ function App() {
         ));
         const lotsResponse = await axios.get(`${API_BASE}/api/inventory/lots?active=true&limit=1000`);
         if (lotsResponse.data?.success) setInventoryLots(lotsResponse.data.data);
+        await refreshProducts();
         const direction = Number(result.difference || 0) > 0 ? "+" : "";
         setNotice(`${result.adjustment_type === "WASTE" ? "WASTE RECORDED" : "STOCK COUNT UPDATED"} · ${direction}${Number(result.difference || 0)}`);
         return result;
@@ -662,6 +681,7 @@ function App() {
         setInventoryRows((current) => current.map((item) => updates.get(String(item.id)) || item));
         const lotsResponse = await axios.get(`${API_BASE}/api/inventory/lots?active=true&limit=1000`);
         if (lotsResponse.data?.success) setInventoryLots(lotsResponse.data.data);
+        await refreshProducts();
         const supplier = suppliers.find((item) => String(item.id) === String(created.supplier_id));
         setStockReceipts((current) => [{ ...created, supplier_name: supplier?.name || "" }, ...current].slice(0, 20));
         setNotice(`STOCK RECEIVED · ${created.receipt_no}`);
@@ -680,6 +700,7 @@ function App() {
         setInventoryRows((current) => [...current, response.data.data]);
         const lotsResponse = await axios.get(`${API_BASE}/api/inventory/lots?active=true&limit=1000`);
         if (lotsResponse.data?.success) setInventoryLots(lotsResponse.data.data);
+        await refreshProducts();
         setNotice("INVENTORY ITEM CREATED · WAREHOUSE UPDATED");
         return true;
       }
@@ -697,6 +718,7 @@ function App() {
         );
         const lotsResponse = await axios.get(`${API_BASE}/api/inventory/lots?active=true&limit=1000`);
         if (lotsResponse.data?.success) setInventoryLots(lotsResponse.data.data);
+        await refreshProducts();
         setNotice("INVENTORY ITEM UPDATED · WAREHOUSE UPDATED");
         return true;
       }
@@ -735,13 +757,7 @@ function App() {
         })),
       });
       if (response.data?.success) {
-        const refreshed = await axios.get(`${API_BASE}/api/products`);
-        setProducts(
-          refreshed.data.data.map((product) => ({
-            ...product,
-            icon: product.icon || "▦",
-          })),
-        );
+        await refreshProducts();
         setNotice("MENU CREATED · RECIPE SAVED");
         return true;
       }
@@ -764,13 +780,7 @@ function App() {
         })),
       });
       if (response.data?.success) {
-        const refreshed = await axios.get(`${API_BASE}/api/products`);
-        setProducts(
-          refreshed.data.data.map((product) => ({
-            ...product,
-            icon: product.icon || "▦",
-          })),
-        );
+        await refreshProducts();
         setNotice("MENU UPDATED · RECIPE SAVED");
         return true;
       }
@@ -794,6 +804,23 @@ function App() {
     } catch (error) {
       console.warn("Menu delete API unavailable.", error);
     }
+  };
+  const setMenuAvailability = async (menu, isSoldOut) => {
+    try {
+      const response = await axios.patch(
+        `${API_BASE}/api/products/${menu.id}/availability`,
+        { is_sold_out: isSoldOut },
+      );
+      if (response.data?.success) {
+        await refreshProducts();
+        setNotice(isSoldOut ? `MENU PAUSED · ${menu.name}` : `MENU ENABLED · ${menu.name}`);
+        return true;
+      }
+    } catch (error) {
+      window.alert(error.response?.data?.error || "ไม่สามารถเปลี่ยนสถานะเมนูได้");
+      console.warn("Menu availability update failed.", error);
+    }
+    return false;
   };
   const createExpense = async (amount, category, description, recordDate) => {
     try {
@@ -955,6 +982,7 @@ function App() {
         onCreateMenu={createMenu}
         onUpdateMenu={updateMenu}
         onDeleteMenu={deleteMenu}
+        onSetMenuAvailability={setMenuAvailability}
         onExpense={recordExpense}
         onCreateExpense={createExpense}
         onUpdateExpense={updateExpense}

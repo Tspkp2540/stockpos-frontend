@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
 import MenuModifierPicker from "./MenuModifierPicker";
+import { menuAvailability, menuAvailabilityLabel } from "../../utils/menuAvailability";
 import { printReceipt } from "../../utils/printReceipt";
 
 const money = (amount) =>
@@ -152,6 +153,7 @@ export default function StaffWorkspace({
     });
   };
   const addProduct = (product) => {
+    if (!menuAvailability(product).isAvailable) return;
     if ((product.modifier_groups || []).length) {
       setEditingCartKey(null);
       setPendingProduct(product);
@@ -415,21 +417,28 @@ export default function StaffWorkspace({
                 <span className="text-sm text-slate-500">{products.length} รายการ</span>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {products.map((product) => (
-                  <button
-                    className="rounded-2xl border border-sky-100 bg-sky-50/60 p-4 text-left transition hover:-translate-y-0.5 hover:border-sky-400 hover:bg-white hover:shadow-md"
-                    key={product.id}
-                    onClick={() => addProduct(product)}
-                  >
-                    <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-lg shadow-sm">
-                      {product.icon || "▦"}
-                    </span>
-                    <p className="mt-3 truncate font-bold text-slate-800">{product.name}</p>
-                    <p className="mt-1 text-sm font-semibold text-sky-700">
-                      {money(product.price_retail)}
-                    </p>
-                  </button>
-                ))}
+                {products.map((product) => {
+                  const availability = menuAvailability(product);
+                  return (
+                    <button
+                      className={`rounded-2xl border p-4 text-left transition ${availability.isAvailable ? "border-sky-100 bg-sky-50/60 hover:-translate-y-0.5 hover:border-sky-400 hover:bg-white hover:shadow-md" : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-65"}`}
+                      disabled={!availability.isAvailable}
+                      key={product.id}
+                      onClick={() => addProduct(product)}
+                    >
+                      <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-lg shadow-sm">
+                        {product.icon || "▦"}
+                      </span>
+                      <p className="mt-3 truncate font-bold text-slate-800">{product.name}</p>
+                      <p className="mt-1 text-sm font-semibold text-sky-700">
+                        {money(product.price_retail)}
+                      </p>
+                      <p className={`mt-2 text-xs font-semibold ${availability.isAvailable ? "text-emerald-700" : "text-rose-600"}`}>
+                        {menuAvailabilityLabel(product)}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
