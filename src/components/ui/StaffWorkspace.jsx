@@ -3,6 +3,7 @@ import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
 import MenuModifierPicker from "./MenuModifierPicker";
 import { menuAvailability, menuAvailabilityLabel } from "../../utils/menuAvailability";
 import { printReceipt } from "../../utils/printReceipt";
+import { useActionDialog } from "./ActionDialog";
 
 const money = (amount) =>
   `฿${Number(amount || 0).toLocaleString("en-US", {
@@ -98,6 +99,7 @@ export default function StaffWorkspace({
   onUpdate,
   onLogout,
 }) {
+  const { requestInput, showMessage } = useActionDialog();
   const [channelId, setChannelId] = useState(channels[0]?.id || "");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerNickname, setCustomerNickname] = useState("");
@@ -105,6 +107,7 @@ export default function StaffWorkspace({
   const [loyaltyPoints, setLoyaltyPoints] = useState("");
   const [loyaltyError, setLoyaltyError] = useState("");
   const [cart, setCart] = useState([]);
+  const [cartOpen, setCartOpen] = useState(false);
   const [pendingProduct, setPendingProduct] = useState(null);
   const [editingCartKey, setEditingCartKey] = useState(null);
   const [discountType, setDiscountType] = useState("amount");
@@ -112,6 +115,14 @@ export default function StaffWorkspace({
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponError, setCouponError] = useState("");
+  const handlePrint = (order) => {
+    if (printReceipt(order)) return;
+    showMessage({
+      tone: "danger",
+      title: "เปิดใบเสร็จไม่ได้",
+      message: "กรุณาอนุญาตหน้าต่างป๊อปอัปเพื่อพิมพ์ใบเสร็จ",
+    });
+  };
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [amountReceived, setAmountReceived] = useState("");
   const [showAllOrders, setShowAllOrders] = useState(false);
@@ -142,6 +153,10 @@ export default function StaffWorkspace({
         (sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0),
         0,
       ),
+    [cart],
+  );
+  const cartItemCount = useMemo(
+    () => cart.reduce((sum, item) => sum + Math.max(0, Number(item.qty) || 0), 0),
     [cart],
   );
   const manualDiscountAmount = useMemo(() => {
@@ -212,12 +227,8 @@ export default function StaffWorkspace({
   };
   const addProduct = (product) => {
     if (!menuAvailability(product).isAvailable) return;
-    if ((product.modifier_groups || []).length) {
-      setEditingCartKey(null);
-      setPendingProduct(product);
-      return;
-    }
-    addConfiguredProduct(product);
+    setEditingCartKey(null);
+    setPendingProduct(product);
   };
   const editCartModifiers = (cartKey) => {
     const item = cart.find((row) => row.cart_key === cartKey);
@@ -229,6 +240,7 @@ export default function StaffWorkspace({
       modifier_groups: item.modifier_groups || [],
     };
     if (!(product.modifier_groups || []).length) return;
+    setCartOpen(false);
     setEditingCartKey(cartKey);
     setPendingProduct(product);
   };
@@ -317,24 +329,48 @@ export default function StaffWorkspace({
   };
   const manageCashShift = async () => {
     if (currentShift) {
-      const closingCash = window.prompt(
-        `ยอดเงินสดที่ควรมี ${money(Number(currentShift.opening_cash || 0) + Number(currentShift.cash_sales || 0))}\nกรอกยอดที่นับได้เพื่อปิดกะ`,
-      );
+      const closingCash = await requestInput({
+        title: "ปิดกะเงินสด",
+        message: `ยอดเงินสดที่คาดการณ์ ${money(Number(currentShift.opening_cash || 0) + Number(currentShift.cash_sales || 0))}`,
+        fieldLabel: "ยอดเงินสดที่นับได้",
+        inputType: "number",
+        min: "0",
+        step: "0.01",
+        confirmLabel: "ปิดกะ",
+      });
       if (closingCash === null) return;
       const closed = await onCloseCashShift?.(currentShift.id, closingCash);
       if (closed) {
-        window.alert(`ปิดกะแล้ว\nยอดคาดการณ์: ${money(closed.expected_cash)}\nยอดต่าง: ${money(closed.difference_amount)}`);
+        showMessage({
+          tone: "success",
+          title: "ปิดกะเงินสดแล้ว",
+          message: `ยอดคาดการณ์ ${money(closed.expected_cash)}\nยอดต่าง ${money(closed.difference_amount)}`,
+        });
       }
       return;
     }
-    const openingCash = window.prompt("เงินทอนเริ่มกะ", "0");
+    const openingCash = await requestInput({
+      title: "เปิดกะเงินสด",
+      message: "ระบุเงินทอนที่ใช้เริ่มกะ",
+      fieldLabel: "เงินทอนเริ่มกะ",
+      initialValue: "0",
+      inputType: "number",
+      min: "0",
+      step: "0.01",
+      confirmLabel: "เปิดกะ",
+    });
     if (openingCash === null) return;
     await onOpenCashShift?.(openingCash);
   };
   const submit = async () => {
     if (!cart.length) return;
     if (paymentMethod === "CASH" && total > 0 && (!currentShift || receivedAmount < total)) {
-      return window.alert(!currentShift ? "กรุณาเปิดกะเงินสดก่อนรับเงินสด" : "ยอดที่รับต้องไม่น้อยกว่ายอดสุทธิ");
+      showMessage({
+        tone: "danger",
+        title: "ยังยืนยันออเดอร์ไม่ได้",
+        message: !currentShift ? "กรุณาเปิดกะเงินสดก่อนรับเงินสด" : "ยอดที่รับต้องไม่น้อยกว่ายอดสุทธิ",
+      });
+      return;
     }
     const channel = channels.find(
       (item) => String(item.id) === String(channelId),
@@ -371,6 +407,7 @@ export default function StaffWorkspace({
       setLoyaltyData(null);
       setLoyaltyPoints("");
       setLoyaltyError("");
+      setCartOpen(false);
     }
   };
   const orderCards = (rows, horizontal = false) => rows.map((order) => (
@@ -405,12 +442,12 @@ export default function StaffWorkspace({
             <Button className="text-xs" onClick={() => onUpdate(order.id, "COMPLETED")}>
               ส่งมอบแล้ว
             </Button>
-            <Button className="text-xs" variant="secondary" onClick={() => printReceipt(order)}>
+            <Button className="text-xs" variant="secondary" onClick={() => handlePrint(order)}>
               ใบเสร็จ
             </Button>
           </div>
         ) : (
-          <Button className="text-xs" variant="secondary" onClick={() => printReceipt(order)}>
+          <Button className="text-xs" variant="secondary" onClick={() => handlePrint(order)}>
             ใบเสร็จ
           </Button>
         )}
@@ -468,6 +505,21 @@ export default function StaffWorkspace({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              aria-label={`เปิดตะกร้าสินค้า มี ${cartItemCount} ชิ้น`}
+              className="group relative inline-flex min-h-12 items-center gap-2 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-700 px-3.5 py-2.5 text-sm font-bold text-white shadow-lg shadow-sky-300/70 transition hover:-translate-y-0.5 hover:from-sky-600 hover:to-blue-800 focus:outline-none focus:ring-4 focus:ring-sky-200 active:translate-y-0"
+              title="เปิดตะกร้าสินค้า"
+              type="button"
+              onClick={() => setCartOpen(true)}
+            >
+              <span className="relative grid h-8 w-8 place-items-center rounded-xl bg-white/20 text-lg" aria-hidden="true">
+                🛒
+                {cartItemCount ? <span className="absolute -right-2 -top-2 grid h-5 min-w-5 place-items-center rounded-full border-2 border-sky-600 bg-amber-300 px-1 text-[10px] font-black text-slate-900">{cartItemCount}</span> : null}
+              </span>
+              <span className="hidden sm:inline">ตะกร้า</span>
+              <span className="rounded-lg bg-white/15 px-2 py-1 text-xs font-semibold">{cartItemCount} ชิ้น</span>
+              <span className="hidden border-l border-white/25 pl-2 text-xs font-semibold lg:inline">{money(subtotal)}</span>
+            </button>
             <Button className="hidden sm:inline-flex" variant="secondary" onClick={manageCashShift}>
               {currentShift ? "ปิดกะเงินสด" : "เปิดกะเงินสด"}
             </Button>
@@ -512,7 +564,7 @@ export default function StaffWorkspace({
 
         <LowStockMenuAlert products={products} />
 
-        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <section className="space-y-5">
           <div className="space-y-5">
             <div className="shop-panel rounded-2xl border p-4 sm:p-5">
               <div className="mb-4 flex items-center gap-3">
@@ -657,8 +709,12 @@ export default function StaffWorkspace({
             </div>
           </div>
 
-          <aside className="xl:sticky xl:top-5 xl:self-start">
-            <div className="shop-panel rounded-2xl border p-4 sm:p-5">
+          {cartOpen ? (
+            <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-sm sm:p-6" onMouseDown={() => setCartOpen(false)}>
+              <div className="flex min-h-full items-center justify-center">
+                <section aria-label="ตะกร้าสินค้าและยืนยันออเดอร์" aria-modal="true" className="relative w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl shadow-2xl shadow-slate-900/30" onMouseDown={(event) => event.stopPropagation()} role="dialog">
+                  <button aria-label="ปิดหน้าต่าง" className="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-xl border border-sky-200 bg-white text-lg font-bold text-sky-700 hover:bg-sky-50" type="button" onClick={() => setCartOpen(false)}>×</button>
+                  <div className="shop-panel rounded-3xl border bg-white p-4 sm:p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">Step 3</p>
@@ -668,22 +724,24 @@ export default function StaffWorkspace({
                   {cart.length} รายการ
                 </span>
               </div>
-              <div className="my-4 space-y-3">
+              <div className="my-4 max-h-[32vh] space-y-2 overflow-y-auto pr-1 sm:max-h-64">
                 {cart.length ? (
                   cart.map((item) => (
-                    <div className="rounded-xl border border-sky-100 bg-white/75 p-3" key={item.cart_key}>
-                      <div className="flex gap-3">
+                    <div className="rounded-xl border border-sky-100 bg-sky-50/30 p-2.5" key={item.cart_key}>
+                      <div className="flex items-start gap-2.5">
                         <div className="min-w-0 flex-1">
-                          <p className="truncate font-semibold text-slate-800">{item.name}</p>
-                          <p className="text-sm text-sky-700">{money(item.price)}</p>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <p className="truncate font-semibold text-slate-800">{item.name}</p>
+                            <p className="shrink-0 text-sm font-bold text-sky-700">{money(item.price)}</p>
+                          </div>
                           {item.modifiers?.length ? (
-                            <p className="mt-1 text-xs text-violet-700">
+                            <p className="mt-0.5 truncate text-xs text-violet-700">
                               {item.modifiers.map((modifier) => modifier.name).join(" · ")}
                             </p>
                           ) : null}
                           {(item.modifier_groups?.length || products.find((product) => String(product.id) === String(item.product_id))?.modifier_groups?.length) ? (
                             <button
-                              className="mt-2 text-xs font-bold text-violet-700 hover:text-violet-900"
+                              className="mt-1 text-xs font-bold text-violet-700 hover:text-violet-900"
                               onClick={() => editCartModifiers(item.cart_key)}
                             >
                               ปรับความหวาน / ท็อปปิ้ง
@@ -691,7 +749,7 @@ export default function StaffWorkspace({
                           ) : null}
                         </div>
                         <Button
-                          className="px-2 py-1 text-xs"
+                          className="shrink-0 px-2 py-1 text-xs"
                           variant="danger"
                           onClick={() =>
                             setCart((current) =>
@@ -702,10 +760,10 @@ export default function StaffWorkspace({
                           ลบ
                         </Button>
                       </div>
-                      <label className="mt-2 grid gap-1 text-xs font-medium text-slate-500">
-                        จำนวน
+                      <label className="mt-2 flex items-center justify-between gap-3 text-xs font-medium text-slate-500">
+                        <span>จำนวน</span>
                         <input
-                          className={inputClass}
+                          className={`${inputClass} w-20 px-2 py-1.5 text-center`}
                           type="number"
                           min="1"
                           value={item.qty}
@@ -869,8 +927,11 @@ export default function StaffWorkspace({
                   ยืนยันออเดอร์
                 </Button>
               </div>
+                  </div>
+                </section>
+              </div>
             </div>
-          </aside>
+          ) : null}
         </section>
 
         <section>

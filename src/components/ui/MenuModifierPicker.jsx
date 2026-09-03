@@ -92,7 +92,7 @@ export default function MenuModifierPicker({
         </div>
 
         <div className="mt-5 space-y-5">
-          {groups.map((group) => {
+          {groups.length ? groups.map((group) => {
             const selected = selectedByGroup[group.id] || [];
             const min = Number(group.min_selection || 0);
             const max = Number(group.max_selection || 1);
@@ -130,7 +130,11 @@ export default function MenuModifierPicker({
                 </div>
               </fieldset>
             );
-          })}
+          }) : (
+            <div className="rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 p-4 text-sm text-slate-600">
+              เมนูนี้ยังไม่มีตัวเลือกเพิ่มเติม กด <strong className="text-violet-700">{actionLabel}</strong> เพื่อเพิ่มเมนูลงตะกร้าได้เลย
+            </div>
+          )}
         </div>
 
         <div className="mt-6 flex items-center justify-between gap-4 border-t border-slate-100 pt-4">

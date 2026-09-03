@@ -6,6 +6,7 @@ import LoginScreen from "./components/ui/LoginScreen";
 import StaffWorkspace from "./components/ui/StaffWorkspace";
 import UserOrderStatus from "./components/ui/UserOrderStatus";
 import AnonymousOrderStatus from "./components/ui/AnonymousOrderStatus";
+import { ActionDialogProvider, useActionDialog } from "./components/ui/ActionDialog";
 
 const API_BASE =
   process.env.REACT_APP_API_URL ||
@@ -116,7 +117,8 @@ const todayInBangkok = () => {
   return `${value("year")}-${value("month")}-${value("day")}`;
 };
 
-function App() {
+function AppContent() {
+  const { confirmAction, showMessage } = useActionDialog();
   const [session, setSession] = useState(loadSession);
   const [anonymousMode, setAnonymousMode] = useState(true);
   const [activeView, setActiveView] = useState("operations");
@@ -144,6 +146,12 @@ function App() {
     cogs: 0,
     profit: 0,
   });
+  const showError = (error, fallback) =>
+    showMessage({
+      tone: "danger",
+      title: "ทำรายการไม่สำเร็จ",
+      message: error.response?.data?.error || fallback,
+    });
 
   const refreshProducts = async () => {
     try {
@@ -214,6 +222,17 @@ function App() {
     }
     return false;
   }, []);
+  const refreshSalesReport = useCallback(async (from, to) => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/reports/summary`, {
+        params: { from, to },
+      });
+      return response.data?.success ? response.data.data : null;
+    } catch (error) {
+      console.warn("Sales report refresh unavailable.", error);
+      return null;
+    }
+  }, []);
   const createChannel = async (channel) => {
     try {
       const response = await axios.post(`${API_BASE}/api/channels`, channel);
@@ -223,7 +242,7 @@ function App() {
         return response.data.data;
       }
     } catch (error) {
-      window.alert(error.response?.data?.error || "ไม่สามารถเพิ่มช่องทางขายได้");
+      showError(error, "ไม่สามารถเพิ่มช่องทางขายได้");
       console.warn("Sales channel create failed.", error);
     }
     return null;
@@ -239,7 +258,7 @@ function App() {
         return response.data.data;
       }
     } catch (error) {
-      window.alert(error.response?.data?.error || "ไม่สามารถแก้ไขช่องทางขายได้");
+      showError(error, "ไม่สามารถแก้ไขช่องทางขายได้");
       console.warn("Sales channel update failed.", error);
     }
     return null;
@@ -590,7 +609,7 @@ function App() {
         return true;
       }
     } catch (error) {
-      window.alert(error.response?.data?.error || "ไม่สามารถบันทึกออเดอร์ได้");
+      showError(error, "ไม่สามารถบันทึกออเดอร์ได้");
       console.warn("Order API failed.", error);
     }
     return false;
@@ -608,7 +627,7 @@ function App() {
         return true;
       }
     } catch (error) {
-      window.alert(error.response?.data?.error || "ไม่สามารถเปิดกะเงินสดได้");
+      showError(error, "ไม่สามารถเปิดกะเงินสดได้");
       console.warn("Cash shift open failed.", error);
     }
     return false;
@@ -626,7 +645,7 @@ function App() {
         return response.data.data;
       }
     } catch (error) {
-      window.alert(error.response?.data?.error || "ไม่สามารถปิดกะเงินสดได้");
+      showError(error, "ไม่สามารถปิดกะเงินสดได้");
       console.warn("Cash shift close failed.", error);
     }
     return null;
@@ -666,7 +685,7 @@ function App() {
         return true;
       }
     } catch (error) {
-      window.alert(error.response?.data?.error || "ไม่สามารถอัปเดตออเดอร์ได้");
+      showError(error, "ไม่สามารถอัปเดตออเดอร์ได้");
       console.warn("Order update failed.", error);
     }
     return false;
@@ -748,11 +767,14 @@ function App() {
     return false;
   };
   const deleteSalesRecord = async (order) => {
-    if (
-      !order?.id ||
-      !window.confirm(`Delete sales record #${order.order_no}?`)
-    )
-      return;
+    if (!order?.id) return;
+    const confirmed = await confirmAction({
+      tone: "danger",
+      title: "ลบรายการขาย?",
+      message: `ต้องการลบรายการขาย #${order.order_no} ใช่หรือไม่\nสต็อกและยอดการเงินของรายการนี้จะถูกปรับกลับ`,
+      confirmLabel: "ลบรายการขาย",
+    });
+    if (!confirmed) return;
     try {
       const response = await axios.delete(`${API_BASE}/api/orders/${order.id}`);
       if (response.data?.success) {
@@ -804,7 +826,7 @@ function App() {
         return result;
       }
     } catch (error) {
-      window.alert(error.response?.data?.error || "ไม่สามารถบันทึกการปรับยอดสต็อกได้");
+      showError(error, "ไม่สามารถบันทึกการปรับยอดสต็อกได้");
       console.warn("Inventory adjustment failed.", error);
     }
     return null;
@@ -819,7 +841,7 @@ function App() {
         return created;
       }
     } catch (error) {
-      window.alert(error.response?.data?.error || "ไม่สามารถเพิ่มผู้ขายได้");
+      showError(error, "ไม่สามารถเพิ่มผู้ขายได้");
       console.warn("Supplier create failed.", error);
     }
     return null;
@@ -840,7 +862,7 @@ function App() {
         return created;
       }
     } catch (error) {
-      window.alert(error.response?.data?.error || "ไม่สามารถบันทึกรับวัตถุดิบได้");
+      showError(error, "ไม่สามารถบันทึกรับวัตถุดิบได้");
       console.warn("Stock receipt create failed.", error);
     }
     return null;
@@ -863,7 +885,7 @@ function App() {
         return response.data.data;
       }
     } catch (error) {
-      window.alert(error.response?.data?.error || "ไม่สามารถสร้างใบสั่งซื้อได้");
+      showError(error, "ไม่สามารถสร้างใบสั่งซื้อได้");
       console.warn("Purchase order create failed.", error);
     }
     return null;
@@ -877,7 +899,7 @@ function App() {
         return response.data.data;
       }
     } catch (error) {
-      window.alert(error.response?.data?.error || "ไม่สามารถเปลี่ยนสถานะใบสั่งซื้อได้");
+      showError(error, "ไม่สามารถเปลี่ยนสถานะใบสั่งซื้อได้");
       console.warn("Purchase order status update failed.", error);
     }
     return null;
@@ -911,7 +933,7 @@ function App() {
         return response.data.data;
       }
     } catch (error) {
-      window.alert(error.response?.data?.error || "ไม่สามารถรับของตามใบสั่งซื้อได้");
+      showError(error, "ไม่สามารถรับของตามใบสั่งซื้อได้");
       console.warn("Purchase order receive failed.", error);
     }
     return null;
@@ -925,7 +947,7 @@ function App() {
         return response.data.data;
       }
     } catch (error) {
-      window.alert(error.response?.data?.error || "ไม่สามารถสร้างคูปองได้");
+      showError(error, "ไม่สามารถสร้างคูปองได้");
       console.warn("Coupon create failed.", error);
     }
     return null;
@@ -939,7 +961,7 @@ function App() {
         return response.data.data;
       }
     } catch (error) {
-      window.alert(error.response?.data?.error || "ไม่สามารถแก้ไขคูปองได้");
+      showError(error, "ไม่สามารถแก้ไขคูปองได้");
       console.warn("Coupon update failed.", error);
     }
     return null;
@@ -979,7 +1001,14 @@ function App() {
     return false;
   };
   const deleteInventory = async (item) => {
-    if (!item?.id || !window.confirm(`Delete ${item.name}?`)) return;
+    if (!item?.id) return;
+    const confirmed = await confirmAction({
+      tone: "danger",
+      title: "ลบวัตถุดิบ?",
+      message: `ต้องการลบ “${item.name}” ออกจากคลังใช่หรือไม่`,
+      confirmLabel: "ลบวัตถุดิบ",
+    });
+    if (!confirmed) return;
     try {
       const response = await axios.delete(
         `${API_BASE}/api/inventory/${item.id}`,
@@ -1041,7 +1070,14 @@ function App() {
     return false;
   };
   const deleteMenu = async (menu) => {
-    if (!menu?.id || !window.confirm(`Delete menu ${menu.name}?`)) return;
+    if (!menu?.id) return;
+    const confirmed = await confirmAction({
+      tone: "danger",
+      title: "ลบเมนูสินค้า?",
+      message: `ต้องการลบเมนู “${menu.name}” ใช่หรือไม่`,
+      confirmLabel: "ลบเมนู",
+    });
+    if (!confirmed) return;
     try {
       const response = await axios.delete(
         `${API_BASE}/api/products/${menu.id}`,
@@ -1068,7 +1104,7 @@ function App() {
         return true;
       }
     } catch (error) {
-      window.alert(error.response?.data?.error || "ไม่สามารถเปลี่ยนสถานะเมนูได้");
+      showError(error, "ไม่สามารถเปลี่ยนสถานะเมนูได้");
       console.warn("Menu availability update failed.", error);
     }
     return false;
@@ -1123,8 +1159,14 @@ function App() {
     return false;
   };
   const deleteExpense = async (item) => {
-    if (!item?.id || !window.confirm(`Delete expense ${money(item.amount)}?`))
-      return;
+    if (!item?.id) return;
+    const confirmed = await confirmAction({
+      tone: "danger",
+      title: "ลบรายการค่าใช้จ่าย?",
+      message: `ต้องการลบรายการค่าใช้จ่าย ${money(item.amount)} ใช่หรือไม่`,
+      confirmLabel: "ลบค่าใช้จ่าย",
+    });
+    if (!confirmed) return;
     try {
       const response = await axios.delete(
         `${API_BASE}/api/expenses/${item.id}`,
@@ -1241,6 +1283,7 @@ function App() {
         onCreateChannel={createChannel}
         onUpdateChannel={updateChannel}
         onRefreshSalesBreakdown={refreshSalesBreakdown}
+        onRefreshSalesReport={refreshSalesReport}
         onCreateInventory={createInventory}
         onUpdateInventory={updateInventory}
         onDeleteInventory={deleteInventory}
@@ -1260,4 +1303,10 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <ActionDialogProvider>
+      <AppContent />
+    </ActionDialogProvider>
+  );
+}

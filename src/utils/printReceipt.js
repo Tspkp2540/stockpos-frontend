@@ -18,8 +18,7 @@ const paymentLabel = (method) =>
 export const printReceipt = (order) => {
   const receiptWindow = window.open("", "_blank", "popup,width=420,height=720");
   if (!receiptWindow) {
-    window.alert("กรุณาอนุญาตหน้าต่างป๊อปอัปเพื่อพิมพ์ใบเสร็จ");
-    return;
+    return false;
   }
 
   const items = Array.isArray(order.rawItems) ? order.rawItems : [];
@@ -55,4 +54,5 @@ export const printReceipt = (order) => {
   <script>window.addEventListener('load', () => window.print());</script>
 </body></html>`);
   receiptWindow.document.close();
+  return true;
 };

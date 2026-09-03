@@ -8,6 +8,7 @@ import { exportExcel } from "../../utils/exportExcel";
 import { menuAvailability, menuAvailabilityLabel } from "../../utils/menuAvailability";
 import { maskPhone } from "../../utils/phone";
 import { printReceipt } from "../../utils/printReceipt";
+import { useActionDialog } from "./ActionDialog";
 
 const navigation = [
   { id: "pos", icon: "▣", label: "ขายและออเดอร์" },
@@ -170,6 +171,7 @@ function LowStockMenuAlert({ products, className = "" }) {
 }
 
 function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
+  const { showMessage } = useActionDialog();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [channelFilter, setChannelFilter] = useState("ALL");
@@ -201,6 +203,14 @@ function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
     : onBack
       ? <Button type="button" variant="secondary" onClick={onBack}>← กลับหน้าขาย</Button>
       : null;
+  const handlePrint = (order) => {
+    if (printReceipt(order)) return;
+    showMessage({
+      tone: "danger",
+      title: "เปิดใบเสร็จไม่ได้",
+      message: "กรุณาอนุญาตหน้าต่างป๊อปอัปเพื่อพิมพ์ใบเสร็จ",
+    });
+  };
   return (
     <div className="space-y-5">
       <Heading
@@ -288,12 +298,12 @@ function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
                     <Button className="text-xs" onClick={() => onUpdate(order.id, "COMPLETED")}>
                       ส่งมอบแล้ว
                     </Button>
-                    <Button className="text-xs" variant="secondary" onClick={() => printReceipt(order)}>
+                    <Button className="text-xs" variant="secondary" onClick={() => handlePrint(order)}>
                       ใบเสร็จ
                     </Button>
                   </div>
                 ) : (
-                  <Button className="text-xs" variant="secondary" onClick={() => printReceipt(order)}>
+                  <Button className="text-xs" variant="secondary" onClick={() => handlePrint(order)}>
                     ใบเสร็จ
                   </Button>
                 )}
@@ -314,6 +324,7 @@ function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
 }
 
 function KitchenDisplayPage({ orders, onUpdate }) {
+  const { showMessage } = useActionDialog();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30000);
@@ -324,6 +335,14 @@ function KitchenDisplayPage({ orders, onUpdate }) {
     const createdAt = new Date(order.created_at || order.order_date || now).getTime();
     const minutes = Math.max(0, Math.floor((now - createdAt) / 60000));
     return minutes ? `รอ ${minutes} นาที` : "เพิ่งเข้าคิว";
+  };
+  const handlePrint = (order) => {
+    if (printReceipt(order)) return;
+    showMessage({
+      tone: "danger",
+      title: "เปิดใบเสร็จไม่ได้",
+      message: "กรุณาอนุญาตหน้าต่างป๊อปอัปเพื่อพิมพ์ใบเสร็จ",
+    });
   };
   const Ticket = ({ order }) => {
     const rawItems = Array.isArray(order.rawItems) ? order.rawItems : [];
@@ -356,7 +375,7 @@ function KitchenDisplayPage({ orders, onUpdate }) {
           <Button className="flex-1" onClick={() => onUpdate(order.id, isReady ? "COMPLETED" : "READY")}>
             {isReady ? "ส่งมอบแล้ว" : "ทำเสร็จ / พร้อมรับ"}
           </Button>
-          <Button className="text-xs" variant="secondary" onClick={() => printReceipt(order)}>
+          <Button className="text-xs" variant="secondary" onClick={() => handlePrint(order)}>
             ใบเสร็จ
           </Button>
         </div>
@@ -388,6 +407,7 @@ function KitchenDisplayPage({ orders, onUpdate }) {
 }
 
 function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onValidateCoupon, onOpenCashShift, onCloseCashShift }) {
+  const { requestInput, showMessage } = useActionDialog();
   const [channelId, setChannelId] = useState(channels[0]?.id || "");
   const activeChannels = useMemo(
     () => channels.filter((channel) => channel.is_active !== false),
@@ -398,6 +418,7 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
     setChannelId(activeChannels[0]?.id || "");
   }, [activeChannels, channelId]);
   const [cart, setCart] = useState([]);
+  const [cartOpen, setCartOpen] = useState(false);
   const [pendingProduct, setPendingProduct] = useState(null);
   const [editingCartKey, setEditingCartKey] = useState(null);
   const [customerName, setCustomerName] = useState("");
@@ -418,6 +439,10 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
         (sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0),
         0,
       ),
+    [cart],
+  );
+  const cartItemCount = useMemo(
+    () => cart.reduce((sum, item) => sum + Math.max(0, Number(item.qty) || 0), 0),
     [cart],
   );
   const manualDiscountAmount = useMemo(() => {
@@ -485,12 +510,8 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
   };
   const addItem = (product) => {
     if (!menuAvailability(product).isAvailable) return;
-    if ((product.modifier_groups || []).length) {
-      setEditingCartKey(null);
-      setPendingProduct(product);
-      return;
-    }
-    addConfiguredItem(product);
+    setEditingCartKey(null);
+    setPendingProduct(product);
   };
   const editCartModifiers = (cartKey) => {
     const item = cart.find((row) => row.cart_key === cartKey);
@@ -502,6 +523,7 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
       modifier_groups: item.modifier_groups || [],
     };
     if (!(product.modifier_groups || []).length) return;
+    setCartOpen(false);
     setEditingCartKey(cartKey);
     setPendingProduct(product);
   };
@@ -590,27 +612,54 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
   };
   const manageCashShift = async () => {
     if (currentShift) {
-      const closingCash = window.prompt(
-        `ยอดเงินสดที่ควรมี ${money(Number(currentShift.opening_cash || 0) + Number(currentShift.cash_sales || 0))}\nกรอกยอดที่นับได้เพื่อปิดกะ`,
-      );
+      const closingCash = await requestInput({
+        title: "ปิดกะเงินสด",
+        message: `ยอดเงินสดที่คาดการณ์ ${money(Number(currentShift.opening_cash || 0) + Number(currentShift.cash_sales || 0))}`,
+        fieldLabel: "ยอดเงินสดที่นับได้",
+        inputType: "number",
+        min: "0",
+        step: "0.01",
+        confirmLabel: "ปิดกะ",
+      });
       if (closingCash === null) return;
       const closed = await onCloseCashShift?.(currentShift.id, closingCash);
-      if (closed) window.alert(`ปิดกะแล้ว\nยอดต่าง: ${money(closed.difference_amount)}`);
+      if (closed) showMessage({
+        tone: "success",
+        title: "ปิดกะเงินสดแล้ว",
+        message: `ยอดต่าง ${money(closed.difference_amount)}`,
+      });
       return;
     }
-    const openingCash = window.prompt("เงินทอนเริ่มกะ", "0");
+    const openingCash = await requestInput({
+      title: "เปิดกะเงินสด",
+      message: "ระบุเงินทอนที่ใช้เริ่มกะ",
+      fieldLabel: "เงินทอนเริ่มกะ",
+      initialValue: "0",
+      inputType: "number",
+      min: "0",
+      step: "0.01",
+      confirmLabel: "เปิดกะ",
+    });
     if (openingCash === null) return;
     await onOpenCashShift?.(openingCash);
   };
   const submit = async () => {
     if (!cart.length) return;
     if (paymentMethod === "CASH" && total > 0 && (!currentShift || receivedAmount < total)) {
-      return window.alert(!currentShift ? "กรุณาเปิดกะเงินสดก่อนรับเงินสด" : "ยอดที่รับต้องไม่น้อยกว่ายอดสุทธิ");
+      showMessage({
+        tone: "danger",
+        title: "ยังยืนยันออเดอร์ไม่ได้",
+        message: !currentShift ? "กรุณาเปิดกะเงินสดก่อนรับเงินสด" : "ยอดที่รับต้องไม่น้อยกว่ายอดสุทธิ",
+      });
+      return;
     }
     const channel = activeChannels.find(
       (item) => String(item.id) === String(channelId),
     );
-    if (!channel) return window.alert("กรุณาเลือกช่องทางขายที่เปิดใช้งาน");
+    if (!channel) {
+      showMessage({ tone: "danger", title: "ยังยืนยันออเดอร์ไม่ได้", message: "กรุณาเลือกช่องทางขายที่เปิดใช้งาน" });
+      return;
+    }
     const saved = await onAdd({
       channel_id: Number(channelId),
       channel_name: channel?.name,
@@ -643,15 +692,33 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
       setAmountReceived("");
       setLoyaltyPoints("");
       setLoyaltyData(null);
+      setCartOpen(false);
     }
   };
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="space-y-5">
       <div>
         <Heading
           eyebrow="Point of sale"
           title="เปิดรายการขาย"
           description="เลือกช่องทางและเมนู แล้วส่งออเดอร์ได้ทันที"
+          action={
+            <button
+              aria-label={`เปิดตะกร้าสินค้า มี ${cartItemCount} ชิ้น`}
+              className="group relative inline-flex min-h-12 items-center gap-2 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-700 px-3.5 py-2.5 text-sm font-bold text-white shadow-lg shadow-sky-300/70 transition hover:-translate-y-0.5 hover:from-sky-600 hover:to-blue-800 focus:outline-none focus:ring-4 focus:ring-sky-200 active:translate-y-0"
+              title="เปิดตะกร้าสินค้า"
+              type="button"
+              onClick={() => setCartOpen(true)}
+            >
+              <span className="relative grid h-8 w-8 place-items-center rounded-xl bg-white/20 text-lg" aria-hidden="true">
+                🛒
+                {cartItemCount ? <span className="absolute -right-2 -top-2 grid h-5 min-w-5 place-items-center rounded-full border-2 border-sky-600 bg-amber-300 px-1 text-[10px] font-black text-slate-900">{cartItemCount}</span> : null}
+              </span>
+              <span>ตะกร้า</span>
+              <span className="hidden rounded-lg bg-white/15 px-2 py-1 text-xs font-semibold sm:inline">{cartItemCount} ชิ้น</span>
+              <span className="hidden border-l border-white/25 pl-2 text-xs font-semibold lg:inline">{money(subtotal)}</span>
+            </button>
+          }
         />
         <LowStockMenuAlert products={products} className="mb-5" />
         <Card>
@@ -716,37 +783,36 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
           </div>
         </Card>
       </div>
-      <aside className="xl:sticky xl:top-5 xl:self-start">
-        <Card>
+      {cartOpen ? (
+        <Modal label="ตะกร้าสินค้าและยืนยันออเดอร์" maxWidth="max-w-2xl" onClose={() => setCartOpen(false)}>
+        <Card className="max-h-[calc(100vh-2rem)] overflow-y-auto bg-white">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900">ตะกร้าสินค้า</h2>
             <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700">
               {cart.length} รายการ
             </span>
           </div>
-          <div className="my-4 space-y-3">
+          <div className="my-4 max-h-[32vh] space-y-2 overflow-y-auto pr-1 sm:max-h-64">
             {cart.length ? (
               cart.map((item) => (
                 <div
-                  className="rounded-xl border border-sky-100 p-3"
+                  className="rounded-xl border border-sky-100 bg-sky-50/30 p-2.5"
                   key={item.cart_key}
                 >
-                  <div className="flex gap-3">
+                  <div className="flex items-start gap-2.5">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-slate-800">
-                        {item.name}
-                      </p>
-                      <p className="text-sm text-sky-700">
-                        {money(item.price)}
-                      </p>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="truncate font-semibold text-slate-800">{item.name}</p>
+                        <p className="shrink-0 text-sm font-bold text-sky-700">{money(item.price)}</p>
+                      </div>
                       {item.modifiers?.length ? (
-                        <p className="mt-1 text-xs text-violet-700">
+                        <p className="mt-0.5 truncate text-xs text-violet-700">
                           {item.modifiers.map((modifier) => modifier.name).join(" · ")}
                         </p>
                       ) : null}
                       {(item.modifier_groups?.length || products.find((product) => String(product.id) === String(item.product_id))?.modifier_groups?.length) ? (
                         <button
-                          className="mt-2 text-xs font-bold text-violet-700 hover:text-violet-900"
+                          className="mt-1 text-xs font-bold text-violet-700 hover:text-violet-900"
                           onClick={() => editCartModifiers(item.cart_key)}
                         >
                           ปรับความหวาน / ท็อปปิ้ง
@@ -754,7 +820,7 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
                       ) : null}
                     </div>
                     <Button
-                      className="px-2 py-1 text-xs"
+                      className="shrink-0 px-2 py-1 text-xs"
                       variant="danger"
                       onClick={() =>
                         setCart((current) =>
@@ -767,10 +833,10 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
                       ลบ
                     </Button>
                   </div>
-                  <label className="mt-2 grid gap-1 text-xs font-medium text-slate-500">
-                    จำนวน
+                  <label className="mt-2 flex items-center justify-between gap-3 text-xs font-medium text-slate-500">
+                    <span>จำนวน</span>
                     <input
-                      className={inputClass}
+                      className={`${inputClass} w-20 px-2 py-1.5 text-center`}
                       type="number"
                       min="1"
                       value={item.qty}
@@ -1010,7 +1076,8 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
             </Button>
           </div>
         </Card>
-      </aside>
+        </Modal>
+      ) : null}
       {pendingProduct ? (
         <MenuModifierPicker
           key={`${pendingProduct.id}-${editingCartKey || "new"}`}
@@ -1574,6 +1641,7 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
 }
 
 function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetAvailability }) {
+  const { showMessage } = useActionDialog();
   const initial = {
     name: "",
     category: "",
@@ -1647,8 +1715,14 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
     }));
   const save = async (event) => {
     event.preventDefault();
-    if (!form.recipe.length)
-      return window.alert("กรุณาเลือกวัตถุดิบอย่างน้อย 1 รายการ");
+    if (!form.recipe.length) {
+      showMessage({
+        tone: "danger",
+        title: "บันทึกเมนูไม่ได้",
+        message: "กรุณาเลือกวัตถุดิบอย่างน้อย 1 รายการ",
+      });
+      return;
+    }
     const saved = editingId
       ? await onUpdate(editingId, form)
       : await onCreate(form);
@@ -2537,6 +2611,12 @@ const bangkokDate = (value = new Date()) => {
 };
 
 const todayInBangkok = () => bangkokDate(new Date());
+const shiftRecordDate = (value, days) => {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+const firstDayOfMonth = (value) => `${String(value).slice(0, 8)}01`;
 const dateLabel = (date) =>
   new Intl.DateTimeFormat("th-TH", {
     timeZone: "Asia/Bangkok",
@@ -2619,6 +2699,7 @@ const purchaseOrderStatusLabel = (status) => ({
 }[status] || status);
 
 function PurchaseRecommendationPanel({ inventoryRows, suppliers, onNavigate, onCreatePurchaseOrder }) {
+  const { showMessage } = useActionDialog();
   const recommendations = useMemo(
     () => inventoryRows.filter(inventoryIsLow).map((item) => {
       const currentQuantity = Number(item.stock_qty ?? item.stock ?? 0);
@@ -2678,7 +2759,14 @@ function PurchaseRecommendationPanel({ inventoryRows, suppliers, onNavigate, onC
         unit_cost: item.unitCost,
       }))
       .filter((item) => item.ingredient_id && item.quantity > 0);
-    if (!items.length) return window.alert("กรุณาระบุจำนวนที่จะสั่งอย่างน้อย 1 รายการ");
+    if (!items.length) {
+      showMessage({
+        tone: "danger",
+        title: "สร้างใบสั่งซื้อไม่ได้",
+        message: "กรุณาระบุจำนวนที่จะสั่งอย่างน้อย 1 รายการ",
+      });
+      return;
+    }
     const created = await onCreatePurchaseOrder({
       supplier_id: supplierId || null,
       expected_date: expectedDate || null,
@@ -2733,6 +2821,7 @@ function PurchaseRecommendationPanel({ inventoryRows, suppliers, onNavigate, onC
 }
 
 function ReceivePurchaseOrderPanel({ order, onClose, onReceive }) {
+  const { confirmAction } = useActionDialog();
   const [receivedAt, setReceivedAt] = useState(localDateTimeValue);
   const [note, setNote] = useState("");
   const [items, setItems] = useState(() => (order.items || []).map((item) => ({
@@ -2753,7 +2842,13 @@ function ReceivePurchaseOrderPanel({ order, onClose, onReceive }) {
   };
   const submit = async (event) => {
     event.preventDefault();
-    if (!window.confirm(`ยืนยันรับของตาม ${order.po_no} เข้าคลังหรือไม่? รายการนี้จะสร้างล็อตและปรับยอดคงเหลือทันที`)) return;
+    const confirmed = await confirmAction({
+      tone: "success",
+      title: "ยืนยันรับสินค้าเข้าคลัง?",
+      message: `ต้องการรับของตาม ${order.po_no} เข้าคลังใช่หรือไม่\nระบบจะสร้างล็อตและปรับยอดคงเหลือทันที`,
+      confirmLabel: "ยืนยันรับเข้าคลัง",
+    });
+    if (!confirmed) return;
     const saved = await onReceive?.(order, { received_at: receivedAt, note, items });
     if (saved) onClose();
   };
@@ -3488,6 +3583,166 @@ function SalesBreakdownPanel({ data, selectedDate }) {
   );
 }
 
+function ReportChange({ current, previous }) {
+  const currentValue = Number(current || 0);
+  const previousValue = Number(previous || 0);
+  if (!previousValue) {
+    return <span className="text-xs font-semibold text-slate-400">{currentValue ? "เริ่มมีข้อมูล" : "ไม่มีข้อมูลเทียบ"}</span>;
+  }
+  const change = Math.round(((currentValue - previousValue) / Math.abs(previousValue)) * 100);
+  const tone = change > 0 ? "text-emerald-700" : change < 0 ? "text-rose-700" : "text-slate-500";
+  return <span className={`text-xs font-bold ${tone}`}>{change > 0 ? "+" : ""}{change}% เทียบช่วงก่อน</span>;
+}
+
+function ManagementReportPanel({ onLoad }) {
+  const [from, setFrom] = useState(() => firstDayOfMonth(todayInBangkok()));
+  const [to, setTo] = useState(todayInBangkok);
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    onLoad?.(from, to)
+      .then((data) => {
+        if (!active) return;
+        setReport(data || null);
+        if (!data) setError("ยังไม่สามารถโหลดรายงานได้");
+      })
+      .catch(() => {
+        if (active) {
+          setReport(null);
+          setError("ยังไม่สามารถโหลดรายงานได้");
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [from, onLoad, to]);
+  const setRange = (nextFrom, nextTo) => {
+    setFrom(nextFrom);
+    setTo(nextTo);
+  };
+  const today = todayInBangkok();
+  const summary = report?.summary || {};
+  const previous = report?.previous_summary || {};
+  const daily = Array.isArray(report?.daily) ? report.daily : [];
+  const topProducts = Array.isArray(report?.top_products) ? report.top_products : [];
+  const inventoryUsage = Array.isArray(report?.inventory_usage) ? report.inventory_usage : [];
+  const highestDailySales = Math.max(1, ...daily.map((item) => Number(item.net_revenue || 0)));
+  const reportCards = [
+    ["ยอดขายสุทธิ", summary.net_revenue, previous.net_revenue, "text-sky-700"],
+    ["กำไรหลังค่าใช้จ่าย", summary.operating_profit, previous.operating_profit, "text-emerald-700"],
+    ["จำนวนออเดอร์", summary.order_count, previous.order_count, "text-violet-700"],
+    ["ส่วนลดรวม", summary.discount_amount, previous.discount_amount, "text-amber-700"],
+  ];
+  return (
+    <section className="space-y-5">
+      <Card className="border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-700">Management report</p>
+            <h2 className="mt-1 text-xl font-bold text-slate-900">รายงานบริหารร้าน</h2>
+            <p className="mt-1 text-sm text-slate-500">เปรียบเทียบยอดขาย เมนูขายดี และวัตถุดิบที่ใช้จริงกับช่วงเวลาก่อนหน้า</p>
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" className="text-xs" variant="secondary" onClick={() => setRange(today, today)}>วันนี้</Button>
+              <Button type="button" className="text-xs" variant="secondary" onClick={() => setRange(shiftRecordDate(today, -6), today)}>7 วัน</Button>
+              <Button type="button" className="text-xs" variant="secondary" onClick={() => setRange(firstDayOfMonth(today), today)}>เดือนนี้</Button>
+            </div>
+            <label className={labelClass}>
+              ตั้งแต่
+              <input className={inputClass} type="date" value={from} max={to} onChange={(event) => setFrom(event.target.value || from)} />
+            </label>
+            <label className={labelClass}>
+              ถึง
+              <input className={inputClass} type="date" value={to} min={from} max={today} onChange={(event) => setTo(event.target.value || to)} />
+            </label>
+          </div>
+        </div>
+        <p className="mt-4 rounded-xl bg-white/75 px-3 py-2 text-xs font-semibold text-slate-600">
+          ช่วงรายงาน: {dateLabel(from)} – {dateLabel(to)} · เปรียบเทียบกับ {report?.period ? `${dateLabel(report.period.previous_from)} – ${dateLabel(report.period.previous_to)}` : "ช่วงก่อนหน้าที่มีจำนวนวันเท่ากัน"}
+        </p>
+      </Card>
+
+      {loading ? <Card><p className="text-sm text-slate-500">กำลังจัดทำรายงาน…</p></Card> : error ? <Empty>{error}</Empty> : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {reportCards.map(([label, value, previousValue, tone]) => (
+              <Card className="p-4" key={label}>
+                <p className="text-xs font-semibold text-slate-500">{label}</p>
+                <strong className={`mt-2 block text-xl ${tone}`}>{label === "จำนวนออเดอร์" ? `${Number(value || 0).toLocaleString()} รายการ` : money(value)}</strong>
+                <div className="mt-2"><ReportChange current={value} previous={previousValue} /></div>
+              </Card>
+            ))}
+          </div>
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
+            <Card>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-700">Daily trend</p>
+                  <h3 className="mt-1 text-lg font-bold text-slate-900">ยอดขายสุทธิรายวัน</h3>
+                </div>
+                <strong className="text-sm text-sky-700">รวม {money(summary.net_revenue)}</strong>
+              </div>
+              <div className="mt-5 flex min-h-40 items-end gap-2 overflow-x-auto pb-1">
+                {daily.length ? daily.map((item) => {
+                  const height = Math.max(8, Math.round((Number(item.net_revenue || 0) / highestDailySales) * 112));
+                  return (
+                    <div className="flex min-w-12 flex-1 flex-col items-center gap-2" key={item.record_date} title={`${dateLabel(item.record_date)} · ${money(item.net_revenue)}`}>
+                      <span className="text-[10px] font-bold text-sky-700">{money(item.net_revenue).replace("฿", "")}</span>
+                      <div className="flex h-28 w-full items-end rounded-t-lg bg-sky-50 px-1"><div className="w-full rounded-t-md bg-gradient-to-t from-sky-600 to-cyan-400" style={{ height }} /></div>
+                      <span className="whitespace-nowrap text-[10px] text-slate-500">{String(item.record_date).slice(8, 10)}/{String(item.record_date).slice(5, 7)}</span>
+                    </div>
+                  );
+                }) : <Empty>ยังไม่มีรายการขายในช่วงเวลานี้</Empty>}
+              </div>
+            </Card>
+            <Card>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">Top products</p>
+                <h3 className="mt-1 text-lg font-bold text-slate-900">เมนูขายดี</h3>
+              </div>
+              <div className="mt-4 space-y-3">
+                {topProducts.length ? topProducts.map((item, index) => (
+                  <div className="flex items-center gap-3" key={item.product_id || item.product_name}>
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-amber-100 text-sm font-black text-amber-800">{index + 1}</span>
+                    <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{item.product_name}</p><p className="text-xs text-slate-500">{Number(item.quantity_sold || 0).toLocaleString()} ชิ้น · {Number(item.order_count || 0)} ออเดอร์</p></div>
+                    <strong className="shrink-0 text-sm text-amber-700">{money(item.sales_amount)}</strong>
+                  </div>
+                )) : <Empty>ยังไม่มีเมนูขายในช่วงเวลานี้</Empty>}
+              </div>
+            </Card>
+          </section>
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Inventory consumption</p>
+                <h3 className="mt-1 text-lg font-bold text-slate-900">วัตถุดิบที่ใช้ตามออเดอร์</h3>
+              </div>
+              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">ใช้จริงจากล็อตสต็อก</span>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {inventoryUsage.length ? inventoryUsage.map((item) => (
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/45 p-3" key={item.ingredient_id}>
+                  <p className="truncate text-sm font-bold text-slate-800">{item.ingredient_name}</p>
+                  <p className="mt-1 text-base font-bold text-emerald-700">{Number(item.quantity_used || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} {item.unit || "หน่วย"}</p>
+                  <p className="mt-1 text-xs text-slate-500">ต้นทุนที่ใช้ {money(item.usage_cost)}</p>
+                </div>
+              )) : <Empty>ยังไม่มีข้อมูลการตัดวัตถุดิบในช่วงเวลานี้</Empty>}
+            </div>
+          </Card>
+        </>
+      )}
+    </section>
+  );
+}
+
 function FinancePage({
   expenseRows,
   orders,
@@ -3502,8 +3757,11 @@ function FinancePage({
   onUpdateSales,
   onDeleteSales,
   onRefreshSalesBreakdown,
+  onRefreshSalesReport,
 }) {
   const [selectedDate, setSelectedDate] = useState(todayInBangkok);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderNoFilter, setOrderNoFilter] = useState("ALL");
   const newSales = () => ({
     order_no: `MAN-${Date.now()}`,
     channel_id: channels[0]?.id || "",
@@ -3529,13 +3787,25 @@ function FinancePage({
   useEffect(() => {
     onRefreshSalesBreakdown?.(selectedDate);
   }, [onRefreshSalesBreakdown, selectedDate]);
-  const filteredOrders = useMemo(
+  const dateOrders = useMemo(
     () => orders.filter((order) => rowMatchesDate(order, selectedDate)),
     [orders, selectedDate],
   );
+  const orderNumbers = useMemo(
+    () => [...new Set(dateOrders.map((order) => String(order.order_no || "").trim()).filter(Boolean))],
+    [dateOrders],
+  );
+  const visibleOrders = useMemo(() => {
+    const query = orderSearch.trim().toLowerCase();
+    return dateOrders.filter((order) => {
+      const orderNo = String(order.order_no || "").toLowerCase();
+      return (!query || orderNo.includes(query))
+        && (orderNoFilter === "ALL" || String(order.order_no) === orderNoFilter);
+    });
+  }, [dateOrders, orderNoFilter, orderSearch]);
   const financialOrders = useMemo(
-    () => filteredOrders.filter((order) => String(order.status).toUpperCase() !== "CANCELLED"),
-    [filteredOrders],
+    () => dateOrders.filter((order) => String(order.status).toUpperCase() !== "CANCELLED"),
+    [dateOrders],
   );
   const filteredExpenses = useMemo(
     () => expenseRows.filter((item) => rowMatchesDate(item, selectedDate)),
@@ -3723,6 +3993,7 @@ function FinancePage({
         ))}
       </div>
       <SalesBreakdownPanel data={salesBreakdown} selectedDate={selectedDate} />
+      <ManagementReportPanel onLoad={onRefreshSalesReport} />
       <CashShiftAuditPanel shifts={cashShifts} />
       {salesModalOpen ? (
       <Modal label={salesEditingId ? "แก้ไขรายการขาย" : "เพิ่มรายการขาย"} maxWidth="max-w-3xl" onClose={resetSales}>
@@ -3961,14 +4232,51 @@ function FinancePage({
       <div className="grid gap-5 xl:grid-cols-2">
         <Card>
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-bold text-slate-900">รายการขาย</h2>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">รายการขาย</h2>
+              <p className="mt-1 text-xs text-slate-500">ค้นหาและเลือกเลขออเดอร์ในวันที่ที่กำลังดู</p>
+            </div>
             <span className="text-sm text-slate-500">
-              {filteredOrders.length} รายการ
+              {visibleOrders.length} / {dateOrders.length} รายการ
             </span>
           </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <input
+              aria-label="ค้นหาเลขออเดอร์"
+              className={inputClass}
+              value={orderSearch}
+              onChange={(event) => {
+                setOrderSearch(event.target.value);
+                setOrderNoFilter("ALL");
+              }}
+              placeholder="ค้นหาเลขออเดอร์ เช่น ORD-001"
+            />
+            <select
+              aria-label="กรองด้วยเลขออเดอร์"
+              className={inputClass}
+              value={orderNoFilter}
+              onChange={(event) => {
+                setOrderNoFilter(event.target.value);
+                setOrderSearch("");
+              }}
+            >
+              <option value="ALL">ทุกเลขออเดอร์</option>
+              {orderNumbers.map((orderNo) => <option value={orderNo} key={orderNo}>#{orderNo}</option>)}
+            </select>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setOrderSearch("");
+                setOrderNoFilter("ALL");
+              }}
+            >
+              ล้าง
+            </Button>
+          </div>
           <div className="mt-4 space-y-3">
-            {filteredOrders.length ? (
-              filteredOrders.map((order) => (
+            {visibleOrders.length ? (
+              visibleOrders.map((order) => (
                 <div
                   className="flex flex-col gap-3 rounded-xl border border-sky-100 p-3 sm:flex-row sm:items-center"
                   key={order.id}
@@ -4006,7 +4314,7 @@ function FinancePage({
                 </div>
               ))
             ) : (
-              <Empty>ยังไม่มีรายการขายในวันนี้ที่เลือก</Empty>
+              <Empty>ไม่พบรายการขายที่ตรงกับเลขออเดอร์</Empty>
             )}
           </div>
         </Card>
@@ -4472,6 +4780,7 @@ export default function GlassLayout({
   onCreateChannel,
   onUpdateChannel,
   onRefreshSalesBreakdown,
+  onRefreshSalesReport,
   onCreateInventory,
   onUpdateInventory,
   onDeleteInventory,
@@ -4553,6 +4862,7 @@ export default function GlassLayout({
         onUpdateSales={onUpdateSales}
         onDeleteSales={onDeleteSales}
         onRefreshSalesBreakdown={onRefreshSalesBreakdown}
+        onRefreshSalesReport={onRefreshSalesReport}
       />
     ) : activeView === "operations" ? (
       <OperationsPage
