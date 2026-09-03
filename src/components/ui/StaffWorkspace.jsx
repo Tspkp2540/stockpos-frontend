@@ -5,6 +5,7 @@ import CashShiftDialog from "./CashShiftDialog";
 import { menuAvailability, menuAvailabilityLabel } from "../../utils/menuAvailability";
 import { printReceipt } from "../../utils/printReceipt";
 import { loadPosMenuUsage, recordPosMenuUsage } from "../../utils/posMenuUsage";
+import { productForChannel } from "../../utils/channelMenu";
 import { useActionDialog } from "./ActionDialog";
 
 const money = (amount) =>
@@ -137,14 +138,20 @@ export default function StaffWorkspace({
   const [orderStatusFilter, setOrderStatusFilter] = useState("ALL");
   const [orderChannelFilter, setOrderChannelFilter] = useState("ALL");
   const [orderDateFilter, setOrderDateFilter] = useState("");
+  const channelProducts = useMemo(
+    () => products
+      .map((product) => productForChannel(product, channelId))
+      .filter((product) => product.channel_available),
+    [channelId, products],
+  );
   const menuCategories = useMemo(
-    () => [...new Set(products.map((product) => String(product.category || "").trim()).filter(Boolean))]
+    () => [...new Set(channelProducts.map((product) => String(product.category || "").trim()).filter(Boolean))]
       .sort((left, right) => left.localeCompare(right, "th")),
-    [products],
+    [channelProducts],
   );
   const visibleProducts = useMemo(() => {
     const term = menuSearch.trim().toLowerCase();
-    return products.filter((product) => {
+    return channelProducts.filter((product) => {
       const searchable = [product.name, product.category, product.barcode]
         .filter(Boolean)
         .join(" ")
@@ -152,15 +159,27 @@ export default function StaffWorkspace({
       return (!term || searchable.includes(term))
         && (menuCategory === "ALL" || String(product.category || "").trim() === menuCategory);
     });
-  }, [menuCategory, menuSearch, products]);
+  }, [channelProducts, menuCategory, menuSearch]);
   const quickProducts = useMemo(
-    () => products
+    () => channelProducts
       .filter((product) => menuAvailability(product).isAvailable && Number(menuUsage[String(product.id)] || 0) > 0)
       .sort((left, right) => Number(menuUsage[String(right.id)] || 0) - Number(menuUsage[String(left.id)] || 0))
       .slice(0, 6),
-    [menuUsage, products],
+    [channelProducts, menuUsage],
   );
   const noteMenuUsed = (product) => setMenuUsage((current) => recordPosMenuUsage(current, product.id));
+  const selectChannel = (nextChannelId) => {
+    if (String(nextChannelId) === String(channelId)) return;
+    if (cart.length) {
+      showMessage({
+        tone: "danger",
+        title: "เปลี่ยนช่องทางขายไม่ได้",
+        message: "กรุณายืนยันหรือล้างตะกร้าก่อน เพื่อให้ราคาเมนูในตะกร้าตรงกับช่องทางขาย",
+      });
+      return;
+    }
+    setChannelId(nextChannelId);
+  };
   const orderChannels = useMemo(
     () => [...new Set(orders.map((order) => order.channel_name).filter(Boolean))],
     [orders],
@@ -257,7 +276,7 @@ export default function StaffWorkspace({
     });
   };
   const addProduct = (product) => {
-    if (!menuAvailability(product).isAvailable) return;
+    if (!product.channel_available || !menuAvailability(product).isAvailable) return;
     noteMenuUsed(product);
     setEditingCartKey(null);
     setPendingProduct(product);
@@ -266,7 +285,7 @@ export default function StaffWorkspace({
     event.preventDefault();
     const barcode = barcodeInput.trim();
     if (!barcode) return;
-    const product = products.find((item) => String(item.barcode || "").trim() === barcode
+    const product = channelProducts.find((item) => String(item.barcode || "").trim() === barcode
       || String(item.id) === barcode);
     if (!product) {
       showMessage({ tone: "danger", title: "ไม่พบเมนู", message: "ไม่พบเมนูจากบาร์โค้ดหรือรหัสสินค้านี้" });
@@ -282,7 +301,7 @@ export default function StaffWorkspace({
   const editCartModifiers = (cartKey) => {
     const item = cart.find((row) => row.cart_key === cartKey);
     if (!item) return;
-    const product = products.find((row) => String(row.id) === String(item.product_id)) || {
+    const product = channelProducts.find((row) => String(row.id) === String(item.product_id)) || {
       id: item.product_id,
       name: item.name,
       price_retail: item.base_price,
@@ -687,7 +706,7 @@ export default function StaffWorkspace({
                           type="radio"
                           name="staff-channel"
                           checked={selected}
-                          onChange={() => setChannelId(channel.id)}
+                          onChange={() => selectChannel(channel.id)}
                         />
                         <span aria-hidden="true" className={`grid h-4 w-4 place-items-center rounded-full border text-[10px] ${selected ? "border-sky-600 bg-sky-600 text-white" : "border-slate-300 bg-white text-transparent"}`}>✓</span>
                         {channel.name}
@@ -703,7 +722,7 @@ export default function StaffWorkspace({
                 <div>
                   <h2 className="text-lg font-bold text-slate-900">เลือกเมนูขาย</h2>
                 </div>
-                <span className="text-sm text-slate-500">{visibleProducts.length} / {products.length} รายการ</span>
+                <span className="text-sm text-slate-500">{visibleProducts.length} / {channelProducts.length} รายการ</span>
               </div>
               <div className="mb-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.55fr)]">
                 <input

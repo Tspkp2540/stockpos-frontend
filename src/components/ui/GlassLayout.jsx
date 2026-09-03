@@ -11,6 +11,7 @@ import { maskPhone } from "../../utils/phone";
 import { printReceipt } from "../../utils/printReceipt";
 import { printCashShiftSummary } from "../../utils/printCashShiftSummary";
 import { loadPosMenuUsage, recordPosMenuUsage } from "../../utils/posMenuUsage";
+import { productForChannel } from "../../utils/channelMenu";
 import { useActionDialog } from "./ActionDialog";
 
 const navigation = [
@@ -20,6 +21,7 @@ const navigation = [
   { id: "operations", icon: "◉", label: "ศูนย์ปฏิบัติการ" },
   { id: "alerts", icon: "⚠", label: "แจ้งเตือน" },
   { id: "inventory", icon: "□", label: "วัตถุดิบ" },
+  { id: "procurement", icon: "▤", label: "จัดซื้อและผู้ขาย", adminOnly: true },
   { id: "menu", icon: "☷", label: "เมนูสินค้า" },
   { id: "sales-channels", icon: "◫", label: "ช่องทางขาย", adminOnly: true },
   { id: "finance", icon: "฿", label: "การเงิน" },
@@ -437,14 +439,20 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
   const [menuCategory, setMenuCategory] = useState("ALL");
   const [barcodeInput, setBarcodeInput] = useState("");
   const [menuUsage, setMenuUsage] = useState(loadPosMenuUsage);
+  const channelProducts = useMemo(
+    () => products
+      .map((product) => productForChannel(product, channelId))
+      .filter((product) => product.channel_available),
+    [channelId, products],
+  );
   const menuCategories = useMemo(
-    () => [...new Set(products.map((product) => String(product.category || "").trim()).filter(Boolean))]
+    () => [...new Set(channelProducts.map((product) => String(product.category || "").trim()).filter(Boolean))]
       .sort((left, right) => left.localeCompare(right, "th")),
-    [products],
+    [channelProducts],
   );
   const visibleProducts = useMemo(() => {
     const term = menuSearch.trim().toLowerCase();
-    return products.filter((product) => {
+    return channelProducts.filter((product) => {
       const searchable = [product.name, product.category, product.barcode]
         .filter(Boolean)
         .join(" ")
@@ -452,15 +460,27 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
       return (!term || searchable.includes(term))
         && (menuCategory === "ALL" || String(product.category || "").trim() === menuCategory);
     });
-  }, [menuCategory, menuSearch, products]);
+  }, [channelProducts, menuCategory, menuSearch]);
   const quickProducts = useMemo(
-    () => products
+    () => channelProducts
       .filter((product) => menuAvailability(product).isAvailable && Number(menuUsage[String(product.id)] || 0) > 0)
       .sort((left, right) => Number(menuUsage[String(right.id)] || 0) - Number(menuUsage[String(left.id)] || 0))
       .slice(0, 6),
-    [menuUsage, products],
+    [channelProducts, menuUsage],
   );
   const noteMenuUsed = (product) => setMenuUsage((current) => recordPosMenuUsage(current, product.id));
+  const selectChannel = (nextChannelId) => {
+    if (String(nextChannelId) === String(channelId)) return;
+    if (cart.length) {
+      showMessage({
+        tone: "danger",
+        title: "เปลี่ยนช่องทางขายไม่ได้",
+        message: "กรุณายืนยันหรือล้างตะกร้าก่อน เพื่อให้ราคาเมนูในตะกร้าตรงกับช่องทางขาย",
+      });
+      return;
+    }
+    setChannelId(nextChannelId);
+  };
   const subtotal = useMemo(
     () =>
       cart.reduce(
@@ -537,7 +557,7 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
     });
   };
   const addItem = (product) => {
-    if (!menuAvailability(product).isAvailable) return;
+    if (!product.channel_available || !menuAvailability(product).isAvailable) return;
     noteMenuUsed(product);
     setEditingCartKey(null);
     setPendingProduct(product);
@@ -546,7 +566,7 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
     event.preventDefault();
     const barcode = barcodeInput.trim();
     if (!barcode) return;
-    const product = products.find((item) => String(item.barcode || "").trim() === barcode
+    const product = channelProducts.find((item) => String(item.barcode || "").trim() === barcode
       || String(item.id) === barcode);
     if (!product) {
       showMessage({ tone: "danger", title: "ไม่พบเมนู", message: "ไม่พบเมนูจากบาร์โค้ดหรือรหัสสินค้านี้" });
@@ -562,7 +582,7 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
   const editCartModifiers = (cartKey) => {
     const item = cart.find((row) => row.cart_key === cartKey);
     if (!item) return;
-    const product = products.find((row) => String(row.id) === String(item.product_id)) || {
+    const product = channelProducts.find((row) => String(row.id) === String(item.product_id)) || {
       id: item.product_id,
       name: item.name,
       price_retail: item.base_price,
@@ -765,7 +785,7 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
                       type="radio"
                       name="channel"
                       checked={selected}
-                      onChange={() => setChannelId(channel.id)}
+                      onChange={() => selectChannel(channel.id)}
                     />
                     <span aria-hidden="true" className={`grid h-4 w-4 place-items-center rounded-full border text-[10px] ${selected ? "border-sky-600 bg-sky-600 text-white" : "border-slate-300 bg-white text-transparent"}`}>✓</span>
                     {channel.name}
@@ -780,7 +800,7 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900">เมนูขาย</h2>
             <span className="text-sm text-slate-500">
-              {visibleProducts.length} / {products.length} รายการ
+              {visibleProducts.length} / {channelProducts.length} รายการ
             </span>
           </div>
           <div className="mb-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.55fr)]">
@@ -1722,7 +1742,7 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
   );
 }
 
-function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetAvailability }) {
+function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDelete, onSetAvailability }) {
   const { showMessage } = useActionDialog();
   const initial = {
     name: "",
@@ -1732,6 +1752,7 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
     price_wholesale: "",
     recipe: [],
     modifiers: [],
+    channel_settings: [],
   };
   const [form, setForm] = useState(initial);
   const [editingId, setEditingId] = useState(null);
@@ -1796,6 +1817,26 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
           : group,
       ),
     }));
+  const updateChannelSetting = (channelId, patch) =>
+    setForm((current) => {
+      const currentSetting = current.channel_settings.find(
+        (setting) => String(setting.channel_id) === String(channelId),
+      );
+      const nextSetting = {
+        channel_id: Number(channelId),
+        is_active: currentSetting?.is_active !== false,
+        price_retail: currentSetting?.price_retail ?? "",
+        ...patch,
+      };
+      return {
+        ...current,
+        channel_settings: currentSetting
+          ? current.channel_settings.map((setting) =>
+              String(setting.channel_id) === String(channelId) ? nextSetting : setting,
+            )
+          : [...current.channel_settings, nextSetting],
+      };
+    });
   const save = async (event) => {
     event.preventDefault();
     if (!form.recipe.length) {
@@ -1835,6 +1876,11 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
           name: option.name,
           price_adjustment: option.price_adjustment,
         })),
+      })),
+      channel_settings: (product.channel_settings || []).map((setting) => ({
+        channel_id: Number(setting.channel_id),
+        is_active: setting.is_active !== false,
+        price_retail: setting.price_retail ?? "",
       })),
     });
     setMenuModalOpen(true);
@@ -2014,6 +2060,46 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
                     }
                   />
                 </label>
+              </div>
+              <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-3">
+                <div>
+                  <p className="text-sm font-bold text-slate-700">ช่องทางขายและราคาเฉพาะช่องทาง</p>
+                  <p className="mt-1 text-xs text-slate-500">หากเว้นราคาไว้ ระบบจะใช้ราคาขายปกติของเมนู และเมนูที่ปิดจะไม่แสดงใน POS ของช่องทางนั้น</p>
+                </div>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {channels.map((channel) => {
+                    const setting = form.channel_settings.find((item) => String(item.channel_id) === String(channel.id));
+                    const isActive = setting?.is_active !== false;
+                    return (
+                      <div className={`rounded-xl border p-3 ${isActive ? "border-cyan-200 bg-white" : "border-slate-200 bg-slate-50"}`} key={channel.id}>
+                        <label className="flex cursor-pointer items-center justify-between gap-2 text-sm font-bold text-slate-700">
+                          <span className="truncate">{channel.name}</span>
+                          <input
+                            className="h-4 w-4 accent-sky-600"
+                            type="checkbox"
+                            checked={isActive}
+                            onChange={(event) => updateChannelSetting(channel.id, { is_active: event.target.checked })}
+                          />
+                        </label>
+                        <label className="mt-3 grid gap-1 text-xs font-semibold text-slate-600">
+                          ราคาขายช่องทางนี้ <span className="font-normal text-slate-400">(เว้นว่าง = ใช้ราคาปกติ)</span>
+                          <input
+                            className={inputClass}
+                            disabled={!isActive}
+                            inputMode="decimal"
+                            min="0"
+                            placeholder={String(form.price_retail || "0")}
+                            step="0.01"
+                            type="number"
+                            value={setting?.price_retail ?? ""}
+                            onChange={(event) => updateChannelSetting(channel.id, { price_retail: event.target.value })}
+                          />
+                        </label>
+                      </div>
+                    );
+                  })}
+                  {!channels.length ? <p className="text-sm text-slate-500">ยังไม่มีช่องทางขาย ให้เพิ่มจากเมนู “ช่องทางขาย” ก่อน</p> : null}
+                </div>
               </div>
               <div className="rounded-xl border border-sky-100 bg-sky-50/60 p-3">
                 <div className="flex items-center justify-between gap-2">
@@ -3042,6 +3128,209 @@ function PurchaseOrderHistory({ orders, onUpdateStatus, onReceive }) {
           ))}
         </div>
       </Card>
+    </div>
+  );
+}
+
+function PurchaseOrderCreateDialog({ rows, suppliers, onClose, onCreate }) {
+  const emptyItem = () => ({ ingredient_id: "", quantity: "", unit_cost: "" });
+  const [supplierId, setSupplierId] = useState("");
+  const [expectedDate, setExpectedDate] = useState("");
+  const [note, setNote] = useState("");
+  const [items, setItems] = useState([emptyItem()]);
+  const selectedIngredientIds = new Set(items.map((item) => String(item.ingredient_id)).filter(Boolean));
+  const total = items.reduce(
+    (sum, item) => sum + Math.max(0, Number(item.quantity) || 0) * Math.max(0, Number(item.unit_cost) || 0),
+    0,
+  );
+  const updateItem = (index, field, value) => {
+    setItems((current) => current.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      if (field !== "ingredient_id") return { ...item, [field]: value };
+      const ingredient = rows.find((row) => String(row.id) === String(value));
+      return {
+        ...item,
+        ingredient_id: value,
+        unit_cost: ingredient ? String(ingredient.cost_per_unit ?? "") : item.unit_cost,
+      };
+    }));
+  };
+  const submit = async (event) => {
+    event.preventDefault();
+    const saved = await onCreate?.({
+      supplier_id: supplierId || null,
+      expected_date: expectedDate || null,
+      note,
+      items,
+    });
+    if (saved) onClose();
+  };
+  return (
+    <Card className="max-h-[calc(100vh-2rem)] overflow-y-auto border-sky-200 bg-white">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">สร้างใบสั่งซื้อ</h2>
+          <p className="mt-1 text-sm text-slate-500">ระบุผู้ขาย วัตถุดิบ จำนวน และต้นทุนที่คาดไว้ก่อนส่งสั่งซื้อ</p>
+        </div>
+        <span className="rounded-full bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-700">รวม {money(total)}</span>
+      </div>
+      <form className="mt-5 grid gap-4" onSubmit={submit}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className={labelClass}>
+            ผู้ขาย <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+            <select className={inputClass} value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
+              <option value="">ไม่ระบุผู้ขาย</option>
+              {suppliers.filter((supplier) => supplier.is_active !== false).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+            </select>
+          </label>
+          <label className={labelClass}>
+            วันที่คาดว่าจะได้รับ <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+            <input className={inputClass} type="date" value={expectedDate} onChange={(event) => setExpectedDate(event.target.value)} />
+          </label>
+          <label className={`${labelClass} sm:col-span-2`}>
+            หมายเหตุ <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+            <input className={inputClass} maxLength="1000" value={note} onChange={(event) => setNote(event.target.value)} placeholder="เช่น รบกวนส่งช่วงเช้า / เครดิต 30 วัน" />
+          </label>
+        </div>
+        <div className="space-y-3 rounded-2xl border border-sky-100 bg-sky-50/45 p-3 sm:p-4">
+          <div className="hidden grid-cols-[minmax(0,1fr)_110px_130px_44px] gap-2 px-1 text-xs font-bold text-slate-500 lg:grid">
+            <span>วัตถุดิบ</span><span>จำนวนสั่ง</span><span>ต้นทุน/หน่วย</span><span />
+          </div>
+          {items.map((item, index) => {
+            const ingredient = rows.find((row) => String(row.id) === String(item.ingredient_id));
+            return (
+              <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_110px_130px_44px]" key={index}>
+                <label className={labelClass}>
+                  <span className="lg:hidden">วัตถุดิบ</span>
+                  <select className={inputClass} value={item.ingredient_id} onChange={(event) => updateItem(index, "ingredient_id", event.target.value)} required>
+                    <option value="">เลือกวัตถุดิบ</option>
+                    {rows.map((row) => (
+                      <option disabled={selectedIngredientIds.has(String(row.id)) && String(item.ingredient_id) !== String(row.id)} key={row.id} value={row.id}>
+                        {row.name} · เหลือ {Number(row.stock_qty ?? row.stock ?? 0)} {row.unit}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className={labelClass}>
+                  <span className="lg:hidden">จำนวนสั่ง ({ingredient?.unit || "หน่วย"})</span>
+                  <input className={inputClass} type="number" min="0.001" step="0.001" inputMode="decimal" value={item.quantity} onChange={(event) => updateItem(index, "quantity", event.target.value)} required />
+                </label>
+                <label className={labelClass}>
+                  <span className="lg:hidden">ต้นทุนต่อหน่วย</span>
+                  <input className={inputClass} type="number" min="0" step="0.01" inputMode="decimal" value={item.unit_cost} onChange={(event) => updateItem(index, "unit_cost", event.target.value)} required />
+                </label>
+                <Button type="button" className="self-end px-2" variant="danger" disabled={items.length === 1} onClick={() => setItems((current) => current.filter((_, itemIndex) => itemIndex !== index))}>×</Button>
+              </div>
+            );
+          })}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sky-100 pt-3">
+            <Button type="button" variant="secondary" onClick={() => setItems((current) => [...current, emptyItem()])}>+ เพิ่มรายการ</Button>
+            <div className="flex gap-2"><Button type="button" variant="secondary" onClick={onClose}>ยกเลิก</Button><Button type="submit" disabled={!rows.length}>บันทึกใบสั่งซื้อ</Button></div>
+          </div>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+function SupplierEditorDialog({ supplier, onClose, onSave }) {
+  const [form, setForm] = useState({
+    name: supplier?.name || "",
+    contact_name: supplier?.contact_name || "",
+    phone: supplier?.phone || "",
+    email: supplier?.email || "",
+    address: supplier?.address || "",
+    is_active: supplier?.is_active !== false,
+  });
+  const update = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
+  const submit = async (event) => {
+    event.preventDefault();
+    const saved = await onSave?.(form);
+    if (saved) onClose();
+  };
+  return (
+    <Card className="border-sky-200 bg-white">
+      <h2 className="text-lg font-bold text-slate-900">{supplier?.id ? "แก้ไขผู้ขาย" : "เพิ่มผู้ขาย"}</h2>
+      <p className="mt-1 text-sm text-slate-500">เก็บข้อมูลติดต่อไว้สำหรับใบสั่งซื้อและประวัติการรับวัตถุดิบ</p>
+      <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={submit}>
+        <label className={labelClass}>ชื่อผู้ขาย<input className={inputClass} value={form.name} onChange={update("name")} placeholder="ชื่อผู้ขาย" required /></label>
+        <label className={labelClass}>ผู้ติดต่อ<input className={inputClass} value={form.contact_name} onChange={update("contact_name")} placeholder="ชื่อผู้ติดต่อ" /></label>
+        <label className={labelClass}>เบอร์โทร<input className={inputClass} inputMode="tel" value={form.phone} onChange={update("phone")} placeholder="เบอร์โทรศัพท์" /></label>
+        <label className={labelClass}>อีเมล<input className={inputClass} type="email" value={form.email} onChange={update("email")} placeholder="อีเมล" /></label>
+        <label className={`${labelClass} sm:col-span-2`}>ที่อยู่<textarea className={`${inputClass} min-h-24 resize-y`} value={form.address} onChange={update("address")} placeholder="ที่อยู่ / รายละเอียดการจัดส่ง" /></label>
+        {supplier?.id ? <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 sm:col-span-2"><input className="h-4 w-4 accent-sky-600" type="checkbox" checked={form.is_active} onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.checked }))} /> เปิดใช้งานผู้ขายรายนี้</label> : null}
+        <div className="flex justify-end gap-2 sm:col-span-2"><Button type="button" variant="secondary" onClick={onClose}>ยกเลิก</Button><Button type="submit">บันทึกผู้ขาย</Button></div>
+      </form>
+    </Card>
+  );
+}
+
+function SupplierManagementPanel({ suppliers, onCreateSupplier, onUpdateSupplier, onFetchSupplierHistory }) {
+  const [editingSupplier, setEditingSupplier] = useState(null);
+  const [creatingSupplier, setCreatingSupplier] = useState(false);
+  const [historySupplier, setHistorySupplier] = useState(null);
+  const [history, setHistory] = useState(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const saveSupplier = async (form) => editingSupplier?.id
+    ? onUpdateSupplier?.(editingSupplier.id, form)
+    : onCreateSupplier?.(form);
+  const openHistory = async (supplier) => {
+    setHistorySupplier(supplier);
+    setHistory(null);
+    setLoadingHistory(true);
+    const data = await onFetchSupplierHistory?.(supplier.id);
+    setHistory(data || null);
+    setLoadingHistory(false);
+  };
+  return (
+    <>
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><h2 className="text-lg font-bold text-slate-900">ผู้ขายวัตถุดิบ</h2><p className="mt-1 text-sm text-slate-500">เก็บรายชื่อ ข้อมูลติดต่อ และดูประวัติการสั่งซื้อรายผู้ขาย</p></div>
+          <Button type="button" onClick={() => setCreatingSupplier(true)}>+ เพิ่มผู้ขาย</Button>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {suppliers.length ? suppliers.map((supplier) => (
+            <article className={`rounded-2xl border p-4 ${supplier.is_active === false ? "border-slate-200 bg-slate-50 opacity-75" : "border-sky-100 bg-white"}`} key={supplier.id}>
+              <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="truncate font-bold text-slate-900">{supplier.name}</h3><p className="mt-1 truncate text-xs text-slate-500">{supplier.contact_name || "ยังไม่ระบุผู้ติดต่อ"}</p></div><span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-bold ${supplier.is_active === false ? "bg-slate-200 text-slate-600" : "bg-emerald-50 text-emerald-700"}`}>{supplier.is_active === false ? "ปิดใช้งาน" : "ใช้งาน"}</span></div>
+              <p className="mt-3 truncate text-sm text-slate-700">{supplier.phone || supplier.email || "ยังไม่มีข้อมูลติดต่อ"}</p>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs"><span className="rounded-xl bg-sky-50 p-2 text-sky-800"><b className="block text-sm">{Number(supplier.purchase_order_count || 0)}</b>ใบสั่งซื้อ</span><span className="rounded-xl bg-violet-50 p-2 text-violet-800"><b className="block text-sm">{Number(supplier.receipt_count || 0)}</b>ใบรับของ</span><span className="rounded-xl bg-amber-50 p-2 text-amber-900"><b className="block text-sm">{money(supplier.total_purchased)}</b>ยอดซื้อ</span></div>
+              {supplier.last_received_at ? <p className="mt-3 text-xs text-slate-500">รับของล่าสุด {dateTimeLabel(supplier.last_received_at)}</p> : null}
+              <div className="mt-3 flex gap-2"><Button type="button" variant="secondary" className="flex-1 text-xs" onClick={() => setEditingSupplier(supplier)}>แก้ไข</Button><Button type="button" variant="secondary" className="flex-1 text-xs" onClick={() => openHistory(supplier)}>ประวัติ</Button></div>
+            </article>
+          )) : <Empty>ยังไม่มีผู้ขาย กด “เพิ่มผู้ขาย” เพื่อเริ่มสร้างฐานข้อมูลผู้ขาย</Empty>}
+        </div>
+      </Card>
+      {creatingSupplier || editingSupplier ? <Modal label={editingSupplier ? "แก้ไขผู้ขาย" : "เพิ่มผู้ขาย"} maxWidth="max-w-2xl" onClose={() => { setCreatingSupplier(false); setEditingSupplier(null); }}><SupplierEditorDialog key={editingSupplier?.id || "new"} supplier={editingSupplier} onSave={saveSupplier} onClose={() => { setCreatingSupplier(false); setEditingSupplier(null); }} /></Modal> : null}
+      {historySupplier ? <Modal label={`ประวัติผู้ขาย ${historySupplier.name}`} maxWidth="max-w-5xl" onClose={() => setHistorySupplier(null)}><Card className="max-h-[calc(100vh-2rem)] overflow-y-auto bg-white"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold text-slate-900">ประวัติ: {historySupplier.name}</h2><p className="mt-1 text-sm text-slate-500">ใบสั่งซื้อและใบรับวัตถุดิบทั้งหมดของผู้ขายรายนี้</p></div>{history?.supplier ? <span className="rounded-full bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-700">ยอดซื้อสะสม {money(history.supplier.total_purchased)}</span> : null}</div>{loadingHistory ? <p className="py-10 text-center text-sm text-slate-500">กำลังโหลดประวัติ…</p> : history ? <div className="mt-5 grid gap-5 lg:grid-cols-2"><section><h3 className="font-bold text-slate-800">ใบสั่งซื้อ ({history.purchase_orders?.length || 0})</h3><div className="mt-3 space-y-2">{history.purchase_orders?.length ? history.purchase_orders.map((order) => <article className="rounded-xl border border-sky-100 p-3" key={order.id}><div className="flex justify-between gap-2"><b>{order.po_no}</b><span className="text-xs font-bold text-sky-700">{purchaseOrderStatusLabel(order.status)}</span></div><p className="mt-1 text-xs text-slate-500">{dateTimeLabel(order.created_at)} · {order.item_count} รายการ</p><p className="mt-1 font-bold text-slate-700">{money(order.total_amount)}</p></article>) : <p className="text-sm text-slate-500">ยังไม่มีใบสั่งซื้อ</p>}</div></section><section><h3 className="font-bold text-slate-800">รับวัตถุดิบเข้า ({history.receipts?.length || 0})</h3><div className="mt-3 space-y-2">{history.receipts?.length ? history.receipts.map((receipt) => <article className="rounded-xl border border-emerald-100 p-3" key={receipt.id}><div className="flex justify-between gap-2"><b>{receipt.receipt_no}</b><span className="text-xs font-bold text-emerald-700">{receipt.item_count} รายการ</span></div><p className="mt-1 text-xs text-slate-500">{dateTimeLabel(receipt.received_at)}</p><p className="mt-1 font-bold text-slate-700">{money(receipt.total_amount)}</p>{receipt.note ? <p className="mt-1 text-xs text-slate-500">{receipt.note}</p> : null}</article>) : <p className="text-sm text-slate-500">ยังไม่มีประวัติรับสินค้า</p>}</div></section></div> : <p className="py-10 text-center text-sm text-rose-600">โหลดประวัติไม่สำเร็จ</p>}</Card></Modal> : null}
+    </>
+  );
+}
+
+function ReceiptHistoryPanel({ receipts }) {
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-slate-900">ประวัติรับวัตถุดิบล่าสุด</h2><p className="mt-1 text-sm text-slate-500">ทุกการรับของจะบันทึกต้นทุน เลขล็อต และวันหมดอายุไว้ในคลัง</p></div><span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">{receipts.length} ใบรับของ</span></div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{receipts.length ? receipts.map((receipt) => <article className="rounded-2xl border border-emerald-100 bg-emerald-50/25 p-4" key={receipt.id}><div className="flex items-start justify-between gap-2"><b className="text-slate-900">{receipt.receipt_no}</b><span className="shrink-0 text-sm font-bold text-emerald-700">{money(receipt.total_amount)}</span></div><p className="mt-1 truncate text-sm text-slate-600">{receipt.supplier_name || "ไม่ระบุผู้ขาย"}</p><p className="mt-2 text-xs text-slate-500">{dateTimeLabel(receipt.received_at)} · {receipt.items?.length || 0} รายการ</p>{receipt.note ? <p className="mt-2 line-clamp-2 text-xs text-slate-500">{receipt.note}</p> : null}</article>) : <Empty>ยังไม่มีประวัติรับวัตถุดิบ</Empty>}</div>
+    </Card>
+  );
+}
+
+function ProcurementPage({ inventoryRows, suppliers, receipts, purchaseOrders, onNavigate, onCreateSupplier, onUpdateSupplier, onFetchSupplierHistory, onCreateReceipt, onCreatePurchaseOrder, onUpdatePurchaseOrderStatus, onReceivePurchaseOrder }) {
+  const [purchaseOrderOpen, setPurchaseOrderOpen] = useState(false);
+  const [receivingOpen, setReceivingOpen] = useState(false);
+  const activeSuppliers = suppliers.filter((supplier) => supplier.is_active !== false).length;
+  const pendingOrders = purchaseOrders.filter((order) => ["DRAFT", "SENT"].includes(order.status)).length;
+  const recentPurchaseTotal = receipts.reduce((sum, receipt) => sum + Number(receipt.total_amount || 0), 0);
+  return (
+    <div className="space-y-5">
+      <Heading title="จัดซื้อและผู้ขาย" description="สร้างใบสั่งซื้อ รับวัตถุดิบเป็นล็อต และติดตามต้นทุนจากผู้ขายในจุดเดียว" action={<div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => setReceivingOpen(true)}>+ รับวัตถุดิบเข้า</Button><Button type="button" onClick={() => setPurchaseOrderOpen(true)}>+ สร้างใบสั่งซื้อ</Button></div>} />
+      <section className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl border border-sky-100 bg-sky-50 p-4"><p className="text-xs font-bold text-sky-700">ผู้ขายที่ใช้งาน</p><b className="mt-1 block text-3xl text-slate-900">{activeSuppliers}</b><p className="mt-1 text-xs text-slate-500">ราย</p></div><div className="rounded-2xl border border-amber-100 bg-amber-50 p-4"><p className="text-xs font-bold text-amber-800">ใบสั่งซื้อที่รอดำเนินการ</p><b className="mt-1 block text-3xl text-slate-900">{pendingOrders}</b><p className="mt-1 text-xs text-slate-500">ฉบับ</p></div><div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4"><p className="text-xs font-bold text-emerald-700">มูลค่ารับของล่าสุด</p><b className="mt-1 block text-3xl text-slate-900">{money(recentPurchaseTotal)}</b><p className="mt-1 text-xs text-slate-500">จาก {receipts.length} ใบรับของล่าสุด</p></div></section>
+      <PurchaseRecommendationPanel inventoryRows={inventoryRows} suppliers={suppliers} onNavigate={onNavigate} onCreatePurchaseOrder={onCreatePurchaseOrder} />
+      <PurchaseOrderHistory orders={purchaseOrders} onUpdateStatus={onUpdatePurchaseOrderStatus} onReceive={onReceivePurchaseOrder} />
+      <div className="grid gap-5 2xl:grid-cols-[1.1fr_0.9fr]"><SupplierManagementPanel suppliers={suppliers} onCreateSupplier={onCreateSupplier} onUpdateSupplier={onUpdateSupplier} onFetchSupplierHistory={onFetchSupplierHistory} /><ReceiptHistoryPanel receipts={receipts} /></div>
+      {purchaseOrderOpen ? <Modal label="สร้างใบสั่งซื้อ" maxWidth="max-w-5xl" onClose={() => setPurchaseOrderOpen(false)}><PurchaseOrderCreateDialog rows={inventoryRows} suppliers={suppliers} onCreate={onCreatePurchaseOrder} onClose={() => setPurchaseOrderOpen(false)} /></Modal> : null}
+      {receivingOpen ? <Modal label="รับวัตถุดิบเข้าคลัง" maxWidth="max-w-6xl" onClose={() => setReceivingOpen(false)}><StockReceivingPanel rows={inventoryRows} suppliers={suppliers} receipts={receipts} onCreateSupplier={onCreateSupplier} onCreateReceipt={onCreateReceipt} onClose={() => setReceivingOpen(false)} /></Modal> : null}
     </div>
   );
 }
@@ -5014,6 +5303,8 @@ export default function GlassLayout({
   onRestock,
   onAdjustInventory,
   onCreateSupplier,
+  onUpdateSupplier,
+  onFetchSupplierHistory,
   onCreateStockReceipt,
   onCreatePurchaseOrder,
   onUpdatePurchaseOrderStatus,
@@ -5078,10 +5369,26 @@ export default function GlassLayout({
         onCreateSupplier={onCreateSupplier}
         onCreateReceipt={onCreateStockReceipt}
       />
+    ) : activeView === "procurement" && user?.role === "admin" ? (
+      <ProcurementPage
+        inventoryRows={inventoryRows}
+        suppliers={suppliers}
+        receipts={stockReceipts}
+        purchaseOrders={purchaseOrders}
+        onNavigate={setActiveView}
+        onCreateSupplier={onCreateSupplier}
+        onUpdateSupplier={onUpdateSupplier}
+        onFetchSupplierHistory={onFetchSupplierHistory}
+        onCreateReceipt={onCreateStockReceipt}
+        onCreatePurchaseOrder={onCreatePurchaseOrder}
+        onUpdatePurchaseOrderStatus={onUpdatePurchaseOrderStatus}
+        onReceivePurchaseOrder={onReceivePurchaseOrder}
+      />
     ) : activeView === "menu" ? (
       <MenusPage
         products={products}
         ingredients={inventoryRows}
+        channels={channels}
         onCreate={onCreateMenu}
         onUpdate={onUpdateMenu}
         onDelete={onDeleteMenu}

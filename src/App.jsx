@@ -875,6 +875,35 @@ function AppContent() {
     }
     return null;
   };
+  const updateSupplier = async (supplierId, supplier) => {
+    try {
+      const response = await axios.put(`${API_BASE}/api/inventory/suppliers/${supplierId}`, supplier);
+      if (response.data?.success) {
+        const updated = response.data.data;
+        setSuppliers((current) => current
+          .map((item) => String(item.id) === String(updated.id) ? { ...item, ...updated } : item)
+          .sort((left, right) => left.name.localeCompare(right.name, "th")));
+        setNotice(`SUPPLIER UPDATED · ${updated.name.toUpperCase()}`);
+        return updated;
+      }
+    } catch (error) {
+      showError(error, "ไม่สามารถแก้ไขข้อมูลผู้ขายได้");
+      console.warn("Supplier update failed.", error);
+    }
+    return null;
+  };
+  const fetchSupplierHistory = async (supplierId) => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/inventory/suppliers/${supplierId}/history`, {
+        params: { limit: 100 },
+      });
+      return response.data?.success ? response.data.data : null;
+    } catch (error) {
+      showError(error, "ไม่สามารถโหลดประวัติผู้ขายได้");
+      console.warn("Supplier history refresh failed.", error);
+    }
+    return null;
+  };
   const createStockReceipt = async (receipt) => {
     try {
       const response = await axios.post(`${API_BASE}/api/inventory/receipts`, receipt);
@@ -1297,6 +1326,8 @@ function AppContent() {
         onRestock={handleRestock}
         onAdjustInventory={adjustInventory}
         onCreateSupplier={createSupplier}
+        onUpdateSupplier={updateSupplier}
+        onFetchSupplierHistory={fetchSupplierHistory}
         onCreateStockReceipt={createStockReceipt}
         onCreatePurchaseOrder={createPurchaseOrder}
         onUpdatePurchaseOrderStatus={updatePurchaseOrderStatus}
