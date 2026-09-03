@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
 import MenuModifierPicker from "./MenuModifierPicker";
+import CashShiftDialog from "./CashShiftDialog";
 import { menuAvailability, menuAvailabilityLabel } from "../../utils/menuAvailability";
 import { printReceipt } from "../../utils/printReceipt";
 import { useActionDialog } from "./ActionDialog";
@@ -99,7 +100,7 @@ export default function StaffWorkspace({
   onUpdate,
   onLogout,
 }) {
-  const { requestInput, showMessage } = useActionDialog();
+  const { showMessage } = useActionDialog();
   const [channelId, setChannelId] = useState(channels[0]?.id || "");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerNickname, setCustomerNickname] = useState("");
@@ -108,6 +109,7 @@ export default function StaffWorkspace({
   const [loyaltyError, setLoyaltyError] = useState("");
   const [cart, setCart] = useState([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [cashShiftDialog, setCashShiftDialog] = useState(null);
   const [pendingProduct, setPendingProduct] = useState(null);
   const [editingCartKey, setEditingCartKey] = useState(null);
   const [discountType, setDiscountType] = useState("amount");
@@ -327,40 +329,19 @@ export default function StaffWorkspace({
       return null;
     }
   };
-  const manageCashShift = async () => {
-    if (currentShift) {
-      const closingCash = await requestInput({
-        title: "ปิดกะเงินสด",
-        message: `ยอดเงินสดที่คาดการณ์ ${money(Number(currentShift.opening_cash || 0) + Number(currentShift.cash_sales || 0))}`,
-        fieldLabel: "ยอดเงินสดที่นับได้",
-        inputType: "number",
-        min: "0",
-        step: "0.01",
-        confirmLabel: "ปิดกะ",
-      });
-      if (closingCash === null) return;
-      const closed = await onCloseCashShift?.(currentShift.id, closingCash);
-      if (closed) {
-        showMessage({
-          tone: "success",
-          title: "ปิดกะเงินสดแล้ว",
-          message: `ยอดคาดการณ์ ${money(closed.expected_cash)}\nยอดต่าง ${money(closed.difference_amount)}`,
-        });
-      }
-      return;
+  const manageCashShift = () => setCashShiftDialog({
+    mode: currentShift ? "close" : "open",
+    shift: currentShift || null,
+  });
+  const saveCashShift = async ({ cash, note }) => {
+    if (cashShiftDialog?.mode === "close" && cashShiftDialog.shift) {
+      const closed = await onCloseCashShift?.(cashShiftDialog.shift.id, cash, note);
+      if (closed) showMessage({ tone: "success", title: "ปิดกะเงินสดแล้ว", message: `ยอดคาดการณ์ ${money(closed.expected_cash)}\nยอดต่าง ${money(closed.difference_amount)}` });
+      return closed;
     }
-    const openingCash = await requestInput({
-      title: "เปิดกะเงินสด",
-      message: "ระบุเงินทอนที่ใช้เริ่มกะ",
-      fieldLabel: "เงินทอนเริ่มกะ",
-      initialValue: "0",
-      inputType: "number",
-      min: "0",
-      step: "0.01",
-      confirmLabel: "เปิดกะ",
-    });
-    if (openingCash === null) return;
-    await onOpenCashShift?.(openingCash);
+    const opened = await onOpenCashShift?.(cash, note);
+    if (opened) showMessage({ tone: "success", title: "เปิดกะเงินสดแล้ว", message: `เงินทอนเริ่มกะ ${money(opened.opening_cash)}` });
+    return opened;
   };
   const submit = async () => {
     if (!cart.length) return;
@@ -961,6 +942,7 @@ export default function StaffWorkspace({
           }}
         />
       ) : null}
+      {cashShiftDialog ? <CashShiftDialog mode={cashShiftDialog.mode} shift={cashShiftDialog.shift} onClose={() => setCashShiftDialog(null)} onSubmit={saveCashShift} /> : null}
     </div>
   );
 }
