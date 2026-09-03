@@ -34,8 +34,7 @@ export default function LoginScreen({ onLogin, onRegister, onAnonymous, onHome }
       </div>
       <div className="p-6 sm:p-10"><button className="mb-6 inline-flex items-center gap-1 rounded-lg px-1 py-1.5 text-sm font-bold text-sky-700 transition hover:text-sky-900 hover:underline focus:outline-none focus:ring-4 focus:ring-sky-100" type="button" onClick={onHome}>← หน้าหลัก</button>
         <div className="flex items-center gap-3 md:hidden"><span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-600 font-black text-white">S</span><strong className="text-slate-900">STOCKPOS</strong></div>
-        <p className="mt-8 text-xs font-bold uppercase tracking-[0.14em] text-sky-600 md:mt-0">Secure access</p>
-        <h2 className="mt-2 text-2xl font-bold text-slate-900">{mode === "login" ? "เข้าสู่ระบบ" : "สมัครบัญชีผู้ใช้งาน"}</h2>
+        <h2 className="mt-8 text-2xl font-bold text-slate-900 md:mt-0">{mode === "login" ? "เข้าสู่ระบบ" : "สมัครบัญชีผู้ใช้งาน"}</h2>
         <p className="mt-1 text-sm text-slate-500">{mode === "login" ? "ใช้ชื่อผู้ใช้และรหัสผ่านที่ผู้ดูแลกำหนดไว้ในฐานข้อมูล" : "กรอกชื่อและเบอร์โทร เพื่อผูกออเดอร์กับบัญชีของคุณ"}</p>
         <form className="mt-6 grid gap-4" onSubmit={submit}>
           {mode === "register" && <><label className="grid gap-1.5 text-xs font-semibold text-slate-600">ชื่อที่แสดง<input className={inputClass} autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="เช่น สมชาย ใจดี" minLength="2" required /></label><label className="grid gap-1.5 text-xs font-semibold text-slate-600">เบอร์โทรศัพท์<input className={inputClass} autoComplete="tel" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="เช่น 0812345678" minLength="9" maxLength="20" required /></label></>}

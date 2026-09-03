@@ -1,7 +1,7 @@
 {
   "files": {
-    "main.css": "/static/css/main.4d84f54b.css",
-    "main.js": "/static/js/main.9c9369a3.js",
+    "main.css": "/static/css/main.b2db00ef.css",
+    "main.js": "/static/js/main.5fd7b75b.js",
     "static/media/customer-order-history.png": "/static/media/customer-order-history.12db1be5d198294c2a8f.png",
     "static/media/guest-order-lookup.png": "/static/media/guest-order-lookup.6bbb4c3a3ba31aa3e872.png",
     "static/media/coffee-barista-kin-cha-kan-sky.png": "/static/media/coffee-barista-kin-cha-kan-sky.72fd5f2d109843259a61.png",
@@ -10,11 +10,11 @@
     "static/media/operations-dollhouse-room-blended.png": "/static/media/operations-dollhouse-room-blended.f8e791e0ccac7a104455.png",
     "static/media/operations-office-coordinator.png": "/static/media/operations-office-coordinator.817b56743ba23d2ea996.png",
     "index.html": "/index.html",
-    "main.4d84f54b.css.map": "/static/css/main.4d84f54b.css.map",
-    "main.9c9369a3.js.map": "/static/js/main.9c9369a3.js.map"
+    "main.b2db00ef.css.map": "/static/css/main.b2db00ef.css.map",
+    "main.5fd7b75b.js.map": "/static/js/main.5fd7b75b.js.map"
   },
   "entrypoints": [
-    "static/css/main.4d84f54b.css",
-    "static/js/main.9c9369a3.js"
+    "static/css/main.b2db00ef.css",
+    "static/js/main.5fd7b75b.js"
   ]
 }

@@ -12,6 +12,7 @@ import { useActionDialog } from "./ActionDialog";
 
 const navigation = [
   { id: "pos", icon: "▣", label: "ขายและออเดอร์" },
+  { id: "cash-shifts", icon: "◴", label: "เปิด/ปิดกะเงินสด", adminOnly: true },
   { id: "kitchen", icon: "☕", label: "จอเตรียมสินค้า" },
   { id: "operations", icon: "◉", label: "ศูนย์ปฏิบัติการ" },
   { id: "alerts", icon: "⚠", label: "แจ้งเตือน" },
@@ -126,14 +127,11 @@ function Status({ status }) {
   );
 }
 
-function Heading({ eyebrow, title, description, action }) {
+function Heading({ title, description, action }) {
   return (
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">
-          {eyebrow}
-        </p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
           {title}
         </h1>
         {description && (
@@ -214,7 +212,6 @@ function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
   return (
     <div className="space-y-5">
       <Heading
-        eyebrow="Order management"
         title={preview ? "ออเดอร์ล่าสุด" : "รายการออเดอร์ทั้งหมด"}
         description={preview ? `แสดง 5 รายการล่าสุดจากทั้งหมด ${orders.length} รายการ` : "ติดตามสถานะออเดอร์ทั้งหมดจากจุดเดียว"}
         action={headingAction}
@@ -387,7 +384,6 @@ function KitchenDisplayPage({ orders, onUpdate }) {
   return (
     <div className="space-y-5">
       <Heading
-        eyebrow="Kitchen display"
         title="จอเตรียมสินค้า"
         description="จัดการคิวแบบสองขั้น: กำลังทำ → พร้อมรับ → ส่งมอบแล้ว"
         action={<span className="rounded-full bg-sky-100 px-3 py-2 text-sm font-bold text-sky-700">{activeOrders.length} คิวที่ต้องดูแล</span>}
@@ -699,7 +695,6 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
     <div className="space-y-5">
       <div>
         <Heading
-          eyebrow="Point of sale"
           title="เปิดรายการขาย"
           description="เลือกช่องทางและเมนู แล้วส่งออเดอร์ได้ทันที"
           action={
@@ -721,30 +716,32 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
           }
         />
         <LowStockMenuAlert products={products} className="mb-5" />
-        <Card>
+        <Card className="!p-3 sm:!p-4">
           <fieldset>
-            <legend className="mb-3 text-sm font-bold text-slate-800">
+            <legend className="mb-2 text-xs font-bold text-slate-700">
               ช่องทางการขาย
             </legend>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {activeChannels.map((channel) => (
-                <label
-                  className={`flex cursor-pointer items-center justify-between rounded-xl border px-3 py-3 transition ${String(channel.id) === String(channelId) ? "border-sky-500 bg-sky-50" : "border-sky-100 hover:border-sky-300"}`}
-                  key={channel.id}
-                >
-                  <span className="text-sm font-semibold text-slate-700">
+            <div className="flex flex-wrap gap-2">
+              {activeChannels.map((channel) => {
+                const selected = String(channel.id) === String(channelId);
+                return (
+                  <label
+                    className={`inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition focus-within:ring-4 ${selected ? "border-sky-500 bg-sky-50 text-sky-800 focus-within:ring-sky-100" : "border-sky-100 bg-white text-slate-700 hover:border-sky-300 focus-within:ring-sky-100"}`}
+                    key={channel.id}
+                  >
+                    <input
+                      className="sr-only"
+                      type="radio"
+                      name="channel"
+                      checked={selected}
+                      onChange={() => setChannelId(channel.id)}
+                    />
+                    <span aria-hidden="true" className={`grid h-4 w-4 place-items-center rounded-full border text-[10px] ${selected ? "border-sky-600 bg-sky-600 text-white" : "border-slate-300 bg-white text-transparent"}`}>✓</span>
                     {channel.name}
-                  </span>
-                  <input
-                    className="h-4 w-4 accent-sky-600"
-                    type="radio"
-                    name="channel"
-                    checked={String(channel.id) === String(channelId)}
-                    onChange={() => setChannelId(channel.id)}
-                  />
-                </label>
-              ))}
-              {!activeChannels.length ? <p className="text-sm text-rose-600 sm:col-span-2">ยังไม่มีช่องทางขายที่เปิดใช้งาน กรุณาให้ Admin เปิดหรือเพิ่มช่องทางขายก่อน</p> : null}
+                  </label>
+                );
+              })}
+              {!activeChannels.length ? <p className="text-sm text-rose-600">ยังไม่มีช่องทางขายที่เปิดใช้งาน กรุณาให้ Admin เปิดหรือเพิ่มช่องทางขายก่อน</p> : null}
             </div>
           </fieldset>
         </Card>
@@ -755,26 +752,26 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
               {products.length} รายการ
             </span>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {products.map((product) => {
               const availability = menuAvailability(product);
               return (
                 <button
-                  className={`min-w-0 rounded-2xl border p-4 text-left transition focus:outline-none focus:ring-4 ${availability.isAvailable ? "border-sky-100 bg-sky-50/40 hover:border-sky-400 hover:bg-sky-50 focus:ring-sky-100" : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-65 focus:ring-slate-100"}`}
+                  className={`min-w-0 rounded-xl border p-3 text-left transition focus:outline-none focus:ring-4 ${availability.isAvailable ? "border-sky-100 bg-sky-50/40 hover:border-sky-400 hover:bg-sky-50 focus:ring-sky-100" : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-65 focus:ring-slate-100"}`}
                   disabled={!availability.isAvailable}
                   key={product.id}
                   onClick={() => addItem(product)}
                 >
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-lg shadow-sm">
+                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-base shadow-sm">
                     {product.icon || "▦"}
                   </span>
-                  <p className="mt-3 truncate font-bold text-slate-800">
+                  <p className="mt-2 truncate text-sm font-bold text-slate-800">
                     {product.name}
                   </p>
-                  <p className="mt-1 text-sm font-semibold text-sky-700">
+                  <p className="mt-0.5 text-xs font-semibold text-sky-700">
                     {money(product.price_retail)}
                   </p>
-                  <p className={`mt-2 text-xs font-semibold ${availability.isAvailable ? "text-emerald-700" : "text-rose-600"}`}>
+                  <p className={`mt-1 truncate text-[11px] font-semibold ${availability.isAvailable ? "text-emerald-700" : "text-rose-600"}`}>
                     {menuAvailabilityLabel(product)}
                   </p>
                 </button>
@@ -1150,8 +1147,7 @@ function StockReceivingPanel({ rows, suppliers, receipts, onCreateSupplier, onCr
     <Card>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">Purchase receiving</p>
-          <h2 className="mt-1 text-lg font-bold text-slate-900">รับวัตถุดิบเข้าคลัง</h2>
+          <h2 className="text-lg font-bold text-slate-900">รับวัตถุดิบเข้าคลัง</h2>
           <p className="mt-1 text-sm text-slate-500">บันทึกผู้ขาย จำนวน ต้นทุน และปรับต้นทุนเฉลี่ยให้อัตโนมัติ</p>
         </div>
         <span className="rounded-full bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-700">รวม {money(total)}</span>
@@ -1276,8 +1272,7 @@ function InventoryAdjustmentPanel({ item, onSubmit, onClose }) {
     <Card className="border-amber-200 bg-amber-50/30">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">Stock control</p>
-          <h2 className="mt-1 text-lg font-bold text-slate-900">ตรวจนับ / บันทึกของเสีย: {item.name}</h2>
+          <h2 className="text-lg font-bold text-slate-900">ตรวจนับ / บันทึกของเสีย: {item.name}</h2>
           <p className="mt-1 text-sm text-slate-500">ยอดในระบบ {Number(item.stock_qty ?? item.stock ?? 0)} {item.unit || "หน่วย"}</p>
         </div>
         <Button type="button" variant="secondary" onClick={onClose}>ปิด</Button>
@@ -1317,8 +1312,7 @@ function InventoryLotsPanel({ item, lots, onClose }) {
     <Card className="border-violet-200 bg-violet-50/30">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-700">Lot tracking · FEFO</p>
-          <h2 className="mt-1 text-lg font-bold text-slate-900">ล็อตคงเหลือ: {item.name}</h2>
+          <h2 className="text-lg font-bold text-slate-900">ล็อตคงเหลือ: {item.name}</h2>
           <p className="mt-1 text-sm text-slate-500">ระบบจะตัดล็อตที่หมดอายุก่อนโดยอัตโนมัติ</p>
         </div>
         <Button type="button" variant="secondary" onClick={onClose}>ปิด</Button>
@@ -1389,7 +1383,6 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
   return (
     <div className="space-y-5">
       <Heading
-        eyebrow="Inventory"
         title="วัตถุดิบ"
         description="เพิ่ม แก้ไข และติดตามสต็อกวัตถุดิบ"
         action={
@@ -1414,8 +1407,7 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
       <Card className="border-sky-200 bg-sky-50/50">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-700">Purchase receiving</p>
-            <h2 className="mt-1 text-lg font-bold text-slate-900">รับวัตถุดิบเข้าคลัง</h2>
+            <h2 className="text-lg font-bold text-slate-900">รับวัตถุดิบเข้าคลัง</h2>
             <p className="mt-1 text-sm text-slate-500">บันทึกผู้ขาย จำนวน ต้นทุน และเลขล็อตในหน้าต่างแยก</p>
           </div>
           <Button type="button" onClick={() => setReceivingOpen(true)}>+ รับวัตถุดิบเข้าคลัง</Button>
@@ -1758,7 +1750,6 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
   return (
     <div className="space-y-5">
       <Heading
-        eyebrow="Catalog"
         title="เมนูสินค้า"
         description="จัดการเมนูขายและสูตรวัตถุดิบ แยกจากหน้าคลังสินค้า"
         action={
@@ -1783,58 +1774,53 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
               {products.length} รายการ
             </span>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {products.length ? (
               products.map((product) => {
                 const availability = menuAvailability(product);
                 return (
                   <article
-                    className="rounded-2xl border border-sky-100 p-4"
+                    className="rounded-xl border border-sky-100 p-3"
                     key={product.id}
                   >
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="grid h-11 w-11 place-items-center rounded-xl bg-sky-50 text-xl">
+                  <div className="flex items-start gap-2">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-50 text-lg">
                       {product.icon || "▦"}
                     </span>
-                    <strong className="text-sky-700">
-                      {money(product.price_retail)}
-                    </strong>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-sm font-bold text-slate-900">
+                        {product.name}
+                      </h3>
+                      <p className="truncate text-[11px] text-slate-500">
+                        {product.category || "ไม่มีหมวดหมู่"}
+                      </p>
+                    </div>
+                    <strong className="shrink-0 text-sm text-sky-700">{money(product.price_retail)}</strong>
                   </div>
-                  <h3 className="mt-4 truncate font-bold text-slate-900">
-                    {product.name}
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {product.category || "ไม่มีหมวดหมู่"}
-                  </p>
-                  <p className="mt-2 text-xs text-slate-500">
-                    สูตร {product.recipe?.length || 0} วัตถุดิบ
-                  </p>
-                  <p className="mt-1 text-xs text-violet-600">
-                    ตัวเลือก {product.modifier_groups?.length || 0} กลุ่ม
-                  </p>
-                  <p className={`mt-2 text-xs font-bold ${availability.isAvailable ? "text-emerald-700" : "text-rose-600"}`}>
-                    {menuAvailabilityLabel(product)}
-                  </p>
-                  {!availability.isAvailable && !availability.manuallySoldOut ? (
-                    <p className="mt-1 text-xs text-slate-500">เปิดขายได้อัตโนมัติเมื่อมีล็อตวัตถุดิบที่ยังไม่หมดอายุเพียงพอ</p>
-                  ) : null}
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
+                    <span className="rounded-md bg-slate-100 px-1.5 py-1 text-slate-600">สูตร {product.recipe?.length || 0}</span>
+                    <span className="rounded-md bg-violet-50 px-1.5 py-1 text-violet-700">ตัวเลือก {product.modifier_groups?.length || 0}</span>
+                    <span className={`rounded-md px-1.5 py-1 font-bold ${availability.isAvailable ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-600"}`}>
+                      {menuAvailabilityLabel(product)}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_auto] gap-1">
                     <Button
-                      className="flex-1 text-xs"
+                      className="rounded-lg !px-2 !py-1.5 text-xs"
                       variant="secondary"
                       onClick={() => edit(product)}
                     >
                       แก้ไข
                     </Button>
                     <Button
-                      className="text-xs"
+                      className="rounded-lg !px-2 !py-1.5 text-xs"
                       variant={availability.manuallySoldOut ? "primary" : "secondary"}
                       onClick={() => onSetAvailability(product, !availability.manuallySoldOut)}
                     >
                       {availability.manuallySoldOut ? "เปิดขาย" : "ปิดขาย"}
                     </Button>
                     <Button
-                      className="text-xs"
+                      className="rounded-lg !px-2 !py-1.5 text-xs"
                       variant="danger"
                       onClick={() => onDelete(product)}
                     >
@@ -2244,7 +2230,6 @@ function LegacyFinancePage({
   return (
     <div className="space-y-5">
       <Heading
-        eyebrow="Finance"
         title="การเงินและบันทึกยอดขาย"
         description="ติดตามยอดขาย เพิ่มรายการขาย และจัดการค่าใช้จ่าย"
       />
@@ -2779,8 +2764,7 @@ function PurchaseRecommendationPanel({ inventoryRows, suppliers, onNavigate, onC
     <Card>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">Purchase suggestion</p>
-          <h2 className="mt-1 text-lg font-bold text-slate-900">รายการสั่งซื้อแนะนำ</h2>
+          <h2 className="text-lg font-bold text-slate-900">รายการสั่งซื้อแนะนำ</h2>
           <p className="mt-1 text-sm text-slate-500">ระบบคำนวณให้กลับไปมีอย่างน้อย 2 เท่าของจุดแจ้งเตือน</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -2856,8 +2840,7 @@ function ReceivePurchaseOrderPanel({ order, onClose, onReceive }) {
     <Card className="border-emerald-200 bg-emerald-50/30">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Purchase order receiving</p>
-          <h2 className="mt-1 text-lg font-bold text-slate-900">ตรวจรับสินค้า: {order.po_no}</h2>
+          <h2 className="text-lg font-bold text-slate-900">ตรวจรับสินค้า: {order.po_no}</h2>
           <p className="mt-1 text-sm text-slate-600">ตรวจจำนวนและต้นทุนจริงก่อนรับเข้า พร้อมระบุเลขล็อตหรือวันหมดอายุได้</p>
         </div>
         <div className="flex items-center gap-2">
@@ -2927,8 +2910,7 @@ function PurchaseOrderHistory({ orders, onUpdateStatus, onReceive }) {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">Purchase orders</p>
-            <h2 className="mt-1 text-lg font-bold text-slate-900">ใบสั่งซื้อล่าสุด</h2>
+            <h2 className="text-lg font-bold text-slate-900">ใบสั่งซื้อล่าสุด</h2>
           </div>
           <span className="rounded-full bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700">{orders.length} ฉบับ</span>
         </div>
@@ -2973,7 +2955,6 @@ function AlertsPage({ products, inventoryRows, inventoryLots, suppliers, purchas
   return (
     <div className="space-y-5">
       <Heading
-        eyebrow="Live alerts"
         title="ศูนย์แจ้งเตือน"
         description="รวมสัญญาณที่ต้องดำเนินการจากเมนู วัตถุดิบ และล็อตคงเหลือ"
         action={<span className={`rounded-full px-3 py-2 text-xs font-bold ${criticalCount ? "bg-rose-50 text-rose-700" : alerts.length ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>{criticalCount ? `${criticalCount} รายการเร่งด่วน` : alerts.length ? `${alerts.length} รายการต้องติดตาม` : "● ทุกอย่างปกติ"}</span>}
@@ -3247,8 +3228,7 @@ function CouponManagementPanel({ coupons, onCreate, onUpdate }) {
       {couponModalOpen ? (
       <Modal label={editingId ? "แก้ไขคูปอง" : "สร้างคูปอง"} maxWidth="max-w-2xl" onClose={() => { setCoupon(blankCoupon()); setEditingId(null); setCouponModalOpen(false); }}>
       <Card className="border-violet-200 bg-violet-50/30">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-700">Coupon management</p>
-        <h2 className="mt-1 text-lg font-bold text-slate-900">{editingId ? "แก้ไขคูปอง" : "สร้างคูปอง"}</h2>
+        <h2 className="text-lg font-bold text-slate-900">{editingId ? "แก้ไขคูปอง" : "สร้างคูปอง"}</h2>
         <p className="mt-1 text-sm text-slate-500">กำหนดส่วนลด เงื่อนไข และช่วงเวลาการใช้งาน</p>
         <form className="mt-4 grid gap-3" onSubmit={submit}>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -3303,8 +3283,7 @@ function CouponManagementPanel({ coupons, onCreate, onUpdate }) {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-700">Available promotions</p>
-            <h2 className="mt-1 text-lg font-bold text-slate-900">คูปองในระบบ</h2>
+            <h2 className="text-lg font-bold text-slate-900">คูปองในระบบ</h2>
           </div>
           <div className="flex items-center gap-2"><span className="rounded-full bg-violet-50 px-3 py-1.5 text-sm font-bold text-violet-700">{coupons.length} รายการ</span><Button type="button" onClick={openCreate}>+ สร้างคูปอง</Button></div>
         </div>
@@ -3343,7 +3322,6 @@ function CouponPage({ coupons, onCreateCoupon, onUpdateCoupon }) {
   return (
     <div className="space-y-5">
       <Heading
-        eyebrow="Promotion management"
         title="จัดการคูปอง"
         description="สร้าง แก้ไข เปิดหรือปิดคูปอง และกำหนดเงื่อนไขการใช้งาน"
       />
@@ -3395,7 +3373,6 @@ function SalesChannelsPage({ channels, onCreateChannel, onUpdateChannel }) {
   return (
     <div className="space-y-5">
       <Heading
-        eyebrow="Sales channel settings"
         title="ช่องทางขาย"
         description="กำหนดช่องทางที่เลือกได้ใน POS และเปอร์เซ็นต์ค่าธรรมเนียมที่หักจากรายรับ"
         action={<Button type="button" onClick={() => { setChannel(blankChannel()); setEditingId(null); setFormOpen(true); }}>+ เพิ่มช่องทางขาย</Button>}
@@ -3411,8 +3388,7 @@ function SalesChannelsPage({ channels, onCreateChannel, onUpdateChannel }) {
             <Card className={active ? "" : "border-slate-200 bg-slate-50/70"} key={item.id}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-700">Sales channel</p>
-                  <h2 className="mt-1 text-lg font-bold text-slate-900">{item.name}</h2>
+                  <h2 className="text-lg font-bold text-slate-900">{item.name}</h2>
                 </div>
                 <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${active ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>{active ? "เปิดใช้งาน" : "ปิดใช้งาน"}</span>
               </div>
@@ -3446,7 +3422,99 @@ function SalesChannelsPage({ channels, onCreateChannel, onUpdateChannel }) {
   );
 }
 
-function CashShiftAuditPanel({ shifts }) {
+function CashShiftPage({ currentShift, shifts, onOpenCashShift, onCloseCashShift, onRefresh }) {
+  const { requestInput, showMessage } = useActionDialog();
+  const [refreshing, setRefreshing] = useState(false);
+  const expectedCash = currentShift
+    ? Number(currentShift.opening_cash || 0) + Number(currentShift.cash_sales || 0)
+    : 0;
+  const openShift = async () => {
+    const openingCash = await requestInput({
+      title: "เปิดกะเงินสด",
+      message: "ระบุเงินทอนที่ใช้เริ่มกะ เพื่อให้ระบบคำนวณยอดเงินสดที่ควรมีได้ถูกต้อง",
+      fieldLabel: "เงินทอนเริ่มกะ",
+      initialValue: "0",
+      inputType: "number",
+      min: "0",
+      step: "0.01",
+      confirmLabel: "เปิดกะ",
+    });
+    if (openingCash === null) return;
+    const opened = await onOpenCashShift?.(openingCash);
+    if (opened) {
+      showMessage({
+        tone: "success",
+        title: "เปิดกะเงินสดแล้ว",
+        message: `เงินทอนเริ่มกะ ${money(opened.opening_cash)}`,
+      });
+    }
+  };
+  const closeShift = async (shift) => {
+    const expected = Number(shift.expected_cash ?? Number(shift.opening_cash || 0) + Number(shift.cash_sales || 0));
+    const closingCash = await requestInput({
+      title: "ปิดกะเงินสด",
+      message: `ยอดเงินสดที่คาดการณ์ ${money(expected)}`,
+      fieldLabel: "ยอดเงินสดที่นับได้",
+      initialValue: expected.toFixed(2),
+      inputType: "number",
+      min: "0",
+      step: "0.01",
+      confirmLabel: "ยืนยันปิดกะ",
+    });
+    if (closingCash === null) return;
+    const closed = await onCloseCashShift?.(shift.id, closingCash);
+    if (closed) {
+      showMessage({
+        tone: "success",
+        title: "ปิดกะเงินสดแล้ว",
+        message: `ยอดคาดการณ์ ${money(closed.expected_cash)}\nยอดต่าง ${money(closed.difference_amount)}`,
+      });
+    }
+  };
+  const refresh = async () => {
+    setRefreshing(true);
+    await onRefresh?.();
+    setRefreshing(false);
+  };
+  return (
+    <div className="space-y-5">
+      <Heading
+        title="เปิด/ปิดกะเงินสด"
+        description="จัดการเงินทอนเริ่มกะ ตรวจยอดขายเงินสด และบันทึกยอดนับเมื่อปิดกะ"
+        action={<Button type="button" variant="secondary" disabled={refreshing} onClick={refresh}>{refreshing ? "กำลังรีเฟรช…" : "รีเฟรชข้อมูล"}</Button>}
+      />
+      <Card className={currentShift ? "border-emerald-200 bg-emerald-50/45" : "border-amber-200 bg-amber-50/45"}>
+        {currentShift ? (
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">● กะกำลังเปิด</span>
+              <h2 className="mt-3 text-lg font-bold text-slate-900">กะ #{currentShift.id}</h2>
+              <p className="mt-1 text-sm text-slate-600">เปิดเมื่อ {dateTimeLabel(currentShift.opened_at)}</p>
+              <div className="mt-4 grid grid-cols-3 gap-2 sm:max-w-lg">
+                <div className="rounded-xl bg-white/80 p-3"><p className="text-[11px] text-slate-500">เงินทอนเริ่มกะ</p><strong className="mt-1 block text-sm text-slate-800">{money(currentShift.opening_cash)}</strong></div>
+                <div className="rounded-xl bg-white/80 p-3"><p className="text-[11px] text-slate-500">ขายเงินสด</p><strong className="mt-1 block text-sm text-sky-700">{money(currentShift.cash_sales)}</strong></div>
+                <div className="rounded-xl bg-white/80 p-3"><p className="text-[11px] text-slate-500">ยอดที่ควรมี</p><strong className="mt-1 block text-sm text-emerald-700">{money(expectedCash)}</strong></div>
+              </div>
+            </div>
+            <Button type="button" variant="secondary" onClick={() => closeShift(currentShift)}>ปิดกะเงินสด</Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">รอเปิดกะ</span>
+              <h2 className="mt-3 text-lg font-bold text-slate-900">ยังไม่มีกะเงินสดที่เปิดอยู่</h2>
+              <p className="mt-1 text-sm text-slate-600">เปิดกะก่อนรับชำระเงินสดจากหน้า POS</p>
+            </div>
+            <Button type="button" onClick={openShift}>เปิดกะเงินสด</Button>
+          </div>
+        )}
+      </Card>
+      <CashShiftAuditPanel shifts={shifts} onCloseShift={closeShift} />
+    </div>
+  );
+}
+
+function CashShiftAuditPanel({ shifts, onCloseShift }) {
   const history = Array.isArray(shifts) ? shifts : [];
   const closedShifts = history.filter((shift) => shift.status === "CLOSED");
   const cashSales = history.reduce((total, shift) => total + Number(shift.cash_sales || 0), 0);
@@ -3457,10 +3525,7 @@ function CashShiftAuditPanel({ shifts }) {
   return (
     <section className="grid gap-5 2xl:grid-cols-[0.75fr_1.25fr]">
       <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-white">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">
-          Cash shift audit
-        </p>
-        <h2 className="mt-1 text-lg font-bold text-slate-900">ตรวจสอบกะเงินสด</h2>
+        <h2 className="text-lg font-bold text-slate-900">ตรวจสอบกะเงินสด</h2>
         <p className="mt-1 text-sm text-slate-600">
           ดูประวัติ 50 กะล่าสุด พร้อมยอดคาดการณ์และยอดต่างก่อนส่งเงิน
         </p>
@@ -3486,8 +3551,7 @@ function CashShiftAuditPanel({ shifts }) {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">Shift history</p>
-            <h2 className="mt-1 text-lg font-bold text-slate-900">ประวัติปิดกะ</h2>
+            <h2 className="text-lg font-bold text-slate-900">ประวัติปิดกะ</h2>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-bold text-slate-700">
             {history.length} รายการ
@@ -3509,9 +3573,12 @@ function CashShiftAuditPanel({ shifts }) {
                     <p className="mt-1 text-xs text-slate-500">เปิดกะ {dateTimeLabel(shift.opened_at)}</p>
                     {!isOpen ? <p className="mt-1 text-xs text-slate-500">ปิดกะ {dateTimeLabel(shift.closed_at)} · {shift.closed_by_name || "ไม่ระบุผู้ปิดกะ"}</p> : null}
                   </div>
-                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${isOpen ? "bg-amber-100 text-amber-800" : "bg-emerald-50 text-emerald-700"}`}>
-                    {isOpen ? "กำลังเปิดกะ" : "ปิดกะแล้ว"}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${isOpen ? "bg-amber-100 text-amber-800" : "bg-emerald-50 text-emerald-700"}`}>
+                      {isOpen ? "กำลังเปิดกะ" : "ปิดกะแล้ว"}
+                    </span>
+                    {isOpen && onCloseShift ? <Button type="button" className="!px-2 !py-1 text-xs" variant="secondary" onClick={() => onCloseShift(shift)}>ปิดกะ</Button> : null}
+                  </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4">
                   <div><p className="text-xs text-slate-500">เงินทอนเริ่มกะ</p><strong className="text-slate-800">{money(shift.opening_cash)}</strong></div>
@@ -3539,8 +3606,7 @@ function SalesBreakdownPanel({ data, selectedDate }) {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-700">Sales channels</p>
-            <h2 className="mt-1 text-lg font-bold text-slate-900">ยอดขายตามช่องทาง</h2>
+            <h2 className="text-lg font-bold text-slate-900">ยอดขายตามช่องทาง</h2>
           </div>
           <strong className="text-base text-sky-700">{money(channelTotal)}</strong>
         </div>
@@ -3564,8 +3630,7 @@ function SalesBreakdownPanel({ data, selectedDate }) {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-700">Payment mix</p>
-            <h2 className="mt-1 text-lg font-bold text-slate-900">ยอดตามวิธีชำระเงิน</h2>
+            <h2 className="text-lg font-bold text-slate-900">ยอดตามวิธีชำระเงิน</h2>
           </div>
           <strong className="text-base text-violet-700">{money(paymentTotal)}</strong>
         </div>
@@ -3645,8 +3710,7 @@ function ManagementReportPanel({ onLoad }) {
       <Card className="border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-700">Management report</p>
-            <h2 className="mt-1 text-xl font-bold text-slate-900">รายงานบริหารร้าน</h2>
+            <h2 className="text-xl font-bold text-slate-900">รายงานบริหารร้าน</h2>
             <p className="mt-1 text-sm text-slate-500">เปรียบเทียบยอดขาย เมนูขายดี และวัตถุดิบที่ใช้จริงกับช่วงเวลาก่อนหน้า</p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -3685,8 +3749,7 @@ function ManagementReportPanel({ onLoad }) {
             <Card>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-700">Daily trend</p>
-                  <h3 className="mt-1 text-lg font-bold text-slate-900">ยอดขายสุทธิรายวัน</h3>
+                  <h3 className="text-lg font-bold text-slate-900">ยอดขายสุทธิรายวัน</h3>
                 </div>
                 <strong className="text-sm text-sky-700">รวม {money(summary.net_revenue)}</strong>
               </div>
@@ -3705,8 +3768,7 @@ function ManagementReportPanel({ onLoad }) {
             </Card>
             <Card>
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">Top products</p>
-                <h3 className="mt-1 text-lg font-bold text-slate-900">เมนูขายดี</h3>
+                <h3 className="text-lg font-bold text-slate-900">เมนูขายดี</h3>
               </div>
               <div className="mt-4 space-y-3">
                 {topProducts.length ? topProducts.map((item, index) => (
@@ -3722,8 +3784,7 @@ function ManagementReportPanel({ onLoad }) {
           <Card>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Inventory consumption</p>
-                <h3 className="mt-1 text-lg font-bold text-slate-900">วัตถุดิบที่ใช้ตามออเดอร์</h3>
+                <h3 className="text-lg font-bold text-slate-900">วัตถุดิบที่ใช้ตามออเดอร์</h3>
               </div>
               <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">ใช้จริงจากล็อตสต็อก</span>
             </div>
@@ -3743,12 +3804,74 @@ function ManagementReportPanel({ onLoad }) {
   );
 }
 
+function DailyClosingPanel({ businessDate, onLoad, onCloseBusinessDay }) {
+  const { confirmAction, showMessage } = useActionDialog();
+  const [closing, setClosing] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setClosing(null);
+    onLoad?.(businessDate)
+      .then((data) => {
+        if (active) setClosing(data || null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [businessDate, onLoad]);
+  const closeBusinessDay = async () => {
+    const confirmed = await confirmAction({
+      tone: "danger",
+      title: "ปิดยอดประจำวัน?",
+      message: `ต้องการปิดยอดของวันที่ ${dateLabel(businessDate)} ใช่หรือไม่\nระบบจะบันทึกยอดขาย ค่าใช้จ่าย และกำไร ณ ขณะนี้ แล้วล็อกรายการของวันดังกล่าวไม่ให้แก้ไข`,
+      confirmLabel: "ยืนยันปิดยอด",
+    });
+    if (!confirmed) return;
+    setSaving(true);
+    const saved = await onCloseBusinessDay?.(businessDate);
+    setSaving(false);
+    if (!saved) return;
+    setClosing(saved);
+    showMessage({
+      tone: "success",
+      title: "ปิดยอดประจำวันแล้ว",
+      message: `บันทึกยอดของวันที่ ${dateLabel(businessDate)} เรียบร้อย รายการขายและค่าใช้จ่ายของวันนี้จะไม่สามารถแก้ไขได้`,
+    });
+  };
+  const canClose = businessDate <= todayInBangkok();
+  return (
+    <Card className={closing ? "border-emerald-200 bg-emerald-50/45" : "border-amber-200 bg-amber-50/45"}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-lg font-bold text-slate-900">{closing ? "ปิดยอดประจำวันแล้ว" : "พร้อมปิดยอดประจำวัน"}</h2>
+          {loading ? <p className="mt-1 text-sm text-slate-500">กำลังตรวจสอบสถานะปิดยอด…</p> : closing ? (
+            <p className="mt-1 text-sm text-slate-600">ปิดโดย {closing.closed_by_name || "ผู้ดูแลระบบ"} เมื่อ {dateTimeLabel(closing.closed_at)}</p>
+          ) : <p className="mt-1 text-sm text-slate-600">ปิดยอดวันที่ {dateLabel(businessDate)} เพื่อเก็บ snapshot และล็อกรายการขายกับค่าใช้จ่ายของวันนั้น</p>}
+        </div>
+        {!closing ? <Button type="button" disabled={loading || saving || !canClose} variant="secondary" onClick={closeBusinessDay}>{saving ? "กำลังปิดยอด…" : "ปิดยอดประจำวัน"}</Button> : <span className="rounded-full bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-800">✓ ปิดยอดแล้ว</span>}
+      </div>
+      {closing ? (
+        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-emerald-200 pt-4 sm:grid-cols-4">
+          <div><p className="text-xs text-slate-500">ยอดขายสุทธิ</p><strong className="text-sm text-emerald-700">{money(closing.net_revenue)}</strong></div>
+          <div><p className="text-xs text-slate-500">ค่าใช้จ่าย</p><strong className="text-sm text-slate-800">{money(closing.expenses)}</strong></div>
+          <div><p className="text-xs text-slate-500">กำไรหลังค่าใช้จ่าย</p><strong className="text-sm text-emerald-700">{money(closing.operating_profit)}</strong></div>
+          <div><p className="text-xs text-slate-500">ออเดอร์</p><strong className="text-sm text-slate-800">{Number(closing.order_count || 0).toLocaleString()} รายการ</strong></div>
+        </div>
+      ) : !canClose ? <p className="mt-3 text-xs font-semibold text-amber-700">สามารถปิดยอดได้ถึงวันปัจจุบันเท่านั้น</p> : null}
+    </Card>
+  );
+}
+
 function FinancePage({
   expenseRows,
   orders,
   channels,
   products,
-  cashShifts,
   salesBreakdown,
   onCreateExpense,
   onUpdateExpense,
@@ -3758,6 +3881,8 @@ function FinancePage({
   onDeleteSales,
   onRefreshSalesBreakdown,
   onRefreshSalesReport,
+  onFetchDailyClosing,
+  onCloseBusinessDay,
 }) {
   const [selectedDate, setSelectedDate] = useState(todayInBangkok);
   const [orderSearch, setOrderSearch] = useState("");
@@ -3784,6 +3909,7 @@ function FinancePage({
   });
   const [expenseEditingId, setExpenseEditingId] = useState(null);
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
+  const [detailModal, setDetailModal] = useState(null);
   useEffect(() => {
     onRefreshSalesBreakdown?.(selectedDate);
   }, [onRefreshSalesBreakdown, selectedDate]);
@@ -3834,11 +3960,16 @@ function FinancePage({
     };
   }, [filteredExpenses, financialOrders]);
   const statCards = [
-    ["ยอดขายรวม", summary.gross],
-    ["ยอดสุทธิ", summary.net],
-    ["ต้นทุนสินค้า", summary.cogs],
-    ["ค่าใช้จ่าย", summary.expenses],
-    ["กำไรสุทธิ", summary.profit],
+    { label: "ยอดขายสุทธิ", value: money(summary.net), tone: "text-sky-700" },
+    { label: "กำไรสุทธิ", value: money(summary.profit), tone: summary.profit >= 0 ? "text-emerald-700" : "text-rose-600" },
+    { label: "ค่าใช้จ่าย", value: money(summary.expenses), tone: "text-rose-600" },
+    { label: "ออเดอร์", value: `${financialOrders.length.toLocaleString()} รายการ`, tone: "text-violet-700" },
+  ];
+  const cashflowMax = Math.max(1, Math.abs(summary.net), Math.abs(summary.expenses), Math.abs(summary.profit));
+  const cashflowRows = [
+    ["ยอดขายสุทธิ", summary.net, "bg-sky-500"],
+    ["ค่าใช้จ่าย", summary.expenses, "bg-rose-400"],
+    ["กำไรสุทธิ", summary.profit, summary.profit >= 0 ? "bg-emerald-500" : "bg-amber-500"],
   ];
   const updateSalesItem = (index, field, value) =>
     setSales((current) => ({
@@ -3882,6 +4013,7 @@ function FinancePage({
   const editSales = (order) => {
     const rawItems = order.rawItems || [];
     if (!rawItems.length) return;
+    setDetailModal(null);
     setSalesEditingId(order.id);
     setSales({
       order_no: order.order_no,
@@ -3934,9 +4066,8 @@ function FinancePage({
   return (
     <div className="space-y-5">
       <Heading
-        eyebrow="Finance"
-        title="การเงินและบันทึกยอดขาย"
-        description={`รายการและยอดสรุปของวันที่ ${dateLabel(selectedDate)}`}
+        title="การเงิน"
+        description={`สรุปข้อมูลวันที่ ${dateLabel(selectedDate)}`}
         action={
           <div className="flex flex-wrap items-end gap-2">
             <label className={labelClass}>
@@ -3973,28 +4104,71 @@ function FinancePage({
           </div>
         }
       />
-      <Card className="border-sky-200 bg-sky-50/60 p-4">
-        <p className="text-sm font-semibold text-sky-900">
-          เพิ่มรายการขายและค่าใช้จ่ายจะบันทึกเป็นวันที่{" "}
-          <span className="font-bold">{dateLabel(selectedDate)}</span>
-        </p>
-        <p className="mt-1 text-xs text-sky-700">
-          หากไม่ได้เลือกวันที่ ระบบจะใช้วันปัจจุบันอัตโนมัติ
-        </p>
-      </Card>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {statCards.map(([label, value]) => (
-          <Card className="p-4" key={label}>
-            <p className="text-xs font-semibold text-slate-500">{label}</p>
-            <strong className="mt-2 block text-xl text-sky-700">
-              {money(value)}
-            </strong>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {statCards.map((item) => (
+          <Card className="!p-4" key={item.label}>
+            <p className="text-xs font-semibold text-slate-500">{item.label}</p>
+            <strong className={`mt-1 block text-xl ${item.tone}`}>{item.value}</strong>
           </Card>
         ))}
       </div>
-      <SalesBreakdownPanel data={salesBreakdown} selectedDate={selectedDate} />
-      <ManagementReportPanel onLoad={onRefreshSalesReport} />
-      <CashShiftAuditPanel shifts={cashShifts} />
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">ภาพรวมกระแสเงิน</h2>
+              <p className="mt-1 text-xs text-slate-500">ยอดขาย ค่าใช้จ่าย และกำไรของวันที่เลือก</p>
+            </div>
+            <strong className={summary.profit >= 0 ? "text-lg text-emerald-700" : "text-lg text-rose-600"}>{money(summary.profit)}</strong>
+          </div>
+          <div className="mt-5 space-y-4">
+            {cashflowRows.map(([label, value, tone]) => {
+              const percent = Math.min(100, Math.round((Math.abs(Number(value) || 0) / cashflowMax) * 100));
+              return (
+                <div key={label}>
+                  <div className="flex items-center justify-between gap-3 text-sm"><span className="font-semibold text-slate-700">{label}</span><strong className="text-slate-900">{money(value)}</strong></div>
+                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${tone}`} style={{ width: `${percent}%` }} /></div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+        <Card>
+          <h2 className="text-lg font-bold text-slate-900">รายการวันนี้</h2>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+            <button className="rounded-xl border border-sky-100 bg-sky-50/55 p-3 text-left transition hover:border-sky-300 hover:bg-sky-50" type="button" onClick={() => setDetailModal("sales")}>
+              <span className="text-xs font-semibold text-slate-500">รายการขาย</span>
+              <strong className="mt-1 block text-lg text-sky-700">{dateOrders.length} รายการ</strong>
+              <span className="mt-1 block text-xs font-bold text-sky-700">ดูและแก้ไขรายการ →</span>
+            </button>
+            <button className="rounded-xl border border-rose-100 bg-rose-50/55 p-3 text-left transition hover:border-rose-300 hover:bg-rose-50" type="button" onClick={() => setDetailModal("expenses")}>
+              <span className="text-xs font-semibold text-slate-500">ค่าใช้จ่าย</span>
+              <strong className="mt-1 block text-lg text-rose-600">{filteredExpenses.length} รายการ</strong>
+              <span className="mt-1 block text-xs font-bold text-rose-600">ดูและแก้ไขรายการ →</span>
+            </button>
+          </div>
+        </Card>
+      </section>
+      <section className="grid gap-3 sm:grid-cols-3">
+        <button className="rounded-2xl border border-sky-100 bg-white p-4 text-left shadow-sm transition hover:border-sky-300 hover:bg-sky-50" type="button" onClick={() => setDetailModal("breakdown")}><span className="text-lg">▥</span><strong className="mt-2 block text-sm text-slate-900">วิเคราะห์ยอดขาย</strong><span className="mt-1 block text-xs text-slate-500">ช่องทางและวิธีชำระเงิน</span></button>
+        <button className="rounded-2xl border border-violet-100 bg-white p-4 text-left shadow-sm transition hover:border-violet-300 hover:bg-violet-50" type="button" onClick={() => setDetailModal("report")}><span className="text-lg">▤</span><strong className="mt-2 block text-sm text-slate-900">รายงานบริหาร</strong><span className="mt-1 block text-xs text-slate-500">กราฟแนวโน้ม เมนู และสต็อก</span></button>
+        <button className="rounded-2xl border border-amber-100 bg-white p-4 text-left shadow-sm transition hover:border-amber-300 hover:bg-amber-50" type="button" onClick={() => setDetailModal("closing")}><span className="text-lg">◷</span><strong className="mt-2 block text-sm text-slate-900">ปิดยอดประจำวัน</strong><span className="mt-1 block text-xs text-slate-500">ตรวจสถานะและล็อกรายการ</span></button>
+      </section>
+      {detailModal === "breakdown" ? (
+        <Modal label="วิเคราะห์ยอดขาย" maxWidth="max-w-6xl" onClose={() => setDetailModal(null)}>
+          <SalesBreakdownPanel data={salesBreakdown} selectedDate={selectedDate} />
+        </Modal>
+      ) : null}
+      {detailModal === "report" ? (
+        <Modal label="รายงานบริหารร้าน" maxWidth="max-w-6xl" onClose={() => setDetailModal(null)}>
+          <ManagementReportPanel onLoad={onRefreshSalesReport} />
+        </Modal>
+      ) : null}
+      {detailModal === "closing" ? (
+        <Modal label="ปิดยอดประจำวัน" maxWidth="max-w-3xl" onClose={() => setDetailModal(null)}>
+          <DailyClosingPanel businessDate={selectedDate} onCloseBusinessDay={onCloseBusinessDay} onLoad={onFetchDailyClosing} />
+        </Modal>
+      ) : null}
       {salesModalOpen ? (
       <Modal label={salesEditingId ? "แก้ไขรายการขาย" : "เพิ่มรายการขาย"} maxWidth="max-w-3xl" onClose={resetSales}>
         <Card>
@@ -4229,8 +4403,9 @@ function FinancePage({
         </Card>
       </Modal>
       ) : null}
-      <div className="grid gap-5 xl:grid-cols-2">
-        <Card>
+      {detailModal === "sales" ? (
+      <Modal label="รายการขาย" maxWidth="max-w-4xl" onClose={() => setDetailModal(null)}>
+        <Card className="max-h-[calc(100vh-2rem)] overflow-y-auto">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-slate-900">รายการขาย</h2>
@@ -4318,7 +4493,11 @@ function FinancePage({
             )}
           </div>
         </Card>
-        <Card>
+      </Modal>
+      ) : null}
+      {detailModal === "expenses" ? (
+      <Modal label="รายการค่าใช้จ่าย" maxWidth="max-w-3xl" onClose={() => setDetailModal(null)}>
+        <Card className="max-h-[calc(100vh-2rem)] overflow-y-auto">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-bold text-slate-900">
               รายการค่าใช้จ่าย
@@ -4350,6 +4529,7 @@ function FinancePage({
                       className="text-xs"
                       variant="secondary"
                       onClick={() => {
+                        setDetailModal(null);
                         setExpenseEditingId(item.id);
                         setExpense({
                           amount: item.amount,
@@ -4376,14 +4556,14 @@ function FinancePage({
             )}
           </div>
         </Card>
-      </div>
+      </Modal>
+      ) : null}
     </div>
   );
 }
 
 function OperationsZone({
   image,
-  eyebrow,
   title,
   status,
   statusTone = "sky",
@@ -4407,10 +4587,7 @@ function OperationsZone({
         />
         <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-sky-950/60 to-transparent" />
         <div className="absolute inset-x-4 bottom-4">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-100">
-            {eyebrow}
-          </p>
-          <h2 className="mt-1 text-xl font-bold text-white">{title}</h2>
+          <h2 className="text-xl font-bold text-white">{title}</h2>
         </div>
       </div>
       <div className="p-4 sm:p-5">
@@ -4446,17 +4623,13 @@ function LiveWorkflowRoom({
     <section className="mt-2 overflow-hidden py-3 sm:py-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">
-            Live room · ทดลองการเคลื่อนไหว
-          </p>
-          <h2 className="mt-1 text-xl font-bold text-slate-900">
+          <h2 className="text-xl font-bold text-slate-900">
             ห้องปฏิบัติการร้าน
           </h2>
           <p className="mt-1 text-sm text-slate-500">
             ชี้ที่วัตถุดิบบนชั้นวางเพื่อดูข้อมูลสต็อกได้โดยตรง
           </p>
         </div>
-        <p className="pt-1 text-xs font-bold text-sky-700">● ตัวละครกำลังทำงาน</p>
       </div>
 
       <div className="operations-room-scene relative mt-5 aspect-video min-h-[220px] overflow-hidden bg-sky-50">
@@ -4524,7 +4697,6 @@ function OperationsPage({ orders, inventoryRows, expenseRows, isAdmin }) {
   return (
     <div className="space-y-5">
       <Heading
-        eyebrow="Operations center"
         title="ศูนย์ปฏิบัติการร้าน"
         description={`ภาพรวมการทำงานประจำวันที่ ${dateLabel(today)} จากข้อมูลจริงในระบบ`}
         action={
@@ -4536,17 +4708,6 @@ function OperationsPage({ orders, inventoryRows, expenseRows, isAdmin }) {
 
       <section className="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-700 via-sky-600 to-cyan-500 p-5 text-white shadow-lg shadow-sky-200 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-sky-100">
-              KIN CHA KAN · live workflow
-            </p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
-              หน้าร้าน สต็อก และออฟฟิศ 
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm text-sky-100">
-              เมนูที่เกี่ยวข้องในแถบด้านข้าง
-            </p>
-          </div>
           <div className="grid grid-cols-3 gap-2 text-center sm:min-w-72">
             <div className="rounded-2xl bg-white/15 px-3 py-3 backdrop-blur-sm">
               <strong className="block text-lg">{todayOrders.length}</strong>
@@ -4583,7 +4744,6 @@ function OperationsPage({ orders, inventoryRows, expenseRows, isAdmin }) {
         <OperationsZone
           image={coffeeBarista}
           imagePosition="50% 14%"
-          eyebrow="Front counter"
           title="หน้าร้าน"
           status={
             pendingOrders.length
@@ -4618,7 +4778,6 @@ function OperationsPage({ orders, inventoryRows, expenseRows, isAdmin }) {
         <OperationsZone
           image={stockCoordinator}
           imagePosition="50% 20%"
-          eyebrow="Stock room"
           title="สต็อกวัตถุดิบ"
           status={
             lowStockRows.length
@@ -4649,7 +4808,6 @@ function OperationsPage({ orders, inventoryRows, expenseRows, isAdmin }) {
         <OperationsZone
           image={officeCoordinator}
           imagePosition="50% 30%"
-          eyebrow="Back office"
           title="ออฟฟิศและการเงิน"
           status="สรุปยอดอัตโนมัติ"
           statusTone="sky"
@@ -4744,6 +4902,7 @@ function OperationsPage({ orders, inventoryRows, expenseRows, isAdmin }) {
 
 export default function GlassLayout({
   user,
+  onLogout,
   activeView,
   setActiveView,
   orders,
@@ -4779,8 +4938,11 @@ export default function GlassLayout({
   onUpdateCoupon,
   onCreateChannel,
   onUpdateChannel,
+  onRefreshCashShifts,
   onRefreshSalesBreakdown,
   onRefreshSalesReport,
+  onFetchDailyClosing,
+  onCloseBusinessDay,
   onCreateInventory,
   onUpdateInventory,
   onDeleteInventory,
@@ -4798,7 +4960,15 @@ export default function GlassLayout({
   const alertCount = storeAlertsFor({ products, inventoryRows, inventoryLots }).length;
   const visibleNavigation = navigation.filter((item) => !item.adminOnly || user?.role === "admin");
   const content =
-    activeView === "alerts" ? (
+    activeView === "cash-shifts" && user?.role === "admin" ? (
+      <CashShiftPage
+        currentShift={currentShift}
+        shifts={cashShifts}
+        onOpenCashShift={onOpenCashShift}
+        onCloseCashShift={onCloseCashShift}
+        onRefresh={onRefreshCashShifts}
+      />
+    ) : activeView === "alerts" ? (
       <AlertsPage
         products={products}
         inventoryRows={inventoryRows}
@@ -4853,7 +5023,6 @@ export default function GlassLayout({
         orders={orders}
         channels={channels}
         products={products}
-        cashShifts={cashShifts}
         salesBreakdown={salesBreakdown}
         onCreateExpense={onCreateExpense}
         onUpdateExpense={onUpdateExpense}
@@ -4863,6 +5032,8 @@ export default function GlassLayout({
         onDeleteSales={onDeleteSales}
         onRefreshSalesBreakdown={onRefreshSalesBreakdown}
         onRefreshSalesReport={onRefreshSalesReport}
+        onFetchDailyClosing={onFetchDailyClosing}
+        onCloseBusinessDay={onCloseBusinessDay}
       />
     ) : activeView === "operations" ? (
       <OperationsPage
@@ -4899,7 +5070,6 @@ export default function GlassLayout({
           </span>
           <div>
             <p className="font-bold tracking-wide text-slate-900">STOCKPOS</p>
-            <p className="text-xs text-sky-600">Management</p>
           </div>
         </div>
         <nav className="mt-10 grid gap-2">
@@ -4924,14 +5094,26 @@ export default function GlassLayout({
           </p>
           <p className="mt-2 text-sm font-semibold text-slate-700">● ออนไลน์</p>
           <p className="mt-1 text-xs text-slate-500">{notice}</p>
+          <button className="mt-3 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-bold text-sky-700 transition hover:bg-sky-100" type="button" onClick={onLogout}>
+            ออกจากระบบ
+          </button>
         </div>
       </aside>
       <header className="shop-topbar sticky top-0 z-20 border-b px-4 py-3 lg:hidden">
-        <div className="flex items-center gap-2">
-          <span className="shop-orb grid h-9 w-9 place-items-center rounded-xl bg-sky-600 font-black text-white">
-            S
-          </span>
-          <strong className="text-slate-900">STOCKPOS</strong>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="shop-orb grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-600 font-black text-white">
+              S
+            </span>
+            <strong className="truncate text-slate-900">STOCKPOS</strong>
+          </div>
+          <button
+            className="shrink-0 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-700 shadow-sm transition hover:bg-sky-50 focus:outline-none focus:ring-4 focus:ring-sky-100"
+            type="button"
+            onClick={onLogout}
+          >
+            ↪ ออกจากระบบ
+          </button>
         </div>
         <nav className="mt-3 flex gap-2 overflow-x-auto pb-1">
           {visibleNavigation.map((item) => {

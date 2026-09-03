@@ -233,6 +233,32 @@ function AppContent() {
       return null;
     }
   }, []);
+  const fetchDailyClosing = useCallback(async (businessDate) => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/daily-closings`, {
+        params: { date: businessDate },
+      });
+      return response.data?.success ? response.data.data : null;
+    } catch (error) {
+      console.warn("Daily closing lookup unavailable.", error);
+      return null;
+    }
+  }, []);
+  const closeBusinessDay = async (businessDate) => {
+    try {
+      const response = await axios.post(`${API_BASE}/api/daily-closings`, {
+        business_date: businessDate,
+      });
+      if (response.data?.success) {
+        setNotice(`DAILY CLOSING SAVED · ${businessDate}`);
+        return response.data.data;
+      }
+    } catch (error) {
+      showError(error, "ไม่สามารถปิดยอดประจำวันได้");
+      console.warn("Daily closing failed.", error);
+    }
+    return null;
+  };
   const createChannel = async (channel) => {
     try {
       const response = await axios.post(`${API_BASE}/api/channels`, channel);
@@ -624,7 +650,7 @@ function AppContent() {
         setCurrentShift(response.data.data);
         if (session?.role === "admin") await refreshCashShifts();
         setNotice("CASH SHIFT OPENED · READY FOR CASH SALES");
-        return true;
+        return response.data.data;
       }
     } catch (error) {
       showError(error, "ไม่สามารถเปิดกะเงินสดได้");
@@ -734,6 +760,7 @@ function AppContent() {
         return true;
       }
     } catch (error) {
+      showError(error, "ไม่สามารถบันทึกรายการขายได้");
       console.warn("Sales record create failed.", error);
     }
     return false;
@@ -762,6 +789,7 @@ function AppContent() {
         return true;
       }
     } catch (error) {
+      showError(error, "ไม่สามารถแก้ไขรายการขายได้");
       console.warn("Sales record update failed.", error);
     }
     return false;
@@ -784,6 +812,7 @@ function AppContent() {
         setNotice("SALES RECORD DELETED · STOCK RESTORED");
       }
     } catch (error) {
+      showError(error, "ไม่สามารถลบรายการขายได้");
       console.warn("Sales record delete failed.", error);
     }
   };
@@ -1065,6 +1094,7 @@ function AppContent() {
         return true;
       }
     } catch (error) {
+      showError(error, "ไม่สามารถแก้ไขเมนูได้");
       console.warn("Menu update API unavailable.", error);
     }
     return false;
@@ -1124,6 +1154,7 @@ function AppContent() {
         return true;
       }
     } catch (error) {
+      showError(error, "ไม่สามารถเพิ่มค่าใช้จ่ายได้");
       console.warn("Expense create API unavailable.", error);
     }
     return false;
@@ -1154,6 +1185,7 @@ function AppContent() {
         return true;
       }
     } catch (error) {
+      showError(error, "ไม่สามารถแก้ไขค่าใช้จ่ายได้");
       console.warn("Expense update API unavailable.", error);
     }
     return false;
@@ -1179,6 +1211,7 @@ function AppContent() {
         setNotice("EXPENSE DELETED · LEDGER UPDATED");
       }
     } catch (error) {
+      showError(error, "ไม่สามารถลบค่าใช้จ่ายได้");
       console.warn("Expense delete API unavailable.", error);
     }
   };
@@ -1234,19 +1267,9 @@ function AppContent() {
     );
   return (
     <>
-      <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-xl border border-sky-100 bg-white/95 p-2 shadow-sm backdrop-blur">
-        <span className="hidden px-1 text-xs font-semibold text-slate-600 sm:inline">
-          {session.name}
-        </span>
-        <button
-          className="rounded-lg px-2 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-50"
-          onClick={logout}
-        >
-          ออกจากระบบ
-        </button>
-      </div>
       <GlassLayout
         user={session}
+        onLogout={logout}
         activeView={activeView}
         setActiveView={setActiveView}
         orders={orders}
@@ -1282,8 +1305,11 @@ function AppContent() {
         onUpdateCoupon={updateCoupon}
         onCreateChannel={createChannel}
         onUpdateChannel={updateChannel}
+        onRefreshCashShifts={refreshCashShifts}
         onRefreshSalesBreakdown={refreshSalesBreakdown}
         onRefreshSalesReport={refreshSalesReport}
+        onFetchDailyClosing={fetchDailyClosing}
+        onCloseBusinessDay={closeBusinessDay}
         onCreateInventory={createInventory}
         onUpdateInventory={updateInventory}
         onDeleteInventory={deleteInventory}

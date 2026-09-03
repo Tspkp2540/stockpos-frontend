@@ -64,7 +64,6 @@ export default function UserOrderStatus({ user, orders, loyalty, onRefreshLoyalt
             </span>
             <div>
               <p className="font-bold text-slate-900">STOCKPOS</p>
-              <p className="text-xs text-sky-600">Purchase history</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -83,10 +82,7 @@ export default function UserOrderStatus({ user, orders, loyalty, onRefreshLoyalt
       <main className="relative mx-auto w-full max-w-5xl p-4 pb-10 sm:p-6">
         <div className="relative overflow-hidden rounded-3xl border border-sky-200 bg-gradient-to-br from-sky-700 via-sky-600 to-cyan-500 p-6 text-white shadow-xl shadow-sky-200/60 sm:p-8">
           <div className="relative z-10 max-w-2xl md:max-w-[62%]">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-100">
-            My purchase history
-          </p>
-          <h1 className="mt-2 text-2xl font-bold sm:text-3xl">
+          <h1 className="text-2xl font-bold sm:text-3xl">
             ประวัติการสั่งซื้อทั้งหมด
           </h1>
           <p className="mt-2 text-sm text-sky-50">

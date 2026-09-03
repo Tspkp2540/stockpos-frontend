@@ -462,7 +462,7 @@ export default function StaffWorkspace({
           <div className="mx-auto flex w-full max-w-[1500px] items-center justify-between gap-4 p-4 sm:p-6">
             <div className="flex items-center gap-3">
               <span className="shop-orb grid h-10 w-10 place-items-center rounded-xl bg-sky-600 font-black text-white">S</span>
-              <div><p className="font-bold text-slate-900">STOCKPOS</p><p className="text-xs text-sky-600">Front counter workspace</p></div>
+              <div><p className="font-bold text-slate-900">STOCKPOS</p></div>
             </div>
             <Button type="button" variant="secondary" onClick={() => setShowAllOrders(false)}>← กลับหน้าขาย</Button>
           </div>
@@ -470,8 +470,7 @@ export default function StaffWorkspace({
         <main className="relative mx-auto w-full max-w-[1500px] p-4 pb-10 sm:p-6">
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">Order management</p>
-              <h1 className="mt-1 text-2xl font-bold text-slate-900">รายการออเดอร์ทั้งหมด</h1>
+              <h1 className="text-2xl font-bold text-slate-900">รายการออเดอร์ทั้งหมด</h1>
               <p className="mt-1 text-sm text-slate-500">ติดตามและเปลี่ยนสถานะคิวจากจุดเดียว</p>
             </div>
             <span className="rounded-full bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-700">{filteredOrders.length} / {orders.length} รายการ</span>
@@ -501,7 +500,6 @@ export default function StaffWorkspace({
             </span>
             <div>
               <p className="font-bold text-slate-900">STOCKPOS</p>
-              <p className="text-xs text-sky-600">Front counter workspace</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -536,12 +534,7 @@ export default function StaffWorkspace({
       <main className="relative mx-auto w-full max-w-[1500px] space-y-6 p-4 pb-10 sm:p-6">
         <section className="relative overflow-hidden rounded-3xl border border-sky-200 bg-gradient-to-r from-sky-700 via-sky-600 to-cyan-500 p-5 text-white shadow-xl shadow-sky-200/60 sm:p-7">
           <div className="relative z-10 max-w-2xl sm:max-w-[64%] xl:max-w-2xl">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-sky-100">
-              Front counter · live order flow
-            </p>
-            <h1 className="mt-2 text-2xl font-bold sm:text-3xl">
-              รับออเดอร์ให้ลื่นไหล ดูคิวให้ทันทุกแก้ว
-            </h1>
+            <h1 className="text-2xl font-bold sm:text-3xl">ขายและออเดอร์</h1>
             <p className="mt-2 text-sm text-sky-100">
               กรอกข้อมูลลูกค้า เลือกเมนู และยืนยันออเดอร์จากจุดเดียว
             </p>
@@ -650,26 +643,29 @@ export default function StaffWorkspace({
                 </div>
               ) : null}
               <fieldset className="mt-5">
-                <legend className="mb-3 text-sm font-bold text-slate-800">
+                <legend className="mb-2 text-xs font-bold text-slate-700">
                   ช่องทางการขาย
                 </legend>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {channels.map((channel) => (
-                    <label
-                      className={`flex cursor-pointer items-center justify-between rounded-xl border px-3 py-3 transition ${String(channel.id) === String(channelId) ? "border-sky-500 bg-sky-50 shadow-sm" : "border-sky-100 bg-white/70 hover:border-sky-300"}`}
-                      key={channel.id}
-                    >
-                      <span className="text-sm font-semibold text-slate-700">
+                <div className="flex flex-wrap gap-2">
+                  {channels.map((channel) => {
+                    const selected = String(channel.id) === String(channelId);
+                    return (
+                      <label
+                        className={`inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition focus-within:ring-4 ${selected ? "border-sky-500 bg-sky-50 text-sky-800 shadow-sm focus-within:ring-sky-100" : "border-sky-100 bg-white/70 text-slate-700 hover:border-sky-300 focus-within:ring-sky-100"}`}
+                        key={channel.id}
+                      >
+                        <input
+                          className="sr-only"
+                          type="radio"
+                          name="staff-channel"
+                          checked={selected}
+                          onChange={() => setChannelId(channel.id)}
+                        />
+                        <span aria-hidden="true" className={`grid h-4 w-4 place-items-center rounded-full border text-[10px] ${selected ? "border-sky-600 bg-sky-600 text-white" : "border-slate-300 bg-white text-transparent"}`}>✓</span>
                         {channel.name}
-                      </span>
-                      <input
-                        className="h-4 w-4 accent-sky-600"
-                        type="radio"
-                        checked={String(channel.id) === String(channelId)}
-                        onChange={() => setChannelId(channel.id)}
-                      />
-                    </label>
-                  ))}
+                      </label>
+                    );
+                  })}
                 </div>
               </fieldset>
             </div>
@@ -677,29 +673,28 @@ export default function StaffWorkspace({
             <div className="shop-panel rounded-2xl border p-4 sm:p-5">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">Step 2</p>
-                  <h2 className="mt-1 text-lg font-bold text-slate-900">เลือกเมนูขาย</h2>
+                  <h2 className="text-lg font-bold text-slate-900">เลือกเมนูขาย</h2>
                 </div>
                 <span className="text-sm text-slate-500">{products.length} รายการ</span>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {products.map((product) => {
                   const availability = menuAvailability(product);
                   return (
                     <button
-                      className={`rounded-2xl border p-4 text-left transition ${availability.isAvailable ? "border-sky-100 bg-sky-50/60 hover:-translate-y-0.5 hover:border-sky-400 hover:bg-white hover:shadow-md" : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-65"}`}
+                      className={`rounded-xl border p-3 text-left transition ${availability.isAvailable ? "border-sky-100 bg-sky-50/60 hover:-translate-y-0.5 hover:border-sky-400 hover:bg-white hover:shadow-md" : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-65"}`}
                       disabled={!availability.isAvailable}
                       key={product.id}
                       onClick={() => addProduct(product)}
                     >
-                      <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-lg shadow-sm">
+                      <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-base shadow-sm">
                         {product.icon || "▦"}
                       </span>
-                      <p className="mt-3 truncate font-bold text-slate-800">{product.name}</p>
-                      <p className="mt-1 text-sm font-semibold text-sky-700">
+                      <p className="mt-2 truncate text-sm font-bold text-slate-800">{product.name}</p>
+                      <p className="mt-0.5 text-xs font-semibold text-sky-700">
                         {money(product.price_retail)}
                       </p>
-                      <p className={`mt-2 text-xs font-semibold ${availability.isAvailable ? "text-emerald-700" : "text-rose-600"}`}>
+                      <p className={`mt-1 truncate text-[11px] font-semibold ${availability.isAvailable ? "text-emerald-700" : "text-rose-600"}`}>
                         {menuAvailabilityLabel(product)}
                       </p>
                     </button>
@@ -717,8 +712,7 @@ export default function StaffWorkspace({
                   <div className="shop-panel rounded-3xl border bg-white p-4 sm:p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">Step 3</p>
-                  <h2 className="mt-1 text-lg font-bold text-slate-900">ตะกร้าสินค้า</h2>
+                  <h2 className="text-lg font-bold text-slate-900">ตะกร้าสินค้า</h2>
                 </div>
                 <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700">
                   {cart.length} รายการ
@@ -937,8 +931,7 @@ export default function StaffWorkspace({
         <section>
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-sky-600">Order management</p>
-              <h2 className="mt-1 text-xl font-bold text-slate-900">ออเดอร์ล่าสุด</h2>
+              <h2 className="text-xl font-bold text-slate-900">ออเดอร์ล่าสุด</h2>
               <p className="mt-1 text-sm text-slate-500">แสดง 5 รายการล่าสุดจากทั้งหมด {orders.length} รายการ</p>
               {orders.length > 1 ? <p className="mt-1 text-xs font-semibold text-sky-700">← เลื่อนซ้าย–ขวาเพื่อดูคิวล่าสุด →</p> : null}
             </div>
