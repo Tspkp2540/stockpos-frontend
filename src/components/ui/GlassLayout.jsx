@@ -10,6 +10,7 @@ import { menuAvailability, menuAvailabilityLabel } from "../../utils/menuAvailab
 import { maskPhone } from "../../utils/phone";
 import { printReceipt } from "../../utils/printReceipt";
 import { printCashShiftSummary } from "../../utils/printCashShiftSummary";
+import { loadPosMenuUsage, recordPosMenuUsage } from "../../utils/posMenuUsage";
 import { useActionDialog } from "./ActionDialog";
 
 const navigation = [
@@ -432,6 +433,34 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
   const [couponError, setCouponError] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [amountReceived, setAmountReceived] = useState("");
+  const [menuSearch, setMenuSearch] = useState("");
+  const [menuCategory, setMenuCategory] = useState("ALL");
+  const [barcodeInput, setBarcodeInput] = useState("");
+  const [menuUsage, setMenuUsage] = useState(loadPosMenuUsage);
+  const menuCategories = useMemo(
+    () => [...new Set(products.map((product) => String(product.category || "").trim()).filter(Boolean))]
+      .sort((left, right) => left.localeCompare(right, "th")),
+    [products],
+  );
+  const visibleProducts = useMemo(() => {
+    const term = menuSearch.trim().toLowerCase();
+    return products.filter((product) => {
+      const searchable = [product.name, product.category, product.barcode]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return (!term || searchable.includes(term))
+        && (menuCategory === "ALL" || String(product.category || "").trim() === menuCategory);
+    });
+  }, [menuCategory, menuSearch, products]);
+  const quickProducts = useMemo(
+    () => products
+      .filter((product) => menuAvailability(product).isAvailable && Number(menuUsage[String(product.id)] || 0) > 0)
+      .sort((left, right) => Number(menuUsage[String(right.id)] || 0) - Number(menuUsage[String(left.id)] || 0))
+      .slice(0, 6),
+    [menuUsage, products],
+  );
+  const noteMenuUsed = (product) => setMenuUsage((current) => recordPosMenuUsage(current, product.id));
   const subtotal = useMemo(
     () =>
       cart.reduce(
@@ -509,8 +538,26 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
   };
   const addItem = (product) => {
     if (!menuAvailability(product).isAvailable) return;
+    noteMenuUsed(product);
     setEditingCartKey(null);
     setPendingProduct(product);
+  };
+  const addBarcodeProduct = (event) => {
+    event.preventDefault();
+    const barcode = barcodeInput.trim();
+    if (!barcode) return;
+    const product = products.find((item) => String(item.barcode || "").trim() === barcode
+      || String(item.id) === barcode);
+    if (!product) {
+      showMessage({ tone: "danger", title: "ไม่พบเมนู", message: "ไม่พบเมนูจากบาร์โค้ดหรือรหัสสินค้านี้" });
+      return;
+    }
+    if (!menuAvailability(product).isAvailable) {
+      showMessage({ tone: "danger", title: "เมนูยังขายไม่ได้", message: `${product.name}: ${menuAvailabilityLabel(product)}` });
+      return;
+    }
+    setBarcodeInput("");
+    addItem(product);
   };
   const editCartModifiers = (cartKey) => {
     const item = cart.find((row) => row.cart_key === cartKey);
@@ -733,11 +780,68 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900">เมนูขาย</h2>
             <span className="text-sm text-slate-500">
-              {products.length} รายการ
+              {visibleProducts.length} / {products.length} รายการ
             </span>
           </div>
+          <div className="mb-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.55fr)]">
+            <input
+              aria-label="ค้นหาเมนู"
+              className={inputClass}
+              value={menuSearch}
+              onChange={(event) => setMenuSearch(event.target.value)}
+              placeholder="ค้นหาชื่อเมนู หมวดหมู่ หรือบาร์โค้ด"
+            />
+            <form className="flex gap-2" onSubmit={addBarcodeProduct}>
+              <input
+                aria-label="สแกนบาร์โค้ดหรือกรอกรหัสสินค้า"
+                className={inputClass}
+                inputMode="text"
+                value={barcodeInput}
+                onChange={(event) => setBarcodeInput(event.target.value)}
+                placeholder="สแกน / รหัสสินค้า"
+              />
+              <Button className="shrink-0" type="submit">เพิ่ม</Button>
+            </form>
+          </div>
+          <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+            <button
+              className={`shrink-0 rounded-lg border px-3 py-2 text-xs font-bold transition ${menuCategory === "ALL" ? "border-sky-600 bg-sky-600 text-white" : "border-sky-100 bg-white text-slate-600 hover:border-sky-300"}`}
+              type="button"
+              onClick={() => setMenuCategory("ALL")}
+            >
+              ทั้งหมด
+            </button>
+            {menuCategories.map((category) => (
+              <button
+                className={`shrink-0 rounded-lg border px-3 py-2 text-xs font-bold transition ${menuCategory === category ? "border-sky-600 bg-sky-600 text-white" : "border-sky-100 bg-white text-slate-600 hover:border-sky-300"}`}
+                key={category}
+                type="button"
+                onClick={() => setMenuCategory(category)}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+          {quickProducts.length ? (
+            <div className="mb-4 rounded-xl border border-amber-100 bg-amber-50/60 p-2.5">
+              <p className="mb-2 text-xs font-bold text-amber-900">เมนูที่กดบ่อย</p>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {quickProducts.map((product) => (
+                  <button
+                    className="flex min-w-36 shrink-0 items-center gap-2 rounded-lg border border-amber-200 bg-white px-2.5 py-2 text-left text-xs font-bold text-slate-700 transition hover:border-amber-400 hover:bg-amber-50"
+                    key={product.id}
+                    type="button"
+                    onClick={() => addItem(product)}
+                  >
+                    <span className="grid h-7 w-7 place-items-center rounded-md bg-amber-50">{product.icon || "▦"}</span>
+                    <span className="min-w-0"><span className="block truncate">{product.name}</span><span className="text-sky-700">{money(product.price_retail)}</span></span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {products.map((product) => {
+            {visibleProducts.map((product) => {
               const availability = menuAvailability(product);
               return (
                 <button
@@ -762,6 +866,7 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
               );
             })}
           </div>
+          {!visibleProducts.length ? <Empty>ไม่พบเมนูที่ตรงกับการค้นหาหรือหมวดหมู่</Empty> : null}
         </Card>
       </div>
       {cartOpen ? (
@@ -1622,6 +1727,7 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
   const initial = {
     name: "",
     category: "",
+    barcode: "",
     price_retail: "",
     price_wholesale: "",
     recipe: [],
@@ -1714,6 +1820,7 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
     setForm({
       name: product.name || "",
       category: product.category || "",
+      barcode: product.barcode || "",
       price_retail: product.price_retail || "",
       price_wholesale: product.price_wholesale || "",
       recipe: (product.recipe || []).map((item) => ({
@@ -1785,6 +1892,7 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
                   <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
                     <span className="rounded-md bg-slate-100 px-1.5 py-1 text-slate-600">สูตร {product.recipe?.length || 0}</span>
                     <span className="rounded-md bg-violet-50 px-1.5 py-1 text-violet-700">ตัวเลือก {product.modifier_groups?.length || 0}</span>
+                    {product.barcode ? <span className="max-w-full truncate rounded-md bg-amber-50 px-1.5 py-1 text-amber-800">รหัส {product.barcode}</span> : null}
                     <span className={`rounded-md px-1.5 py-1 font-bold ${availability.isAvailable ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-600"}`}>
                       {menuAvailabilityLabel(product)}
                     </span>
@@ -1843,7 +1951,7 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
                   required
                 />
               </label>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <label className={labelClass}>
                   หมวดหมู่
                   <input
@@ -1856,6 +1964,21 @@ function MenusPage({ products, ingredients, onCreate, onUpdate, onDelete, onSetA
                       }))
                     }
                     placeholder="เช่น เครื่องดื่ม"
+                  />
+                </label>
+                <label className={labelClass}>
+                  บาร์โค้ด / รหัสสแกน <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+                  <input
+                    className={inputClass}
+                    maxLength="80"
+                    value={form.barcode}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        barcode: event.target.value,
+                      }))
+                    }
+                    placeholder="สแกนหรือกรอกรหัสสินค้า"
                   />
                 </label>
                 <label className={labelClass}>
