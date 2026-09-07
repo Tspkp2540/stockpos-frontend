@@ -413,61 +413,6 @@ function AppContent() {
       return null;
     }
   }, []);
-  const loadGoLiveReadiness = useCallback(async () => {
-    try {
-      const response = await axios.get(`${API_BASE}/api/admin/go-live/readiness`);
-      return response.data?.success ? response.data.data : null;
-    } catch (error) {
-      console.warn("Go-live readiness refresh unavailable.", error);
-      return null;
-    }
-  }, []);
-  const loadGoLiveChecks = useCallback(async () => {
-    try {
-      const response = await axios.get(`${API_BASE}/api/admin/go-live-checks`);
-      return response.data?.success && Array.isArray(response.data.data) ? response.data.data : [];
-    } catch (error) {
-      console.warn("Go-live checks refresh unavailable.", error);
-      return [];
-    }
-  }, []);
-  const saveGoLiveCheck = async (key, status, note = "") => {
-    try {
-      const response = await axios.put(`${API_BASE}/api/admin/go-live-checks/${key}`, { status, note });
-      return response.data?.success ? response.data.data : null;
-    } catch (error) {
-      showError(error, "ไม่สามารถบันทึกผลการตรวจสอบได้");
-      return null;
-    }
-  };
-  const loadAuditLogs = useCallback(async (limit = 20) => {
-    try {
-      const response = await axios.get(`${API_BASE}/api/admin/audit-logs`, { params: { limit } });
-      return response.data?.success && Array.isArray(response.data.data) ? response.data.data : [];
-    } catch (error) {
-      console.warn("Audit log refresh unavailable.", error);
-      return [];
-    }
-  }, []);
-  const downloadBusinessBackup = async () => {
-    try {
-      const response = await axios.get(`${API_BASE}/api/admin/backups/export`, { responseType: "blob" });
-      const disposition = response.headers?.["content-disposition"] || "";
-      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || `stockpos-business-backup-${todayInBangkok()}.json`;
-      const url = window.URL.createObjectURL(response.data);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = filename;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.URL.revokeObjectURL(url);
-      return true;
-    } catch (error) {
-      showError(error, "ไม่สามารถดาวน์โหลดข้อมูลสำรองได้");
-      return false;
-    }
-  };
   const fetchDailyClosing = useCallback(async (businessDate) => {
     try {
       const response = await axios.get(`${API_BASE}/api/daily-closings`, {
@@ -1648,11 +1593,6 @@ function AppContent() {
         onRefreshCashShifts={refreshCashShifts}
         onRefreshSalesBreakdown={refreshSalesBreakdown}
         onRefreshSalesReport={refreshSalesReport}
-        onLoadGoLiveReadiness={loadGoLiveReadiness}
-        onLoadGoLiveChecks={loadGoLiveChecks}
-        onSaveGoLiveCheck={saveGoLiveCheck}
-        onLoadAuditLogs={loadAuditLogs}
-        onDownloadBusinessBackup={downloadBusinessBackup}
         onFetchDailyClosing={fetchDailyClosing}
         onCloseBusinessDay={closeBusinessDay}
         onCreateInventory={createInventory}

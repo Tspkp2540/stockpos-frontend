@@ -28,7 +28,6 @@ const navigation = [
   { id: "sales-channels", icon: "◫", label: "ช่องทางขาย", adminOnly: true },
   { id: "printing", icon: "⎙", label: "ตั้งค่าการพิมพ์", adminOnly: true },
   { id: "business-reports", icon: "▥", label: "รายงานเชิงธุรกิจ", adminOnly: true },
-  { id: "go-live", icon: "✓", label: "พร้อมเปิดใช้จริง", adminOnly: true },
   { id: "finance", icon: "฿", label: "การเงิน" },
   { id: "coupons", icon: "◇", label: "จัดการคูปอง", adminOnly: true },
 ];
@@ -5631,11 +5630,6 @@ export default function GlassLayout({
   onRefreshCashShifts,
   onRefreshSalesBreakdown,
   onRefreshSalesReport,
-  onLoadGoLiveReadiness,
-  onLoadGoLiveChecks,
-  onSaveGoLiveCheck,
-  onLoadAuditLogs,
-  onDownloadBusinessBackup,
   onFetchDailyClosing,
   onCloseBusinessDay,
   onCreateInventory,
@@ -5738,14 +5732,6 @@ export default function GlassLayout({
       <PrintingSettingsPage />
     ) : activeView === "business-reports" && user?.role === "admin" ? (
       <ManagementReportPanel onLoad={onRefreshSalesReport} />
-    ) : activeView === "go-live" && user?.role === "admin" ? (
-      <GoLiveReadinessPage
-        onLoadReadiness={onLoadGoLiveReadiness}
-        onLoadChecks={onLoadGoLiveChecks}
-        onSaveCheck={onSaveGoLiveCheck}
-        onLoadAuditLogs={onLoadAuditLogs}
-        onDownloadBackup={onDownloadBusinessBackup}
-      />
     ) : activeView === "finance" ? (
       <FinancePage
         metrics={metrics}
