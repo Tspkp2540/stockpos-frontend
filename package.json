@@ -3,15 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node ./node_modules/@craco/craco/dist/bin/craco.js start",
+    "dev": "vite",
     "start": "node scripts/serve.js",
-    "preview": "node scripts/serve.js",
-    "build": "node ./node_modules/@craco/craco/dist/bin/craco.js build",
-    "test": "node ./node_modules/@craco/craco/dist/bin/craco.js test",
-    "eject": "react-scripts eject"
+    "preview": "vite preview",
+    "build": "vite build"
   },
   "dependencies": {
-    "@craco/craco": "^7.1.0",
+    "@e965/xlsx": "^0.20.3",
+    "@vitejs/plugin-react": "^6.1.1",
     "@react-three/fiber": "^9.7.0",
     "@socket.io/component-emitter": "^3.1.2",
     "autoprefixer": "^10.5.4",
@@ -19,12 +18,11 @@
     "postcss": "^8.4.49",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-scripts": "^5.0.1",
     "serve": "^14.2.6",
     "socket.io-client": "^4.8.3",
     "tailwindcss": "^3.4.17",
     "three": "^0.185.1",
-    "xlsx": "^0.18.5"
+    "vite": "^8.2.2"
   },
   "browserslist": {
     "production": [

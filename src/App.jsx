@@ -9,9 +9,10 @@ import AnonymousOrderStatus from "./components/ui/AnonymousOrderStatus";
 import { ActionDialogProvider, useActionDialog } from "./components/ui/ActionDialog";
 
 const API_BASE =
-  process.env.REACT_APP_API_URL ||
+  import.meta.env.VITE_API_URL ||
   "https://stockpos-production-d146.up.railway.app";
 const SESSION_KEY = "stockpos-session";
+const PENDING_ORDER_SUBMISSIONS_KEY = "stockpos-pending-order-submissions";
 const roles = new Set(["admin", "staff", "user"]);
 const loadSession = () => {
   try {
@@ -116,6 +117,66 @@ const todayInBangkok = () => {
   const value = (name) => parts.find((part) => part.type === name)?.value;
   return `${value("year")}-${value("month")}-${value("day")}`;
 };
+
+const newClientRequestId = () => {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  return `pos-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const readPendingOrderSubmissions = () => {
+  try {
+    const saved = JSON.parse(
+      window.localStorage.getItem(PENDING_ORDER_SUBMISSIONS_KEY) || "{}",
+    );
+    if (!saved || typeof saved !== "object" || Array.isArray(saved)) return {};
+    const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
+    return Object.fromEntries(
+      Object.entries(saved).filter(([, value]) =>
+        value?.createdAt && new Date(value.createdAt).getTime() >= twoDaysAgo,
+      ),
+    );
+  } catch (error) {
+    return {};
+  }
+};
+
+const writePendingOrderSubmissions = (submissions) => {
+  try {
+    window.localStorage.setItem(
+      PENDING_ORDER_SUBMISSIONS_KEY,
+      JSON.stringify(submissions),
+    );
+  } catch (error) {
+    console.warn("Unable to persist pending order submission.", error);
+  }
+};
+
+const orderSubmissionFingerprint = (payload) =>
+  JSON.stringify({
+    channel_id: Number(payload.channel_id),
+    record_date: payload.record_date || todayInBangkok(),
+    customer_name: String(payload.customer_name || "").trim(),
+    customer_nickname: String(payload.customer_nickname || "").trim(),
+    customer_phone: String(payload.customer_phone || "").replace(/\D/g, ""),
+    manual_discount_amount: Number(payload.manual_discount_amount) || 0,
+    coupon_code: String(payload.coupon_code || "").trim().toUpperCase(),
+    loyalty_points_redeemed: Number(payload.loyalty_points_redeemed) || 0,
+    payment_method: String(payload.payment_method || "OTHER").toUpperCase(),
+    amount_received:
+      payload.amount_received === undefined || payload.amount_received === ""
+        ? null
+        : Number(payload.amount_received),
+    items: (payload.items || []).map((item) => ({
+      product_id: Number(item.product_id),
+      qty: Number(item.qty),
+      price: Number(item.price),
+      modifiers: (item.modifiers || [])
+        .map((modifier) => Number(modifier?.option_id ?? modifier))
+        .sort((left, right) => left - right),
+    })),
+  });
 
 function ConnectionBanner({ systemStatus, realtimeConnected }) {
   const state = systemStatus?.state || "checking";
@@ -575,11 +636,22 @@ function AppContent() {
             : current,
         );
       })
-      .catch(() => {
+      .catch((error) => {
         if (!active) return;
-        window.localStorage.removeItem(SESSION_KEY);
-        delete axios.defaults.headers.common.Authorization;
-        setSession(null);
+        if (Number(error?.response?.status) === 401) {
+          window.localStorage.removeItem(SESSION_KEY);
+          delete axios.defaults.headers.common.Authorization;
+          setSession(null);
+          return;
+        }
+        // A temporary API/network failure must not sign staff out in the middle of a sale.
+        console.warn("Session verification unavailable; keeping the current session.", error);
+        if (!error?.response) {
+          setSystemStatus({
+            state: "api_offline",
+            checkedAt: new Date().toISOString(),
+          });
+        }
       });
     return () => {
       active = false;
@@ -786,12 +858,32 @@ function AppContent() {
       });
       return false;
     }
-    const nextNumber = 1049 + orders.length;
+    const recordDate = payload.record_date || todayInBangkok();
+    const fingerprint = orderSubmissionFingerprint({ ...payload, record_date: recordDate });
+    const pendingSubmissions = readPendingOrderSubmissions();
+    const previousSubmission = pendingSubmissions[fingerprint];
+    const submission = previousSubmission || {
+      clientRequestId: newClientRequestId(),
+      orderNo: `POS-${1049 + orders.length}`,
+      createdAt: new Date().toISOString(),
+    };
+    if (!previousSubmission) {
+      writePendingOrderSubmissions({
+        ...pendingSubmissions,
+        [fingerprint]: submission,
+      });
+    }
+    const clearPendingSubmission = () => {
+      const current = readPendingOrderSubmissions();
+      delete current[fingerprint];
+      writePendingOrderSubmissions(current);
+    };
     try {
       const response = await axios.post(`${API_BASE}/api/orders`, {
-        order_no: `POS-${nextNumber}`,
+        order_no: submission.orderNo,
         channel_id: payload.channel_id || channels[0]?.id,
-        record_date: payload.record_date || todayInBangkok(),
+        record_date: recordDate,
+        client_request_id: submission.clientRequestId,
         items: payload.items || [
           {
             product_id: products[0]?.id,
@@ -809,6 +901,8 @@ function AppContent() {
           payload.amount_received === undefined || payload.amount_received === ""
             ? undefined
             : Number(payload.amount_received),
+      }, {
+        headers: { "Idempotency-Key": submission.clientRequestId },
       });
       if (response.data?.success) {
         setOrders((current) => [
@@ -817,8 +911,9 @@ function AppContent() {
             channel_name: payload.channel_name,
             items: payload.items,
           }),
-          ...current,
+          ...current.filter((order) => order.id !== response.data.data?.id),
         ]);
+        clearPendingSubmission();
         setNotice("NEW ORDER RECEIVED · ACCOUNTANT PRINTING");
         if (payload.payment_method === "CASH") refreshCurrentShift();
         if (session?.role === "admin") await refreshSalesBreakdown(payload.record_date || todayInBangkok());
@@ -826,15 +921,19 @@ function AppContent() {
         return true;
       }
     } catch (error) {
-      if (!error.response) {
+      const isAmbiguousResult = !error.response || Number(error.response.status) >= 500;
+      if (isAmbiguousResult) {
         setSystemStatus({ state: "api_offline", checkedAt: new Date().toISOString() });
         error.stockposErrorNotified = true;
         showMessage({
           tone: "danger",
           title: "ยังไม่ทราบผลการบันทึกออเดอร์ · API_NETWORK",
-          message: "อย่ากดยืนยันซ้ำทันที เพราะระบบอาจได้รับรายการแล้ว กรุณารอการเชื่อมต่อกลับมาและตรวจรายการออเดอร์ก่อน",
+          message: "ระบบจะใช้รหัสยืนยันเดิมหากกดส่งซ้ำ จึงไม่ตัดสต็อกหรือใช้คูปองซ้ำ กรุณารอการเชื่อมต่อกลับมาแล้วกดยืนยันรายการเดิมอีกครั้ง",
         });
-      } else showError(error, "ไม่สามารถบันทึกออเดอร์ได้");
+      } else {
+        clearPendingSubmission();
+        showError(error, "ไม่สามารถบันทึกออเดอร์ได้");
+      }
       console.warn("Order API failed.", error);
     }
     return false;

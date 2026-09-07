@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'https://stockpos-production-d146.up.railway.app';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://stockpos-production-d146.up.railway.app';
 
 export default function OrderQueue() {
   const [orders, setOrders] = useState([]);
@@ -10,7 +10,7 @@ export default function OrderQueue() {
   // ดึงข้อมูลออเดอร์จาก Backend API
   const fetchOrders = async () => {
     try {
-      // Use configured API base (env `REACT_APP_API_URL`) or deployed Railway URL
+      // Use configured API base (env `VITE_API_URL`) or deployed Railway URL
       const response = await axios.get(`${API_BASE}/api/orders`);
       if (response.data.success) {
         setOrders(response.data.data);

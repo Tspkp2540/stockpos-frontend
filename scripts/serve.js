@@ -9,7 +9,7 @@ const projectRoot = path.resolve(__dirname, "..");
 const buildDirectory = path.resolve(projectRoot, "build");
 const buildIndex = path.resolve(buildDirectory, "index.html");
 const serveCli = path.resolve(__dirname, "..", "node_modules", "serve", "build", "main.js");
-const cracoCli = path.resolve(__dirname, "..", "node_modules", "@craco", "craco", "dist", "bin", "craco.js");
+const viteCli = path.resolve(__dirname, "..", "node_modules", "vite", "bin", "vite.js");
 
 const startServer = () => {
   const server = spawn(process.execPath, [serveCli, "-s", buildDirectory, "-l", port], { stdio: "inherit" });
@@ -23,7 +23,7 @@ if (fs.existsSync(buildIndex)) {
   startServer();
 } else {
   console.log("Building the production bundle before starting the server...");
-  const build = spawn(process.execPath, [cracoCli, "build"], { stdio: "inherit" });
+  const build = spawn(process.execPath, [viteCli, "build"], { stdio: "inherit" });
   build.on("exit", (code) => {
     if (code === 0) startServer();
     else process.exitCode = code ?? 1;

@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
 
 const safeValue = (value) => {
   if (value === null || value === undefined) return "";
