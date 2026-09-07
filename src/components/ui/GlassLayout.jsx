@@ -9,6 +9,8 @@ import { exportExcel } from "../../utils/exportExcel";
 import { menuAvailability, menuAvailabilityLabel } from "../../utils/menuAvailability";
 import { maskPhone } from "../../utils/phone";
 import { printReceipt } from "../../utils/printReceipt";
+import { printKitchenTicket } from "../../utils/printKitchenTicket";
+import { loadPrintSettings, savePrintSettings } from "../../utils/printSettings";
 import { printCashShiftSummary } from "../../utils/printCashShiftSummary";
 import { loadPosMenuUsage, recordPosMenuUsage } from "../../utils/posMenuUsage";
 import { productForChannel } from "../../utils/channelMenu";
@@ -24,6 +26,9 @@ const navigation = [
   { id: "procurement", icon: "▤", label: "จัดซื้อและผู้ขาย", adminOnly: true },
   { id: "menu", icon: "☷", label: "เมนูสินค้า" },
   { id: "sales-channels", icon: "◫", label: "ช่องทางขาย", adminOnly: true },
+  { id: "printing", icon: "⎙", label: "ตั้งค่าการพิมพ์", adminOnly: true },
+  { id: "business-reports", icon: "▥", label: "รายงานเชิงธุรกิจ", adminOnly: true },
+  { id: "go-live", icon: "✓", label: "พร้อมเปิดใช้จริง", adminOnly: true },
   { id: "finance", icon: "฿", label: "การเงิน" },
   { id: "coupons", icon: "◇", label: "จัดการคูปอง", adminOnly: true },
 ];
@@ -280,7 +285,7 @@ function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
                   {money(order.net_revenue)}
                 </strong>
                 {order.status === "COOKING" ? (
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       className="text-xs"
                       onClick={() => onUpdate(order.id, "READY")}
@@ -293,6 +298,9 @@ function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
                       onClick={() => onUpdate(order.id, "CANCELLED")}
                     >
                       ยกเลิก
+                    </Button>
+                    <Button className="text-xs" variant="secondary" onClick={() => handlePrint(order)}>
+                      ใบเสร็จ
                     </Button>
                   </div>
                 ) : order.status === "READY" ? (
@@ -338,12 +346,12 @@ function KitchenDisplayPage({ orders, onUpdate }) {
     const minutes = Math.max(0, Math.floor((now - createdAt) / 60000));
     return minutes ? `รอ ${minutes} นาที` : "เพิ่งเข้าคิว";
   };
-  const handlePrint = (order) => {
-    if (printReceipt(order)) return;
+  const handleKitchenPrint = (order) => {
+    if (printKitchenTicket(order)) return;
     showMessage({
       tone: "danger",
-      title: "เปิดใบเสร็จไม่ได้",
-      message: "กรุณาอนุญาตหน้าต่างป๊อปอัปเพื่อพิมพ์ใบเสร็จ",
+      title: "เปิดใบครัวไม่ได้",
+      message: "กรุณาอนุญาตหน้าต่างป๊อปอัปเพื่อพิมพ์ใบครัว",
     });
   };
   const Ticket = ({ order }) => {
@@ -377,8 +385,8 @@ function KitchenDisplayPage({ orders, onUpdate }) {
           <Button className="flex-1" onClick={() => onUpdate(order.id, isReady ? "COMPLETED" : "READY")}>
             {isReady ? "ส่งมอบแล้ว" : "ทำเสร็จ / พร้อมรับ"}
           </Button>
-          <Button className="text-xs" variant="secondary" onClick={() => handlePrint(order)}>
-            ใบเสร็จ
+          <Button className="text-xs" variant="secondary" onClick={() => handleKitchenPrint(order)}>
+            พิมพ์ใบครัว
           </Button>
         </div>
       </article>
@@ -402,6 +410,76 @@ function KitchenDisplayPage({ orders, onUpdate }) {
           <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-emerald-950">พร้อมรับสินค้า</h2><span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-emerald-700">{ready.length}</span></div>
           <div className="grid gap-3">{ready.length ? ready.map((order) => <Ticket key={order.id} order={order} />) : <Empty>ยังไม่มีรายการที่พร้อมรับ</Empty>}</div>
         </section>
+      </div>
+    </div>
+  );
+}
+
+function PrintingSettingsPage() {
+  const { showMessage } = useActionDialog();
+  const [settings, setSettings] = useState(() => loadPrintSettings());
+  const updateSetting = (field, value) => setSettings((current) => ({ ...current, [field]: value }));
+  const sampleOrder = {
+    order_no: "TEST-PRINT",
+    queue_no: 1,
+    channel_name: "หน้าร้าน",
+    customer_nickname: "ลูกค้าทดสอบ",
+    created_at: new Date().toISOString(),
+    rawItems: [
+      { name: "ชานมไข่มุก", quantity: 1, unit_price: 55, modifiers: [{ name: "หวานน้อย" }, { name: "ไข่มุก" }] },
+      { name: "ครัวซองต์เนยสด", quantity: 1, unit_price: 45, modifiers: [] },
+    ],
+    subtotal_amount: 100,
+    gross_amount: 100,
+    payment: { payment_method: "CASH", amount_received: 100, change_amount: 0 },
+  };
+  const save = () => {
+    savePrintSettings(settings);
+    showMessage({ tone: "success", title: "บันทึกการตั้งค่าการพิมพ์แล้ว", message: "การตั้งค่านี้จะใช้กับเครื่องและเบราว์เซอร์ปัจจุบัน" });
+  };
+  const testPrint = (type) => {
+    savePrintSettings(settings);
+    const opened = type === "receipt" ? printReceipt(sampleOrder) : printKitchenTicket(sampleOrder);
+    if (opened) return;
+    showMessage({ tone: "danger", title: "เปิดหน้าพิมพ์ไม่ได้", message: "กรุณาอนุญาตหน้าต่างป๊อปอัป แล้วลองอีกครั้ง" });
+  };
+  const PrinterFields = ({ title, description, widthField, labelField, testType }) => (
+    <Card className="space-y-4">
+      <div>
+        <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+        <p className="mt-1 text-sm text-slate-500">{description}</p>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className={labelClass}>
+          ขนาดกระดาษ
+          <select className={inputClass} value={settings[widthField]} onChange={(event) => updateSetting(widthField, event.target.value)}>
+            <option value="80">80 มม.</option>
+            <option value="58">58 มม.</option>
+          </select>
+        </label>
+        <label className={labelClass}>
+          ชื่อเครื่องพิมพ์ (เพื่ออ้างอิง)
+          <input className={inputClass} value={settings[labelField]} onChange={(event) => updateSetting(labelField, event.target.value)} placeholder="เช่น Thermal Counter 01" />
+        </label>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-100 bg-sky-50/70 p-3">
+        <p className="text-xs leading-5 text-slate-600">เมื่อสั่งพิมพ์ ระบบจะเปิดหน้าต่างของระบบปฏิบัติการ เพื่อเลือกเครื่องพิมพ์จริงก่อนยืนยัน</p>
+        <Button type="button" variant="secondary" onClick={() => testPrint(testType)}>ทดสอบพิมพ์</Button>
+      </div>
+    </Card>
+  );
+  return (
+    <div className="mx-auto max-w-4xl space-y-5">
+      <Heading title="ตั้งค่าการพิมพ์หน้าร้าน" description="กำหนดรูปแบบใบเสร็จและใบเตรียมสินค้า ก่อนเลือกเครื่องพิมพ์จากหน้าต่างพิมพ์" />
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950">
+        เว็บไซต์ไม่สามารถล็อกให้พิมพ์ไปที่เครื่องใดเครื่องหนึ่งได้โดยตรงเพื่อความปลอดภัย จึงให้เลือกเครื่องจริงในหน้าต่างพิมพ์ทุกครั้ง ส่วนชื่อเครื่องในหน้านี้ใช้เป็นข้อมูลอ้างอิงของจุดพิมพ์
+      </div>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <PrinterFields title="ใบเสร็จรับเงิน" description="สำหรับส่งมอบให้ลูกค้าหลังชำระเงิน" widthField="receipt_paper_width" labelField="receipt_printer_label" testType="receipt" />
+        <PrinterFields title="ใบเตรียมสินค้า / ครัว" description="สำหรับเครื่องดื่มและครัว ใช้ได้จากจอเตรียมสินค้า" widthField="kitchen_paper_width" labelField="kitchen_printer_label" testType="kitchen" />
+      </div>
+      <div className="flex justify-end">
+        <Button type="button" onClick={save}>บันทึกการตั้งค่า</Button>
       </div>
     </div>
   );
@@ -4070,21 +4148,30 @@ function ManagementReportPanel({ onLoad }) {
   const previous = report?.previous_summary || {};
   const daily = Array.isArray(report?.daily) ? report.daily : [];
   const topProducts = Array.isArray(report?.top_products) ? report.top_products : [];
+  const productMetrics = Array.isArray(report?.product_metrics) ? report.product_metrics : topProducts;
+  const channelMetrics = Array.isArray(report?.channel_metrics) ? report.channel_metrics : [];
+  const hourlySales = Array.isArray(report?.hourly_sales) ? report.hourly_sales : [];
   const inventoryUsage = Array.isArray(report?.inventory_usage) ? report.inventory_usage : [];
   const highestDailySales = Math.max(1, ...daily.map((item) => Number(item.net_revenue || 0)));
+  const highestHourlySales = Math.max(1, ...hourlySales.map((item) => Number(item.net_revenue || 0)));
+  const peakHour = hourlySales.reduce((best, item) => (
+    Number(item.net_revenue || 0) > Number(best?.net_revenue || 0) ? item : best
+  ), null);
   const reportCards = [
-    ["ยอดขายสุทธิ", summary.net_revenue, previous.net_revenue, "text-sky-700"],
-    ["กำไรหลังค่าใช้จ่าย", summary.operating_profit, previous.operating_profit, "text-emerald-700"],
-    ["จำนวนออเดอร์", summary.order_count, previous.order_count, "text-violet-700"],
+    ["ยอดขายก่อนลด", summary.subtotal_amount, previous.subtotal_amount, "text-slate-800"],
     ["ส่วนลดรวม", summary.discount_amount, previous.discount_amount, "text-amber-700"],
+    ["GP ช่องทาง", summary.gp_amount, previous.gp_amount, "text-violet-700"],
+    ["กำไรหลัง GP/ส่วนลด", summary.net_profit, previous.net_profit, "text-emerald-700"],
+    ["กำไรหลังค่าใช้จ่าย", summary.operating_profit, previous.operating_profit, "text-sky-700"],
+    ["จำนวนออเดอร์", summary.order_count, previous.order_count, "text-violet-700"],
   ];
   return (
     <section className="space-y-5">
       <Card className="border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">รายงานบริหารร้าน</h2>
-            <p className="mt-1 text-sm text-slate-500">เปรียบเทียบยอดขาย เมนูขายดี และวัตถุดิบที่ใช้จริงกับช่วงเวลาก่อนหน้า</p>
+            <h2 className="text-xl font-bold text-slate-900">รายงานเชิงธุรกิจ</h2>
+            <p className="mt-1 text-sm text-slate-500">วิเคราะห์เมนู ช่องทางขาย ชั่วโมงขายดี และกำไรหลังหักส่วนลด, GP และต้นทุนจริง</p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <div className="flex flex-wrap gap-2">
@@ -4109,7 +4196,7 @@ function ManagementReportPanel({ onLoad }) {
 
       {loading ? <Card><p className="text-sm text-slate-500">กำลังจัดทำรายงาน…</p></Card> : error ? <Empty>{error}</Empty> : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {reportCards.map(([label, value, previousValue, tone]) => (
               <Card className="p-4" key={label}>
                 <p className="text-xs font-semibold text-slate-500">{label}</p>
@@ -4154,6 +4241,77 @@ function ManagementReportPanel({ onLoad }) {
               </div>
             </Card>
           </section>
+          <section className="grid gap-5 xl:grid-cols-2">
+            <Card>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">ผลลัพธ์ตามช่องทางขาย</h3>
+                  <p className="mt-1 text-xs text-slate-500">ยอดหลังส่วนลด, GP และต้นทุนของแต่ละช่องทาง</p>
+                </div>
+                <strong className="text-sm text-sky-700">รับสุทธิ {money(summary.net_revenue)}</strong>
+              </div>
+              <div className="mt-4 space-y-3">
+                {channelMetrics.length ? channelMetrics.map((item) => {
+                  const share = Math.min(100, Math.max(0, Number(item.net_revenue || 0) / Math.max(1, Number(summary.net_revenue || 0)) * 100));
+                  return (
+                    <div className="rounded-xl border border-sky-100 bg-sky-50/40 p-3" key={item.channel_name}>
+                      <div className="flex items-center justify-between gap-3"><p className="truncate text-sm font-bold text-slate-800">{item.channel_name}</p><strong className="shrink-0 text-sm text-sky-700">{money(item.net_revenue)}</strong></div>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-sky-500" style={{ width: `${share}%` }} /></div>
+                      <p className="mt-2 text-xs text-slate-500">{Number(item.order_count || 0).toLocaleString()} ออเดอร์ · GP {money(item.gp_amount)} · กำไร {money(item.net_profit)}</p>
+                    </div>
+                  );
+                }) : <Empty>ยังไม่มีข้อมูลช่องทางขายในช่วงเวลานี้</Empty>}
+              </div>
+            </Card>
+            <Card>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">ชั่วโมงขายดี</h3>
+                  <p className="mt-1 text-xs text-slate-500">อ้างอิงเวลาประเทศไทย</p>
+                </div>
+                {peakHour ? <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800">พีค {String(peakHour.hour).padStart(2, "0")}:00 · {money(peakHour.net_revenue)}</span> : null}
+              </div>
+              <div className="mt-5 flex min-h-40 items-end gap-2 overflow-x-auto pb-1">
+                {hourlySales.length ? hourlySales.map((item) => {
+                  const height = Math.max(8, Math.round((Number(item.net_revenue || 0) / highestHourlySales) * 112));
+                  return (
+                    <div className="flex min-w-11 flex-1 flex-col items-center gap-2" key={item.hour} title={`${String(item.hour).padStart(2, "0")}:00 · ${money(item.net_revenue)} · ${Number(item.order_count || 0)} ออเดอร์`}>
+                      <span className="text-[10px] font-bold text-amber-700">{Number(item.order_count || 0)}</span>
+                      <div className="flex h-28 w-full items-end rounded-t-lg bg-amber-50 px-1"><div className="w-full rounded-t-md bg-gradient-to-t from-amber-500 to-yellow-300" style={{ height }} /></div>
+                      <span className="text-[10px] text-slate-500">{String(item.hour).padStart(2, "0")}:00</span>
+                    </div>
+                  );
+                }) : <Empty>ยังไม่มีข้อมูลเวลาออเดอร์ในช่วงเวลานี้</Empty>}
+              </div>
+            </Card>
+          </section>
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">กำไรตามเมนู</h3>
+                <p className="mt-1 text-xs text-slate-500">รายได้ถูกเฉลี่ยตามส่วนลดและ GP ของออเดอร์ ส่วนต้นทุนอ้างอิงล็อตวัตถุดิบที่ตัดจริง</p>
+              </div>
+              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">{productMetrics.length} เมนู</span>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-[860px] w-full text-left text-sm">
+                <thead className="border-b border-slate-200 text-xs text-slate-500"><tr><th className="px-2 py-3">เมนู</th><th className="px-2 py-3 text-right">ขายได้</th><th className="px-2 py-3 text-right">ยอดก่อนลด</th><th className="px-2 py-3 text-right">ส่วนลด</th><th className="px-2 py-3 text-right">GP</th><th className="px-2 py-3 text-right">ต้นทุน</th><th className="px-2 py-3 text-right">กำไรหลัง GP/ส่วนลด</th></tr></thead>
+                <tbody>
+                  {productMetrics.length ? productMetrics.map((item) => (
+                    <tr className="border-b border-slate-100 last:border-0" key={item.product_id || item.product_name}>
+                      <td className="px-2 py-3 font-bold text-slate-800">{item.product_name}</td>
+                      <td className="px-2 py-3 text-right text-slate-600">{Number(item.quantity_sold || 0).toLocaleString()}</td>
+                      <td className="px-2 py-3 text-right text-slate-600">{money(item.list_sales_amount)}</td>
+                      <td className="px-2 py-3 text-right text-amber-700">-{money(item.discount_amount)}</td>
+                      <td className="px-2 py-3 text-right text-violet-700">-{money(item.gp_amount)}</td>
+                      <td className="px-2 py-3 text-right text-slate-600">-{money(item.total_cogs)}</td>
+                      <td className={`px-2 py-3 text-right font-bold ${Number(item.net_profit || 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{money(item.net_profit)}</td>
+                    </tr>
+                  )) : <tr><td className="px-2 py-6 text-center text-slate-500" colSpan="7">ยังไม่มีเมนูขายในช่วงเวลานี้</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </Card>
           <Card>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -4174,6 +4332,162 @@ function ManagementReportPanel({ onLoad }) {
         </>
       )}
     </section>
+  );
+}
+
+const goLiveChecklist = [
+  {
+    key: "database_backup",
+    title: "สำรองข้อมูลธุรกิจ",
+    description: "ดาวน์โหลดไฟล์สำรอง JSON แล้วเปิดตรวจสอบไฟล์ และเก็บในพื้นที่เข้ารหัสที่ทีมเข้าถึงได้",
+  },
+  {
+    key: "audit_log_review",
+    title: "ตรวจสอบประวัติการแก้ไข",
+    description: "ยืนยันว่าการเพิ่ม แก้ไข ลบ และเปลี่ยนสถานะล่าสุดแสดงผู้ทำรายการอย่างถูกต้อง",
+  },
+  {
+    key: "admin_access",
+    title: "ทดสอบสิทธิ์ Admin",
+    description: "เข้าสู่ระบบด้วยบัญชี Admin แล้วตรวจการตั้งค่า เมนู วัตถุดิบ การเงิน รายงาน และการจัดการข้อมูล",
+  },
+  {
+    key: "staff_access",
+    title: "ทดสอบสิทธิ์ Staff",
+    description: "เข้าสู่ระบบด้วยบัญชี Staff แล้วสร้างออเดอร์ เปลี่ยนสถานะ และยืนยันว่าไม่เข้าถึงการเงินหรือการตั้งค่าระบบ",
+  },
+  {
+    key: "user_access",
+    title: "ทดสอบสิทธิ์ User",
+    description: "เข้าสู่ระบบด้วยบัญชี User แล้วตรวจประวัติและสถานะของตนเอง โดยต้องไม่แก้ไขข้อมูลร้านได้",
+  },
+  {
+    key: "sales_flow",
+    title: "ทดสอบขายครบเส้นทาง",
+    description: "เปิดกะ → เลือกเมนู/ความหวาน/ท็อปปิ้ง → ส่วนลดหรือคูปอง → ชำระเงิน → ตัดสต็อก → คิวครัว → ส่งมอบ → ตรวจยอดการเงิน",
+  },
+  {
+    key: "print_flow",
+    title: "ทดสอบการพิมพ์",
+    description: "ทดสอบใบเสร็จและใบครัวกับเครื่องจริง รวมถึงขนาดกระดาษ 58 หรือ 80 มม. ที่ใช้หน้าร้าน",
+  },
+];
+
+function GoLiveReadinessPage({ onLoadReadiness, onLoadChecks, onSaveCheck, onLoadAuditLogs, onDownloadBackup }) {
+  const { showMessage } = useActionDialog();
+  const [readiness, setReadiness] = useState(null);
+  const [checks, setChecks] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [savingKey, setSavingKey] = useState("");
+  const refresh = async () => {
+    setLoading(true);
+    const [nextReadiness, nextChecks, nextAuditLogs] = await Promise.all([
+      onLoadReadiness?.(),
+      onLoadChecks?.(),
+      onLoadAuditLogs?.(12),
+    ]);
+    setReadiness(nextReadiness || null);
+    setChecks(Array.isArray(nextChecks) ? nextChecks : []);
+    setAuditLogs(Array.isArray(nextAuditLogs) ? nextAuditLogs : []);
+    setLoading(false);
+  };
+  useEffect(() => {
+    refresh();
+  }, [onLoadAuditLogs, onLoadChecks, onLoadReadiness]);
+  const checksByKey = Object.fromEntries(checks.map((item) => [item.check_key, item]));
+  const passedCount = goLiveChecklist.filter((item) => checksByKey[item.key]?.status === "PASSED").length;
+  const saveCheck = async (key, status) => {
+    setSavingKey(key);
+    const saved = await onSaveCheck?.(key, status);
+    setSavingKey("");
+    if (!saved) return;
+    setChecks((current) => {
+      const index = current.findIndex((item) => item.check_key === key);
+      return index >= 0 ? current.map((item) => item.check_key === key ? saved : item) : [...current, saved];
+    });
+    showMessage({
+      tone: status === "PASSED" ? "success" : "info",
+      title: status === "PASSED" ? "บันทึกว่าทดสอบผ่านแล้ว" : "เปิดรายการตรวจสอบอีกครั้ง",
+      message: "ระบบบันทึกผู้ตรวจสอบและเวลาที่อัปเดตไว้ในประวัติการแก้ไขแล้ว",
+    });
+  };
+  const downloadBackup = async () => {
+    const downloaded = await onDownloadBackup?.();
+    if (!downloaded) return;
+    showMessage({ tone: "success", title: "ดาวน์โหลดข้อมูลสำรองแล้ว", message: "กรุณาเก็บไฟล์ในพื้นที่เข้ารหัส และทดสอบเปิดไฟล์ก่อนทำเครื่องหมายว่าผ่าน" });
+    window.setTimeout(() => refresh(), 400);
+  };
+  const roleCounts = readiness?.role_counts || {};
+  const readinessCards = [
+    ["Admin", Number(roleCounts.admin || 0), "บัญชีผู้ดูแลระบบ"],
+    ["Staff", Number(roleCounts.staff || 0), "บัญชีพนักงานหน้าร้าน"],
+    ["User", Number(roleCounts.user || 0), "บัญชีลูกค้า"],
+    ["เมนูพร้อมขาย", Number(readiness?.active_products || 0), "รายการที่ยังเปิดขาย"],
+    ["ช่องทางขาย", Number(readiness?.active_channels || 0), "ช่องทางที่เปิดใช้งาน"],
+    ["วัตถุดิบใกล้หมด", Number(readiness?.low_stock_count || 0), "ควรตรวจให้พร้อมก่อนเปิดร้าน"],
+  ];
+  return (
+    <div className="mx-auto max-w-6xl space-y-5">
+      <Heading
+        title="ความพร้อมก่อนเปิดใช้จริง"
+        description="ตรวจข้อมูลสำรอง สิทธิ์ผู้ใช้ และการขายครบเส้นทางก่อนเปิดหน้าร้าน"
+        action={<Button type="button" variant="secondary" onClick={refresh} disabled={loading}>{loading ? "กำลังตรวจสอบ…" : "↻ ตรวจสอบใหม่"}</Button>}
+      />
+      <Card className="border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-bold text-sky-800">ผลการตรวจรับ {passedCount}/{goLiveChecklist.length} รายการ</p>
+            <h2 className="mt-1 text-xl font-bold text-slate-900">{passedCount === goLiveChecklist.length ? "พร้อมเปิดใช้จริง" : "ยังมีรายการที่ต้องทดสอบ"}</h2>
+            <p className="mt-1 text-sm text-slate-600">การทำเครื่องหมายผ่านเป็นการรับรองโดยผู้ดูแลหลังทดสอบกับบัญชีและอุปกรณ์จริง</p>
+          </div>
+          <div className="h-3 w-full overflow-hidden rounded-full bg-white sm:w-56"><div className="h-full rounded-full bg-gradient-to-r from-sky-500 to-emerald-500 transition-all" style={{ width: `${(passedCount / goLiveChecklist.length) * 100}%` }} /></div>
+        </div>
+      </Card>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {readinessCards.map(([label, value, description]) => (
+          <Card className="p-4" key={label}><p className="text-xs font-semibold text-slate-500">{label}</p><strong className="mt-2 block text-2xl text-slate-900">{value.toLocaleString()}</strong><p className="mt-1 text-xs text-slate-500">{description}</p></Card>
+        ))}
+      </section>
+      <Card className="border-violet-200 bg-violet-50/50">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">สำรองข้อมูลธุรกิจ</h2>
+            <p className="mt-1 text-sm text-slate-600">Snapshot ครอบคลุมยอดขาย สต็อก เมนู คูปอง กะเงินสด ผู้ขาย และประวัติการแก้ไขล่าสุด</p>
+            <p className="mt-1 text-xs text-violet-700">สำรองล่าสุด: {readiness?.last_backup_at ? dateTimeLabel(readiness.last_backup_at) : "ยังไม่มี"}</p>
+          </div>
+          <Button type="button" onClick={downloadBackup}>↓ ดาวน์โหลดข้อมูลสำรอง</Button>
+        </div>
+        <p className="mt-3 rounded-xl border border-violet-100 bg-white/80 p-3 text-xs leading-5 text-slate-600">ไฟล์นี้ไม่รวม password hash และไม่แทนที่ backup ระดับผู้ให้บริการฐานข้อมูลหรือ pg_dump จึงควรเปิดระบบสำรองของผู้ให้บริการควบคู่กัน</p>
+      </Card>
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+        <Card>
+          <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-slate-900">รายการทดสอบก่อนเปิดใช้</h2><p className="mt-1 text-xs text-slate-500">ทดสอบกับข้อมูลและอุปกรณ์จริง แล้วค่อยทำเครื่องหมายผ่าน</p></div><span className="rounded-full bg-sky-100 px-3 py-1.5 text-xs font-bold text-sky-700">{passedCount} ผ่านแล้ว</span></div>
+          <div className="mt-4 space-y-3">
+            {goLiveChecklist.map((item) => {
+              const saved = checksByKey[item.key];
+              const passed = saved?.status === "PASSED";
+              return (
+                <div className={`rounded-2xl border p-3 ${passed ? "border-emerald-200 bg-emerald-50/45" : "border-slate-200 bg-white"}`} key={item.key}>
+                  <div className="flex gap-3"><button aria-label={`สลับผล ${item.title}`} className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border text-sm font-black ${passed ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-300 bg-white text-transparent"}`} type="button" disabled={savingKey === item.key} onClick={() => saveCheck(item.key, passed ? "PENDING" : "PASSED")}>✓</button><div className="min-w-0 flex-1"><p className="text-sm font-bold text-slate-800">{item.title}</p><p className="mt-1 text-xs leading-5 text-slate-600">{item.description}</p>{saved?.updated_at ? <p className="mt-2 text-[11px] font-semibold text-slate-500">{passed ? "ผ่านโดย" : "อัปเดตโดย"} {saved.checked_by_name || "ผู้ดูแลระบบ"} · {dateTimeLabel(saved.updated_at)}</p> : null}</div></div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+        <Card>
+          <div><h2 className="text-lg font-bold text-slate-900">ประวัติการแก้ไขล่าสุด</h2><p className="mt-1 text-xs text-slate-500">แสดงผู้ทำรายการและรายการที่เปลี่ยนแปลงจากระบบ</p></div>
+          <div className="mt-4 space-y-3">
+            {auditLogs.length ? auditLogs.map((item) => (
+              <div className="border-b border-slate-100 pb-3 last:border-0 last:pb-0" key={item.id}>
+                <div className="flex items-center justify-between gap-2"><p className="truncate text-sm font-bold text-slate-800">{item.action} · {item.resource}</p><span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${Number(item.status_code) < 300 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{item.status_code}</span></div>
+                <p className="mt-1 text-xs text-slate-500">{item.actor_name || "ผู้ใช้งาน"} · {dateTimeLabel(item.created_at)}</p>
+              </div>
+            )) : <Empty>{loading ? "กำลังโหลดประวัติ…" : "ยังไม่มีประวัติการแก้ไข"}</Empty>}
+          </div>
+        </Card>
+      </section>
+    </div>
   );
 }
 
@@ -4524,7 +4838,7 @@ function FinancePage({
       </section>
       <section className="grid gap-3 sm:grid-cols-3">
         <button className="rounded-2xl border border-sky-100 bg-white p-4 text-left shadow-sm transition hover:border-sky-300 hover:bg-sky-50" type="button" onClick={() => setDetailModal("breakdown")}><span className="text-lg">▥</span><strong className="mt-2 block text-sm text-slate-900">วิเคราะห์ยอดขาย</strong><span className="mt-1 block text-xs text-slate-500">ช่องทางและวิธีชำระเงิน</span></button>
-        <button className="rounded-2xl border border-violet-100 bg-white p-4 text-left shadow-sm transition hover:border-violet-300 hover:bg-violet-50" type="button" onClick={() => setDetailModal("report")}><span className="text-lg">▤</span><strong className="mt-2 block text-sm text-slate-900">รายงานบริหาร</strong><span className="mt-1 block text-xs text-slate-500">กราฟแนวโน้ม เมนู และสต็อก</span></button>
+        <button className="rounded-2xl border border-violet-100 bg-white p-4 text-left shadow-sm transition hover:border-violet-300 hover:bg-violet-50" type="button" onClick={() => setDetailModal("report")}><span className="text-lg">▤</span><strong className="mt-2 block text-sm text-slate-900">รายงานเชิงธุรกิจ</strong><span className="mt-1 block text-xs text-slate-500">เมนู ช่องทาง ชั่วโมงขายดี และกำไร</span></button>
         <button className="rounded-2xl border border-amber-100 bg-white p-4 text-left shadow-sm transition hover:border-amber-300 hover:bg-amber-50" type="button" onClick={() => setDetailModal("closing")}><span className="text-lg">◷</span><strong className="mt-2 block text-sm text-slate-900">ปิดยอดประจำวัน</strong><span className="mt-1 block text-xs text-slate-500">ตรวจสถานะและล็อกรายการ</span></button>
       </section>
       {detailModal === "breakdown" ? (
@@ -4533,7 +4847,7 @@ function FinancePage({
         </Modal>
       ) : null}
       {detailModal === "report" ? (
-        <Modal label="รายงานบริหารร้าน" maxWidth="max-w-6xl" onClose={() => setDetailModal(null)}>
+        <Modal label="รายงานเชิงธุรกิจ" maxWidth="max-w-6xl" onClose={() => setDetailModal(null)}>
           <ManagementReportPanel onLoad={onRefreshSalesReport} />
         </Modal>
       ) : null}
@@ -5294,6 +5608,7 @@ export default function GlassLayout({
   expenseRows,
   currentShift,
   notice,
+  systemStatus,
   onAdd,
   onLookupLoyalty,
   onValidateCoupon,
@@ -5316,6 +5631,11 @@ export default function GlassLayout({
   onRefreshCashShifts,
   onRefreshSalesBreakdown,
   onRefreshSalesReport,
+  onLoadGoLiveReadiness,
+  onLoadGoLiveChecks,
+  onSaveGoLiveCheck,
+  onLoadAuditLogs,
+  onDownloadBusinessBackup,
   onFetchDailyClosing,
   onCloseBusinessDay,
   onCreateInventory,
@@ -5334,6 +5654,14 @@ export default function GlassLayout({
 }) {
   const alertCount = storeAlertsFor({ products, inventoryRows, inventoryLots }).length;
   const visibleNavigation = navigation.filter((item) => !item.adminOnly || user?.role === "admin");
+  const connectionLabel = ({
+    online: "● ออนไลน์",
+    checking: "◌ กำลังตรวจสอบ",
+    offline: "● ไม่มีอินเทอร์เน็ต",
+    api_offline: "● ติดต่อ API ไม่ได้",
+    database_offline: "● ฐานข้อมูลขัดข้อง",
+  })[systemStatus?.state] || "◌ กำลังตรวจสอบ";
+  const connectionTone = systemStatus?.state === "online" ? "text-emerald-700" : systemStatus?.state === "checking" ? "text-sky-700" : "text-rose-700";
   const content =
     activeView === "cash-shifts" && user?.role === "admin" ? (
       <CashShiftPage
@@ -5405,6 +5733,18 @@ export default function GlassLayout({
         channels={channels}
         onCreateChannel={onCreateChannel}
         onUpdateChannel={onUpdateChannel}
+      />
+    ) : activeView === "printing" && user?.role === "admin" ? (
+      <PrintingSettingsPage />
+    ) : activeView === "business-reports" && user?.role === "admin" ? (
+      <ManagementReportPanel onLoad={onRefreshSalesReport} />
+    ) : activeView === "go-live" && user?.role === "admin" ? (
+      <GoLiveReadinessPage
+        onLoadReadiness={onLoadGoLiveReadiness}
+        onLoadChecks={onLoadGoLiveChecks}
+        onSaveCheck={onSaveGoLiveCheck}
+        onLoadAuditLogs={onLoadAuditLogs}
+        onDownloadBackup={onDownloadBusinessBackup}
       />
     ) : activeView === "finance" ? (
       <FinancePage
@@ -5483,7 +5823,7 @@ export default function GlassLayout({
           <p className="text-xs font-bold uppercase tracking-wider text-sky-600">
             ระบบเชื่อมต่อ
           </p>
-          <p className="mt-2 text-sm font-semibold text-slate-700">● ออนไลน์</p>
+          <p className={`mt-2 text-sm font-semibold ${connectionTone}`}>{connectionLabel}</p>
           <p className="mt-1 text-xs text-slate-500">{notice}</p>
           <button className="mt-3 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-bold text-sky-700 transition hover:bg-sky-100" type="button" onClick={onLogout}>
             ออกจากระบบ

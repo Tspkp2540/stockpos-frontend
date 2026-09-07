@@ -476,12 +476,15 @@ export default function StaffWorkspace({
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <strong className="text-lg text-sky-700">{money(order.net_revenue)}</strong>
         {order.status === "COOKING" ? (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button className="text-xs" onClick={() => onUpdate(order.id, "READY")}>
               พร้อมรับ
             </Button>
             <Button className="text-xs" variant="danger" onClick={() => onUpdate(order.id, "CANCELLED")}>
               ยกเลิก
+            </Button>
+            <Button className="text-xs" variant="secondary" onClick={() => handlePrint(order)}>
+              ใบเสร็จ
             </Button>
           </div>
         ) : order.status === "READY" ? (

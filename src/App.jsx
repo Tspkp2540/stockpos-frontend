@@ -117,6 +117,62 @@ const todayInBangkok = () => {
   return `${value("year")}-${value("month")}-${value("day")}`;
 };
 
+function ConnectionBanner({ systemStatus, realtimeConnected }) {
+  const state = systemStatus?.state || "checking";
+  const details = state === "offline"
+    ? { tone: "rose", title: "ไม่มีการเชื่อมต่ออินเทอร์เน็ต", message: "ระบบจะไม่บันทึกรายการขายใหม่จนกว่าอินเทอร์เน็ตกลับมา เพื่อป้องกันออเดอร์ซ้ำ" }
+    : state === "database_offline"
+      ? { tone: "rose", title: "ฐานข้อมูลกำลังมีปัญหา", message: "หยุดยืนยันรายการใหม่ชั่วคราว และรอให้ระบบกลับมาเชื่อมต่อ" }
+      : state === "api_offline"
+        ? { tone: "amber", title: "ติดต่อระบบไม่ได้", message: "กำลังตรวจสอบและเชื่อมต่อใหม่อัตโนมัติ ข้อมูลที่เปิดอยู่ยังแสดงได้" }
+        : state === "checking"
+          ? { tone: "sky", title: "กำลังตรวจสอบการเชื่อมต่อ", message: "รอผลตรวจ API และฐานข้อมูลก่อนทำรายการสำคัญ" }
+          : realtimeConnected === false
+            ? { tone: "amber", title: "กำลังเชื่อมต่ออัปเดตทันทีใหม่", message: "การขายยังใช้ได้เมื่อ API พร้อม ข้อมูลออเดอร์จะซิงก์เป็นระยะจนกว่าการเชื่อมต่อทันทีจะกลับมา" }
+            : null;
+  if (!details) return null;
+  const styles = details.tone === "rose"
+    ? "border-rose-200 bg-rose-50 text-rose-950"
+    : details.tone === "amber"
+      ? "border-amber-200 bg-amber-50 text-amber-950"
+      : "border-sky-200 bg-sky-50 text-sky-950";
+  return (
+    <div className={`fixed inset-x-3 top-3 z-[120] mx-auto max-w-3xl rounded-2xl border px-4 py-3 shadow-xl shadow-slate-900/10 sm:inset-x-6 ${styles}`} role="status">
+      <p className="text-sm font-bold">{details.title}</p>
+      <p className="mt-0.5 text-xs leading-5 opacity-80">{details.message}</p>
+    </div>
+  );
+}
+
+const apiErrorDetails = (error, fallback = "ไม่สามารถทำรายการกับระบบได้") => {
+  const status = Number(error?.response?.status || 0);
+  const apiMessage = error?.response?.data?.error || error?.response?.data?.message;
+  const statusLabels = {
+    400: "ข้อมูลไม่ถูกต้อง",
+    401: "ต้องเข้าสู่ระบบใหม่",
+    403: "ไม่มีสิทธิ์ทำรายการ",
+    404: "ไม่พบข้อมูลหรือบริการ",
+    409: "ข้อมูลขัดแย้งกับสถานะปัจจุบัน",
+    422: "ข้อมูลไม่ผ่านการตรวจสอบ",
+    429: "ส่งคำขอมากเกินไป",
+    500: "ระบบภายในขัดข้อง",
+    502: "ระบบต้นทางตอบกลับผิดพลาด",
+    503: "ระบบหรือฐานข้อมูลไม่พร้อมใช้งาน",
+    504: "ระบบใช้เวลาตอบกลับนานเกินไป",
+  };
+  if (status) {
+    return {
+      code: `API_${status}`,
+      title: statusLabels[status] || `API ตอบกลับผิดพลาด (${status})`,
+      message: apiMessage || fallback,
+    };
+  }
+  if (error?.code === "ECONNABORTED") {
+    return { code: "API_TIMEOUT", title: "ระบบตอบกลับช้าเกินไป", message: "หมดเวลารอการตอบกลับ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่" };
+  }
+  return { code: "API_NETWORK", title: "เชื่อมต่อระบบไม่ได้", message: apiMessage || "ตรวจสอบอินเทอร์เน็ตหรือสถานะระบบ แล้วลองใหม่อีกครั้ง" };
+};
+
 function AppContent() {
   const { confirmAction, showMessage } = useActionDialog();
   const [session, setSession] = useState(loadSession);
@@ -139,6 +195,8 @@ function AppContent() {
   const [expenses, setExpenses] = useState(0);
   const [expenseRows, setExpenseRows] = useState([]);
   const [currentShift, setCurrentShift] = useState(null);
+  const [systemStatus, setSystemStatus] = useState(() => ({ state: typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "checking", checkedAt: null }));
+  const [realtimeConnected, setRealtimeConnected] = useState(null);
   const [metrics, setMetrics] = useState({
     gross: 0,
     net: 0,
@@ -147,11 +205,72 @@ function AppContent() {
     profit: 0,
   });
   const showError = (error, fallback) =>
-    showMessage({
-      tone: "danger",
-      title: "ทำรายการไม่สำเร็จ",
-      message: error.response?.data?.error || fallback,
-    });
+    {
+      if (error?.stockposErrorNotified) return;
+      const details = apiErrorDetails(error, fallback);
+      error.stockposErrorNotified = true;
+      showMessage({
+        tone: "danger",
+        title: `${details.title} · ${details.code}`,
+        message: details.message,
+      });
+    };
+
+  useEffect(() => {
+    const interceptorId = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        const method = String(error?.config?.method || "get").toLowerCase();
+        const url = String(error?.config?.url || "");
+        const isOrderCreate = method === "post" && /\/api\/orders$/.test(url);
+        if (["post", "put", "patch", "delete"].includes(method) && !isOrderCreate && !error.stockposErrorNotified) {
+          const details = apiErrorDetails(error);
+          error.stockposErrorNotified = true;
+          showMessage({
+            tone: "danger",
+            title: `${details.title} · ${details.code}`,
+            message: details.message,
+          });
+        }
+        return Promise.reject(error);
+      },
+    );
+    return () => axios.interceptors.response.eject(interceptorId);
+  }, [showMessage]);
+
+  const checkSystemHealth = useCallback(async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setSystemStatus({ state: "offline", checkedAt: new Date().toISOString() });
+      return false;
+    }
+    try {
+      const response = await axios.get(`${API_BASE}/api/health`, { timeout: 6000 });
+      const databaseAvailable = response.data?.success && response.data?.data?.database === "ok";
+      setSystemStatus({ state: databaseAvailable ? "online" : "database_offline", checkedAt: new Date().toISOString() });
+      return databaseAvailable;
+    } catch (error) {
+      const state = error.response?.status === 503 ? "database_offline" : "api_offline";
+      setSystemStatus({ state, checkedAt: new Date().toISOString() });
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    const markOffline = () => setSystemStatus({ state: "offline", checkedAt: new Date().toISOString() });
+    const reconnect = () => {
+      setSystemStatus({ state: "checking", checkedAt: new Date().toISOString() });
+      checkSystemHealth();
+    };
+    window.addEventListener("offline", markOffline);
+    window.addEventListener("online", reconnect);
+    checkSystemHealth();
+    const timer = window.setInterval(checkSystemHealth, 30000);
+    return () => {
+      window.removeEventListener("offline", markOffline);
+      window.removeEventListener("online", reconnect);
+      window.clearInterval(timer);
+    };
+  }, [checkSystemHealth]);
 
   const refreshProducts = async () => {
     try {
@@ -233,6 +352,61 @@ function AppContent() {
       return null;
     }
   }, []);
+  const loadGoLiveReadiness = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/admin/go-live/readiness`);
+      return response.data?.success ? response.data.data : null;
+    } catch (error) {
+      console.warn("Go-live readiness refresh unavailable.", error);
+      return null;
+    }
+  }, []);
+  const loadGoLiveChecks = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/admin/go-live-checks`);
+      return response.data?.success && Array.isArray(response.data.data) ? response.data.data : [];
+    } catch (error) {
+      console.warn("Go-live checks refresh unavailable.", error);
+      return [];
+    }
+  }, []);
+  const saveGoLiveCheck = async (key, status, note = "") => {
+    try {
+      const response = await axios.put(`${API_BASE}/api/admin/go-live-checks/${key}`, { status, note });
+      return response.data?.success ? response.data.data : null;
+    } catch (error) {
+      showError(error, "ไม่สามารถบันทึกผลการตรวจสอบได้");
+      return null;
+    }
+  };
+  const loadAuditLogs = useCallback(async (limit = 20) => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/admin/audit-logs`, { params: { limit } });
+      return response.data?.success && Array.isArray(response.data.data) ? response.data.data : [];
+    } catch (error) {
+      console.warn("Audit log refresh unavailable.", error);
+      return [];
+    }
+  }, []);
+  const downloadBusinessBackup = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/admin/backups/export`, { responseType: "blob" });
+      const disposition = response.headers?.["content-disposition"] || "";
+      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || `stockpos-business-backup-${todayInBangkok()}.json`;
+      const url = window.URL.createObjectURL(response.data);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+      return true;
+    } catch (error) {
+      showError(error, "ไม่สามารถดาวน์โหลดข้อมูลสำรองได้");
+      return false;
+    }
+  };
   const fetchDailyClosing = useCallback(async (businessDate) => {
     try {
       const response = await axios.get(`${API_BASE}/api/daily-closings`, {
@@ -554,6 +728,14 @@ function AppContent() {
       auth: { token: session.token },
       transports: ["websocket", "polling"],
     });
+    socket.on("connect", () => {
+      setRealtimeConnected(true);
+      setNotice("LIVE SYNC RESTORED · DATA REFRESHING");
+      fetchOrders();
+      if (session.role === "admin") fetchDashboardData();
+    });
+    socket.on("disconnect", () => setRealtimeConnected(false));
+    socket.on("connect_error", () => setRealtimeConnected(false));
     socket.on("new_order_created", (event) => {
       if (event?.order) {
         setOrders((current) => [
@@ -590,11 +772,20 @@ function AppContent() {
     return () => {
       mounted = false;
       window.clearInterval(interval);
+      setRealtimeConnected(null);
       socket.disconnect();
     };
   }, [session]);
 
   const addOrder = async (payload = {}) => {
+    if (systemStatus.state !== "online") {
+      showMessage({
+        tone: "danger",
+        title: "ยังบันทึกออเดอร์ไม่ได้",
+        message: "ระบบยังไม่พร้อมเชื่อมต่อ จึงหยุดการส่งรายการเพื่อป้องกันออเดอร์ซ้ำ กรุณารอให้แถบแจ้งเตือนหายแล้วลองใหม่",
+      });
+      return false;
+    }
     const nextNumber = 1049 + orders.length;
     try {
       const response = await axios.post(`${API_BASE}/api/orders`, {
@@ -635,7 +826,15 @@ function AppContent() {
         return true;
       }
     } catch (error) {
-      showError(error, "ไม่สามารถบันทึกออเดอร์ได้");
+      if (!error.response) {
+        setSystemStatus({ state: "api_offline", checkedAt: new Date().toISOString() });
+        error.stockposErrorNotified = true;
+        showMessage({
+          tone: "danger",
+          title: "ยังไม่ทราบผลการบันทึกออเดอร์ · API_NETWORK",
+          message: "อย่ากดยืนยันซ้ำทันที เพราะระบบอาจได้รับรายการแล้ว กรุณารอการเชื่อมต่อกลับมาและตรวจรายการออเดอร์ก่อน",
+        });
+      } else showError(error, "ไม่สามารถบันทึกออเดอร์ได้");
       console.warn("Order API failed.", error);
     }
     return false;
@@ -1261,41 +1460,51 @@ function AppContent() {
 
   if (!session && anonymousMode)
     return (
-      <AnonymousOrderStatus
-        apiBase={API_BASE}
-        onBack={() => setAnonymousMode(false)}
-      />
+      <>
+        <ConnectionBanner systemStatus={systemStatus} realtimeConnected={realtimeConnected} />
+        <AnonymousOrderStatus
+          apiBase={API_BASE}
+          onBack={() => setAnonymousMode(false)}
+        />
+      </>
     );
   if (!session)
     return (
-      <LoginScreen
-        onLogin={login}
-        onRegister={register}
-        onAnonymous={() => setAnonymousMode(true)}
-        onHome={() => setAnonymousMode(true)}
-      />
+      <>
+        <ConnectionBanner systemStatus={systemStatus} realtimeConnected={realtimeConnected} />
+        <LoginScreen
+          onLogin={login}
+          onRegister={register}
+          onAnonymous={() => setAnonymousMode(true)}
+          onHome={() => setAnonymousMode(true)}
+        />
+      </>
     );
   if (session.role === "user")
-    return <UserOrderStatus user={session} orders={orders} loyalty={loyalty} onRefreshLoyalty={refreshMyLoyalty} onLogout={logout} />;
+    return <><ConnectionBanner systemStatus={systemStatus} realtimeConnected={realtimeConnected} /><UserOrderStatus user={session} orders={orders} loyalty={loyalty} onRefreshLoyalty={refreshMyLoyalty} onLogout={logout} /></>;
   if (session.role === "staff")
     return (
-      <StaffWorkspace
-        user={session}
-        orders={orders}
-        channels={channels}
-        products={products}
-        currentShift={currentShift}
-        onAdd={addOrder}
-        onLookupLoyalty={lookupLoyalty}
-        onValidateCoupon={validateCoupon}
-        onOpenCashShift={openCashShift}
-        onCloseCashShift={closeCashShift}
-        onUpdate={updateOrder}
-        onLogout={logout}
-      />
+      <>
+        <ConnectionBanner systemStatus={systemStatus} realtimeConnected={realtimeConnected} />
+        <StaffWorkspace
+          user={session}
+          orders={orders}
+          channels={channels}
+          products={products}
+          currentShift={currentShift}
+          onAdd={addOrder}
+          onLookupLoyalty={lookupLoyalty}
+          onValidateCoupon={validateCoupon}
+          onOpenCashShift={openCashShift}
+          onCloseCashShift={closeCashShift}
+          onUpdate={updateOrder}
+          onLogout={logout}
+        />
+      </>
     );
   return (
     <>
+      <ConnectionBanner systemStatus={systemStatus} realtimeConnected={realtimeConnected} />
       <GlassLayout
         user={session}
         onLogout={logout}
@@ -1317,6 +1526,7 @@ function AppContent() {
         expenseRows={expenseRows}
         currentShift={currentShift}
         notice={notice}
+        systemStatus={systemStatus}
         onAdd={addOrder}
         onLookupLoyalty={lookupLoyalty}
         onValidateCoupon={validateCoupon}
@@ -1339,6 +1549,11 @@ function AppContent() {
         onRefreshCashShifts={refreshCashShifts}
         onRefreshSalesBreakdown={refreshSalesBreakdown}
         onRefreshSalesReport={refreshSalesReport}
+        onLoadGoLiveReadiness={loadGoLiveReadiness}
+        onLoadGoLiveChecks={loadGoLiveChecks}
+        onSaveGoLiveCheck={saveGoLiveCheck}
+        onLoadAuditLogs={loadAuditLogs}
+        onDownloadBusinessBackup={downloadBusinessBackup}
         onFetchDailyClosing={fetchDailyClosing}
         onCloseBusinessDay={closeBusinessDay}
         onCreateInventory={createInventory}
