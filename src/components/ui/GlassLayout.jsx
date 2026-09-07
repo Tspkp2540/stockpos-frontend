@@ -16,20 +16,48 @@ import { loadPosMenuUsage, recordPosMenuUsage } from "../../utils/posMenuUsage";
 import { productForChannel } from "../../utils/channelMenu";
 import { useActionDialog } from "./ActionDialog";
 
-const navigation = [
-  { id: "pos", icon: "▣", label: "ขายและออเดอร์" },
-  { id: "cash-shifts", icon: "◴", label: "เปิด/ปิดกะเงินสด", adminOnly: true },
-  { id: "kitchen", icon: "☕", label: "จอเตรียมสินค้า" },
-  { id: "operations", icon: "◉", label: "ศูนย์ปฏิบัติการ" },
-  { id: "alerts", icon: "⚠", label: "แจ้งเตือน" },
-  { id: "inventory", icon: "□", label: "วัตถุดิบ" },
-  { id: "procurement", icon: "▤", label: "จัดซื้อและผู้ขาย", adminOnly: true },
-  { id: "menu", icon: "☷", label: "เมนูสินค้า" },
-  { id: "sales-channels", icon: "◫", label: "ช่องทางขาย", adminOnly: true },
-  { id: "printing", icon: "⎙", label: "ตั้งค่าการพิมพ์", adminOnly: true },
-  { id: "business-reports", icon: "▥", label: "รายงานเชิงธุรกิจ", adminOnly: true },
-  { id: "finance", icon: "฿", label: "การเงิน" },
-  { id: "coupons", icon: "◇", label: "จัดการคูปอง", adminOnly: true },
+const navigationGroups = [
+  {
+    id: "overview",
+    label: "ภาพรวมร้าน",
+    items: [{ id: "operations", icon: "◉", label: "ศูนย์ปฏิบัติการ" }],
+  },
+  {
+    id: "counter",
+    label: "หน้าร้าน",
+    items: [
+      { id: "pos", icon: "▣", label: "ขายและออเดอร์" },
+      { id: "kitchen", icon: "☕", label: "จอเตรียมสินค้า" },
+      { id: "cash-shifts", icon: "◴", label: "เปิด/ปิดกะเงินสด", adminOnly: true },
+    ],
+  },
+  {
+    id: "stock",
+    label: "สินค้าและสต็อก",
+    items: [
+      { id: "alerts", icon: "⚠", label: "แจ้งเตือน" },
+      { id: "inventory", icon: "□", label: "วัตถุดิบ" },
+      { id: "menu", icon: "☷", label: "เมนูสินค้า" },
+      { id: "procurement", icon: "▤", label: "จัดซื้อและผู้ขาย", adminOnly: true },
+    ],
+  },
+  {
+    id: "settings",
+    label: "ตั้งค่าร้าน",
+    items: [
+      { id: "sales-channels", icon: "◫", label: "ช่องทางขาย", adminOnly: true },
+      { id: "coupons", icon: "◇", label: "จัดการคูปอง", adminOnly: true },
+      { id: "printing", icon: "⎙", label: "ตั้งค่าการพิมพ์", adminOnly: true },
+    ],
+  },
+  {
+    id: "finance",
+    label: "การเงินและรายงาน",
+    items: [
+      { id: "finance", icon: "฿", label: "การเงิน" },
+      { id: "business-reports", icon: "▥", label: "รายงานเชิงธุรกิจ", adminOnly: true },
+    ],
+  },
 ];
 
 const money = (amount) =>
@@ -5647,7 +5675,12 @@ export default function GlassLayout({
   onDeleteSales,
 }) {
   const alertCount = storeAlertsFor({ products, inventoryRows, inventoryLots }).length;
-  const visibleNavigation = navigation.filter((item) => !item.adminOnly || user?.role === "admin");
+  const visibleNavigationGroups = navigationGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.adminOnly || user?.role === "admin"),
+    }))
+    .filter((group) => group.items.length);
   const connectionLabel = ({
     online: "● ออนไลน์",
     checking: "◌ กำลังตรวจสอบ",
@@ -5789,21 +5822,28 @@ export default function GlassLayout({
             <p className="font-bold tracking-wide text-slate-900">STOCKPOS</p>
           </div>
         </div>
-        <nav className="mt-10 grid gap-2">
-          {visibleNavigation.map((item) => {
-            const selected = activeView === item.id || (item.id === "pos" && activeView === "orders");
-            return (
-              <button
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${selected ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
-                key={item.id}
-                onClick={() => setActiveView(item.id)}
-              >
-                <span className="w-5 text-center">{item.icon}</span>
-                <span className="flex-1">{item.label}</span>
-                {item.id === "alerts" && alertCount ? <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">{alertCount}</span> : null}
-              </button>
-            );
-          })}
+        <nav className="mt-8 space-y-5">
+          {visibleNavigationGroups.map((group) => (
+            <section key={group.id}>
+              <p className="mb-2 px-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">{group.label}</p>
+              <div className="grid gap-1.5">
+                {group.items.map((item) => {
+                  const selected = activeView === item.id || (item.id === "pos" && activeView === "orders");
+                  return (
+                    <button
+                      className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${selected ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
+                      key={item.id}
+                      onClick={() => setActiveView(item.id)}
+                    >
+                      <span className="w-5 text-center">{item.icon}</span>
+                      <span className="flex-1">{item.label}</span>
+                      {item.id === "alerts" && alertCount ? <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">{alertCount}</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
         </nav>
         <div className="mt-auto rounded-2xl border border-sky-100 bg-sky-50/80 p-4 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wider text-sky-600">
@@ -5832,19 +5872,26 @@ export default function GlassLayout({
             ↪ ออกจากระบบ
           </button>
         </div>
-        <nav className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {visibleNavigation.map((item) => {
-            const selected = activeView === item.id || (item.id === "pos" && activeView === "orders");
-            return (
-              <button
-                className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold ${selected ? "bg-sky-600 text-white" : "bg-sky-50 text-sky-700"}`}
-                key={item.id}
-                onClick={() => setActiveView(item.id)}
-              >
-                {item.icon} {item.label}{item.id === "alerts" && alertCount ? ` (${alertCount})` : ""}
-              </button>
-            );
-          })}
+        <nav className="mt-3 flex gap-4 overflow-x-auto pb-1">
+          {visibleNavigationGroups.map((group) => (
+            <section className="shrink-0" key={group.id}>
+              <p className="mb-1 px-1 text-[10px] font-bold text-slate-400">{group.label}</p>
+              <div className="flex gap-2">
+                {group.items.map((item) => {
+                  const selected = activeView === item.id || (item.id === "pos" && activeView === "orders");
+                  return (
+                    <button
+                      className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold ${selected ? "bg-sky-600 text-white" : "bg-sky-50 text-sky-700"}`}
+                      key={item.id}
+                      onClick={() => setActiveView(item.id)}
+                    >
+                      {item.icon} {item.label}{item.id === "alerts" && alertCount ? ` (${alertCount})` : ""}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
         </nav>
       </header>
       <main className="relative mx-auto w-full max-w-[1600px] p-4 pb-10 sm:p-6 lg:ml-64 lg:w-[calc(100%-16rem)] lg:p-8">
