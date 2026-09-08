@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
-import GlassLayout from "./components/ui/GlassLayout";
-import LoginScreen from "./components/ui/LoginScreen";
-import StaffWorkspace from "./components/ui/StaffWorkspace";
-import UserOrderStatus from "./components/ui/UserOrderStatus";
-import AnonymousOrderStatus from "./components/ui/AnonymousOrderStatus";
 import { ActionDialogProvider, useActionDialog } from "./components/ui/ActionDialog";
+
+const GlassLayout = lazy(() => import("./components/ui/GlassLayout"));
+const LoginScreen = lazy(() => import("./components/ui/LoginScreen"));
+const StaffWorkspace = lazy(() => import("./components/ui/StaffWorkspace"));
+const UserOrderStatus = lazy(() => import("./components/ui/UserOrderStatus"));
+const AnonymousOrderStatus = lazy(() => import("./components/ui/AnonymousOrderStatus"));
 
 const API_BASE =
   import.meta.env.VITE_API_URL ||
@@ -1765,7 +1766,9 @@ function AppContent() {
 export default function App() {
   return (
     <ActionDialogProvider>
-      <AppContent />
+      <Suspense fallback={<main className="flex min-h-screen items-center justify-center bg-sky-50 font-sans text-sm font-semibold text-sky-700">กำลังโหลดระบบ...</main>}>
+        <AppContent />
+      </Suspense>
     </ActionDialogProvider>
   );
 }

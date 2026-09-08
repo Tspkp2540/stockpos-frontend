@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
 import officeCoordinator from "../../assets/operations-office-coordinator.png";
 import stockCoordinator from "../../assets/operations-stock-coordinator.png";
-import OperationsRoom3D from "./OperationsRoom3D";
 import MenuModifierPicker from "./MenuModifierPicker";
 import CashShiftDialog from "./CashShiftDialog";
 import { exportExcel } from "../../utils/exportExcel";
@@ -15,6 +14,8 @@ import { printCashShiftSummary } from "../../utils/printCashShiftSummary";
 import { loadPosMenuUsage, recordPosMenuUsage } from "../../utils/posMenuUsage";
 import { productForChannel } from "../../utils/channelMenu";
 import { useActionDialog } from "./ActionDialog";
+
+const OperationsRoom3D = lazy(() => import("./OperationsRoom3D"));
 
 const navigationGroups = [
   {
@@ -3992,6 +3993,7 @@ function RolePermissionsPage({ profiles, users, onRefresh, onSave, onCreate, onD
     ["orders", "คำสั่งซื้อ"],
     ["kitchen", "จอเตรียมสินค้า"],
     ["operations", "ภาพรวมการดำเนินงาน"],
+    ["cash-shifts", "กะเงินสด"], ["alerts", "การแจ้งเตือน"], ["inventory", "วัตถุดิบ"], ["menu", "เมนูสินค้า"], ["procurement", "การจัดซื้อ"], ["sales-channels", "ช่องทางการขาย"], ["coupons", "คูปอง"], ["loyalty-settings", "ตั้งค่าคะแนน"], ["loyalty-members", "สมาชิก"], ["finance", "การเงิน"], ["business-reports", "รายงาน"],
   ];
   const actions = [["view", "ดู"], ["create", "สร้าง"], ["update", "แก้ไข"], ["delete", "ลบ"]];
   const [selectedRole, setSelectedRole] = useState("STAFF");
@@ -4017,7 +4019,7 @@ function RolePermissionsPage({ profiles, users, onRefresh, onSave, onCreate, onD
         <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-slate-900">กำหนดบทบาทให้บัญชี</h2><p className="mt-1 text-xs text-slate-500">การเปลี่ยนบทบาทจะมีผลเมื่อบัญชีนั้นเข้าสู่ระบบใหม่</p></div><Button type="button" variant="secondary" onClick={onRefreshUsers}>รีเฟรชบัญชี</Button></div>
         <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="border-b border-sky-100 text-left text-xs text-slate-500"><th className="p-3">บัญชี</th><th className="p-3">เบอร์โทร</th><th className="p-3">บทบาท</th></tr></thead><tbody>{users.map((user) => <tr className="border-b border-slate-100" key={user.id}><td className="p-3"><b className="text-slate-800">{user.name}</b><span className="ml-2 text-xs text-slate-500">@{user.username}</span></td><td className="p-3 text-slate-600">{user.phone || "-"}</td><td className="p-3"><select className={`${inputClass} max-w-xs py-2`} value={String(user.role_key || user.role).toUpperCase()} onChange={(event) => onAssignUserRole?.(user.id, event.target.value)}>{profiles.map((item) => <option value={item.role} key={item.role}>{item.display_name || item.role}</option>)}</select></td></tr>)}</tbody></table></div>
       </Card>
-      {createOpen ? <Modal label="เพิ่มบทบาท" maxWidth="max-w-xl" onClose={() => setCreateOpen(false)}><Card><h2 className="text-lg font-bold text-slate-900">เพิ่มบทบาท</h2><form className="mt-5 grid gap-4" onSubmit={create}><label className={labelClass}>ชื่อบทบาท<input className={inputClass} value={newRole.display_name} maxLength="80" onChange={(event) => setNewRole((current) => ({ ...current, display_name: event.target.value }))} placeholder="เช่น แคชเชียร์" required /></label><label className={labelClass}>รหัสบทบาท<input className={inputClass} value={newRole.role} maxLength="32" onChange={(event) => setNewRole((current) => ({ ...current, role: event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "") }))} placeholder="CASHIER" required /></label><label className={labelClass}>บทบาทพื้นฐาน<select className={inputClass} value={newRole.base_role} onChange={(event) => setNewRole((current) => ({ ...current, base_role: event.target.value }))}><option value="STAFF">Staff</option><option value="USER">User</option></select></label><div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setCreateOpen(false)}>ยกเลิก</Button><Button type="submit">เพิ่มบทบาท</Button></div></form></Card></Modal> : null}
+      {createOpen ? <Modal label="เพิ่มบทบาท" maxWidth="max-w-xl" onClose={() => setCreateOpen(false)}><Card><h2 className="text-lg font-bold text-slate-900">เพิ่มบทบาท</h2><form className="mt-5 grid gap-4" onSubmit={create}><label className={labelClass}>ชื่อบทบาท<input className={inputClass} value={newRole.display_name} maxLength="80" onChange={(event) => setNewRole((current) => ({ ...current, display_name: event.target.value }))} placeholder="เช่น แคชเชียร์" required /></label><label className={labelClass}>รหัสบทบาท<input className={inputClass} value={newRole.role} maxLength="32" onChange={(event) => setNewRole((current) => ({ ...current, role: event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "") }))} placeholder="CASHIER" required /></label><label className={labelClass}>บทบาทพื้นฐาน<select className={inputClass} value={newRole.base_role} onChange={(event) => setNewRole((current) => ({ ...current, base_role: event.target.value }))}><option value="ADMIN">Admin</option><option value="STAFF">Staff</option><option value="USER">User</option></select><span className="text-xs font-normal text-slate-500">เลือก Admin เฉพาะบทบาทผู้จัดการ แล้วกำหนดสิทธิ์รายเมนูให้เหมาะสม</span></label><div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setCreateOpen(false)}>ยกเลิก</Button><Button type="submit">เพิ่มบทบาท</Button></div></form></Card></Modal> : null}
     </section>
   );
 }
@@ -5539,14 +5541,16 @@ function LiveWorkflowRoom({
       </div>
 
       <div className="operations-room-scene relative mt-5 aspect-video min-h-[220px] overflow-hidden bg-sky-50">
-        <OperationsRoom3D
-          pendingOrders={pendingOrders}
-          lowStockRows={lowStockRows}
-          inventoryRows={inventoryRows}
-          activeOrders={activeOrders}
-          financialSummary={financialSummary}
-          isAdmin={isAdmin}
-        />
+        <Suspense fallback={<div className="flex h-full items-center justify-center text-sm font-semibold text-sky-700">กำลังเตรียมภาพรวมร้าน...</div>}>
+          <OperationsRoom3D
+            pendingOrders={pendingOrders}
+            lowStockRows={lowStockRows}
+            inventoryRows={inventoryRows}
+            activeOrders={activeOrders}
+            financialSummary={financialSummary}
+            isAdmin={isAdmin}
+          />
+        </Suspense>
       </div>
       <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
         <span>
@@ -5897,7 +5901,11 @@ export default function GlassLayout({
   const visibleNavigationGroups = navigationGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => !item.adminOnly || user?.role === "admin"),
+      items: group.items.filter((item) => {
+        const isSystemAdmin = user?.role === "admin" && (!user?.role_key || user.role_key === "admin");
+        if (isSystemAdmin) return true;
+        return user?.permissions?.[item.id]?.view === true;
+      }),
     }))
     .filter((group) => group.items.length);
   const connectionLabel = ({

@@ -1,5 +1,3 @@
-import * as XLSX from "@e965/xlsx";
-
 const safeValue = (value) => {
   if (value === null || value === undefined) return "";
   return typeof value === "string" && /^[=+\-@]/.test(value) ? `'${value}` : value;
@@ -10,7 +8,8 @@ const widthFor = (column, rows) => Math.min(42, Math.max(
   ...rows.map((row) => String(safeValue(row[column.key])).length + 2),
 ));
 
-export function exportExcel({ filename, sheets }) {
+export async function exportExcel({ filename, sheets }) {
+  const XLSX = await import("@e965/xlsx");
   const workbook = XLSX.utils.book_new();
 
   sheets.forEach(({ name, columns, rows }) => {

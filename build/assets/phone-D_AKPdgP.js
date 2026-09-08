@@ -1,0 +1,1 @@
+var e=e=>{let t=String(e||``).replace(/\D/g,``);return t?`${`x`.repeat(Math.max(0,t.length-4))}${t.slice(-4)}`:``};export{e as t};
