@@ -5769,7 +5769,12 @@ export default function GlassLayout({
   onDeleteSales,
 }) {
   const alertCount = storeAlertsFor({ products, inventoryRows, inventoryLots }).length;
-  const [expandedNavigationGroups, setExpandedNavigationGroups] = useState(() => new Set(navigationGroups.map((group) => group.id)));
+  const [expandedNavigationGroups, setExpandedNavigationGroups] = useState(() => {
+    const activeGroup = navigationGroups.find((group) => group.items.some((item) => (
+      item.id === activeView || (item.id === "pos" && activeView === "orders")
+    )));
+    return new Set(activeGroup ? [activeGroup.id] : []);
+  });
   const toggleNavigationGroup = (groupId) => setExpandedNavigationGroups((current) => {
     const next = new Set(current);
     if (next.has(groupId)) next.delete(groupId);
