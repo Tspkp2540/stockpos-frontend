@@ -55,6 +55,20 @@ export default function UserOrderStatus({ user, orders, loyalty, onRefreshLoyalt
         )
       : orders;
   }, [orders, query]);
+  if (!user?.permissions) {
+    return <main className="shop-scene flex min-h-screen items-center justify-center p-6 text-sm font-semibold text-sky-700">กำลังตรวจสอบสิทธิ์การใช้งาน...</main>;
+  }
+  if (user.permissions?.orders?.view !== true) {
+    return (
+      <main className="shop-scene flex min-h-screen items-center justify-center p-6 text-center text-slate-700">
+        <section className="shop-panel max-w-md rounded-3xl border p-7">
+          <h1 className="text-xl font-bold text-slate-900">ไม่มีเมนูที่ได้รับสิทธิ์</h1>
+          <p className="mt-2 text-sm text-slate-500">โปรดติดต่อผู้ดูแลระบบหากต้องการเข้าดูคำสั่งซื้อ</p>
+          <button className="mt-5 rounded-xl border border-sky-200 px-4 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-50" onClick={onLogout}>ออกจากระบบ</button>
+        </section>
+      </main>
+    );
+  }
   return (
     <div className="shop-scene text-slate-800">
       <header className="shop-topbar relative z-10 border-b">

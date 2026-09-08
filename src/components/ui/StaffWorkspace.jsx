@@ -139,6 +139,11 @@ export default function StaffWorkspace({
   const [orderStatusFilter, setOrderStatusFilter] = useState("ALL");
   const [orderChannelFilter, setOrderChannelFilter] = useState("ALL");
   const [orderDateFilter, setOrderDateFilter] = useState("");
+  const canView = (menu) => user?.permissions?.[menu]?.view === true;
+  const canUsePos = canView("pos");
+  const canViewOrders = canView("orders");
+  const canManageCashShift = canView("cash-shifts");
+  const canUpdateOrders = user?.permissions?.orders?.update === true;
   const channelProducts = useMemo(
     () => products
       .map((product) => productForChannel(product, channelId))
@@ -487,7 +492,7 @@ export default function StaffWorkspace({
       <div className="mt-3 line-clamp-2"><ItemList items={order.items} /></div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <strong className="text-lg text-sky-700">{money(order.net_revenue)}</strong>
-        {order.status === "COOKING" ? (
+        {canUpdateOrders && order.status === "COOKING" ? (
           <div className="flex flex-wrap gap-2">
             <Button className="text-xs" onClick={() => onUpdate(order.id, "READY")}>
               พร้อมรับ
@@ -499,7 +504,7 @@ export default function StaffWorkspace({
               ใบเสร็จ
             </Button>
           </div>
-        ) : order.status === "READY" ? (
+        ) : canUpdateOrders && order.status === "READY" ? (
           <div className="flex gap-2">
             <Button className="text-xs" onClick={() => onUpdate(order.id, "COMPLETED")}>
               ส่งมอบแล้ว
@@ -517,7 +522,11 @@ export default function StaffWorkspace({
     </article>
   ));
 
-  if (showAllOrders) {
+  if (!user?.permissions) {
+    return <main className="shop-scene flex min-h-screen items-center justify-center p-6 text-sm font-semibold text-sky-700">กำลังตรวจสอบสิทธิ์การใช้งาน...</main>;
+  }
+
+  if (showAllOrders && canViewOrders) {
     return (
       <div className="shop-scene min-h-screen text-slate-800">
         <header className="shop-topbar relative z-10 border-b">
@@ -565,7 +574,7 @@ export default function StaffWorkspace({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            {canUsePos ? <button
               aria-label={`เปิดตะกร้าสินค้า มี ${cartItemCount} ชิ้น`}
               className="group relative inline-flex min-h-12 items-center gap-2 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-700 px-3.5 py-2.5 text-sm font-bold text-white shadow-lg shadow-sky-300/70 transition hover:-translate-y-0.5 hover:from-sky-600 hover:to-blue-800 focus:outline-none focus:ring-4 focus:ring-sky-200 active:translate-y-0"
               title="เปิดตะกร้าสินค้า"
@@ -579,10 +588,10 @@ export default function StaffWorkspace({
               <span className="hidden sm:inline">ตะกร้า</span>
               <span className="rounded-lg bg-white/15 px-2 py-1 text-xs font-semibold">{cartItemCount} ชิ้น</span>
               <span className="hidden border-l border-white/25 pl-2 text-xs font-semibold lg:inline">{money(subtotal)}</span>
-            </button>
-            <Button className="hidden sm:inline-flex" variant="secondary" onClick={manageCashShift}>
+            </button> : null}
+            {canManageCashShift ? <Button className="hidden sm:inline-flex" variant="secondary" onClick={manageCashShift}>
               {currentShift ? "ปิดกะเงินสด" : "เปิดกะเงินสด"}
-            </Button>
+            </Button> : null}
             <span className="hidden text-sm font-semibold text-slate-600 sm:block">
               {user.name}
             </span>
@@ -617,9 +626,9 @@ export default function StaffWorkspace({
           />
         </section>
 
-        <LowStockMenuAlert products={products} />
+        {canUsePos ? <LowStockMenuAlert products={products} /> : null}
 
-        <section className="space-y-5">
+        {canUsePos ? <section className="space-y-5">
           <div className="space-y-5">
             <div className="shop-panel rounded-2xl border p-4 sm:p-5">
               <div className="mb-4 flex items-center gap-3">
@@ -961,9 +970,9 @@ export default function StaffWorkspace({
                 <div className="mb-4 rounded-xl border border-amber-100 bg-amber-50/60 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-bold text-slate-700">การชำระเงิน</p>
-                    <button className="text-xs font-semibold text-sky-700 sm:hidden" onClick={manageCashShift}>
+                    {canManageCashShift ? <button className="text-xs font-semibold text-sky-700 sm:hidden" onClick={manageCashShift}>
                       {currentShift ? "ปิดกะ" : "เปิดกะ"}
-                    </button>
+                    </button> : null}
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     {paymentOptions.map(([value, label]) => (
@@ -1046,9 +1055,9 @@ export default function StaffWorkspace({
               </div>
             </div>
           ) : null}
-        </section>
+        </section> : null}
 
-        <section>
+        {canViewOrders ? <section>
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold text-slate-900">คำสั่งซื้อล่าสุด</h2>
@@ -1061,7 +1070,7 @@ export default function StaffWorkspace({
             {orders.length ? orderCards(orders.slice(0, 5), true) : <div className="shop-panel w-full rounded-2xl border border-dashed p-5 text-center text-sm text-slate-500">ยังไม่มีคำสั่งซื้อ</div>}
           </div>
           {orders.length > 5 ? <div className="mt-4 flex justify-center"><Button type="button" variant="secondary" onClick={() => setShowAllOrders(true)}>ดูรายการคำสั่งซื้อทั้งหมด ({orders.length}) →</Button></div> : null}
-        </section>
+        </section> : null}
       </main>
       {pendingProduct ? (
         <MenuModifierPicker

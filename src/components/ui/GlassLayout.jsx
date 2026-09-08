@@ -3993,7 +3993,7 @@ function RolePermissionsPage({ profiles, users, onRefresh, onSave, onCreate, onD
     ["orders", "คำสั่งซื้อ"],
     ["kitchen", "จอเตรียมสินค้า"],
     ["operations", "ภาพรวมการดำเนินงาน"],
-    ["cash-shifts", "กะเงินสด"], ["alerts", "การแจ้งเตือน"], ["inventory", "วัตถุดิบ"], ["menu", "เมนูสินค้า"], ["procurement", "การจัดซื้อ"], ["sales-channels", "ช่องทางการขาย"], ["coupons", "คูปอง"], ["loyalty-settings", "ตั้งค่าคะแนน"], ["loyalty-members", "สมาชิก"], ["finance", "การเงิน"], ["business-reports", "รายงาน"],
+    ["cash-shifts", "กะเงินสด"], ["alerts", "การแจ้งเตือน"], ["inventory", "วัตถุดิบ"], ["menu", "เมนูสินค้า"], ["procurement", "การจัดซื้อ"], ["sales-channels", "ช่องทางการขาย"], ["coupons", "คูปอง"], ["loyalty-settings", "ตั้งค่าคะแนน"], ["loyalty-members", "สมาชิก"], ["role-permissions", "จัดการสิทธิ์บทบาท"], ["finance", "การเงิน"], ["business-reports", "รายงาน"],
   ];
   const actions = [["view", "ดู"], ["create", "สร้าง"], ["update", "แก้ไข"], ["delete", "ลบ"]];
   const [selectedRole, setSelectedRole] = useState("STAFF");

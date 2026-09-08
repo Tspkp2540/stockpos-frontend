@@ -534,7 +534,7 @@ function AppContent() {
   };
 
   const refreshCurrentShift = async () => {
-    if (!session?.token || !["admin", "staff"].includes(session.role)) {
+    if (!session?.token || !["admin", "staff"].includes(session.role) || session?.permissions?.["cash-shifts"]?.view !== true) {
       setCurrentShift(null);
       return null;
     }
@@ -719,15 +719,16 @@ function AppContent() {
       .get(`${API_BASE}/api/auth/me`)
       .then((response) => {
         if (!active || !response.data?.success) return;
-        setSession((current) =>
-          current
-            ? {
-                ...current,
-                ...response.data.data,
-                role: String(response.data.data.role).toLowerCase(),
-              }
-            : current,
-        );
+        setSession((current) => {
+          if (!current) return current;
+          const nextSession = {
+            ...current,
+            ...response.data.data,
+            role: String(response.data.data.role).toLowerCase(),
+          };
+          window.localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
+          return nextSession;
+        });
       })
       .catch((error) => {
         if (!active) return;
@@ -753,7 +754,7 @@ function AppContent() {
 
   useEffect(() => {
     refreshCurrentShift();
-  }, [session?.token]);
+  }, [session?.token, session?.permissions]);
 
   useEffect(() => {
     if (session?.role !== "user") {
@@ -766,7 +767,7 @@ function AppContent() {
   }, [session?.role, session?.token, refreshMyLoyalty]);
 
   useEffect(() => {
-    if (!session?.token) return undefined;
+    if (!session?.token || !session?.permissions) return undefined;
     let mounted = true;
     const fetchOrders = async () => {
       try {
