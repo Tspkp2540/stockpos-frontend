@@ -171,13 +171,13 @@ function Status({ status }) {
 
 function Heading({ title, description, action }) {
   return (
-    <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
           {title}
         </h1>
         {description && (
-          <p className="mt-1 text-sm text-slate-500">{description}</p>
+          <p className="mt-1 hidden max-w-2xl truncate text-xs text-slate-500 md:block">{description}</p>
         )}
       </div>
       {action}
@@ -6127,7 +6127,7 @@ export default function GlassLayout({
     );
   return (
     <div className="shop-scene text-slate-800">
-      <aside className="shop-topbar fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r px-4 py-6 lg:flex">
+      <aside className="shop-topbar fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r px-3 py-5 lg:flex">
         <div className="flex items-center gap-3 px-2">
           <span className="shop-orb grid h-10 w-10 place-items-center rounded-xl bg-sky-600 text-lg font-black text-white">
             S
@@ -6136,7 +6136,7 @@ export default function GlassLayout({
             <p className="font-bold tracking-wide text-slate-900">STOCKPOS</p>
           </div>
         </div>
-        <nav className="mt-8 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+        <nav className="mt-6 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
           {visibleNavigationGroups.map((group) => (
             <section key={group.id}>
               <button className="mb-2 flex w-full items-center justify-between rounded-lg px-2 py-1 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 transition hover:bg-sky-50 hover:text-sky-700" type="button" onClick={() => toggleNavigationGroup(group.id)} aria-expanded={expandedNavigationGroups.has(group.id)}>
@@ -6212,7 +6212,7 @@ export default function GlassLayout({
           ))}
         </nav>
       </header>
-      <main className="relative mx-auto w-full max-w-[1600px] p-4 pb-10 sm:p-6 lg:ml-64 lg:w-[calc(100%-16rem)] lg:p-8">
+      <main className="admin-workspace relative mx-auto w-full p-4 pb-8 sm:p-5 lg:ml-72 lg:mr-6 lg:p-6">
         {content}
       </main>
     </div>

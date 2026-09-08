@@ -85,6 +85,18 @@ body {
   isolation: isolate;
 }
 
+@media (min-width: 1024px) {
+  .admin-workspace {
+    width: calc(100% - 19.5rem);
+    max-width: 1440px;
+    min-height: clamp(560px, calc((100vw - 19.5rem) * 0.5625), 810px);
+  }
+
+  .shop-panel {
+    box-shadow: 0 12px 30px rgba(14, 116, 144, 0.07);
+  }
+}
+
 button,
 input,
 select,
