@@ -3986,7 +3986,7 @@ function LoyaltyMembersPage({ members, onRefresh, onCreate, onUpdate, onDelete }
   );
 }
 
-function RolePermissionsPage({ profiles, onRefresh, onSave }) {
+function RolePermissionsPage({ profiles, users, onRefresh, onSave, onCreate, onDelete, onRefreshUsers, onAssignUserRole }) {
   const menus = [
     ["pos", "การขายหน้าร้าน"],
     ["orders", "คำสั่งซื้อ"],
@@ -3997,18 +3997,27 @@ function RolePermissionsPage({ profiles, onRefresh, onSave }) {
   const [selectedRole, setSelectedRole] = useState("STAFF");
   const [permissions, setPermissions] = useState({});
   const [saving, setSaving] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newRole, setNewRole] = useState({ role: "", display_name: "", base_role: "STAFF" });
   const profile = profiles.find((item) => item.role === selectedRole);
   useEffect(() => setPermissions(profile?.permissions || {}), [profile]);
   const toggle = (menu, action) => setPermissions((current) => ({ ...current, [menu]: { ...(current[menu] || {}), [action]: !current?.[menu]?.[action] } }));
   const save = async () => { setSaving(true); try { await onSave?.(selectedRole, permissions); } finally { setSaving(false); } };
+  const create = async (event) => { event.preventDefault(); const created = await onCreate?.(newRole); if (created) { setSelectedRole(created.role); setCreateOpen(false); setNewRole({ role: "", display_name: "", base_role: "STAFF" }); } };
+  const isSystemRole = ["ADMIN", "STAFF", "USER"].includes(selectedRole);
   return (
     <section className="space-y-5">
-      <Heading title="จัดการสิทธิ์บทบาท" description="กำหนดสิทธิ์ดู สร้าง แก้ไข และลบสำหรับ Staff และ User โดยระบบตรวจสิทธิ์ก่อนดำเนินการ" action={<Button type="button" variant="secondary" onClick={onRefresh}>รีเฟรช</Button>} />
+      <Heading title="จัดการสิทธิ์บทบาท" description="สร้างบทบาทกำหนดเอง กำหนดสิทธิ์ และนำไปใช้กับบัญชีผู้ใช้งาน" action={<div className="flex gap-2"><Button type="button" variant="secondary" onClick={onRefresh}>รีเฟรช</Button><Button type="button" onClick={() => setCreateOpen(true)}>+ เพิ่มบทบาท</Button></div>} />
       <Card className="max-w-5xl">
-        <div className="flex flex-wrap items-center justify-between gap-3"><label className={`${labelClass} max-w-xs`}>บทบาท<select className={inputClass} value={selectedRole} onChange={(event) => setSelectedRole(event.target.value)}><option value="STAFF">Staff</option><option value="USER">User</option></select></label><p className="text-xs text-slate-500">Admin มีสิทธิ์เต็มระบบและไม่สามารถถูกปิดสิทธิ์จากหน้านี้</p></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><label className={`${labelClass} max-w-xs`}>บทบาท<select className={inputClass} value={selectedRole} onChange={(event) => setSelectedRole(event.target.value)}>{profiles.map((item) => <option value={item.role} key={item.role}>{item.display_name || item.role} ({item.role})</option>)}</select></label><div className="flex items-center gap-2"><p className="text-xs text-slate-500">{isSystemRole ? "บทบาทระบบไม่สามารถลบได้" : `พื้นฐาน ${profile?.base_role || "STAFF"}`}</p>{!isSystemRole ? <Button type="button" variant="danger" className="text-xs" onClick={() => onDelete?.(profile)}>ลบบทบาท</Button> : null}</div></div>
         <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[650px] text-sm"><thead><tr className="border-b border-sky-100 text-left text-xs text-slate-500"><th className="p-3">เมนู</th>{actions.map(([, label]) => <th className="p-3 text-center" key={label}>{label}</th>)}</tr></thead><tbody>{menus.map(([menu, label]) => <tr className="border-b border-slate-100" key={menu}><td className="p-3 font-semibold text-slate-800">{label}</td>{actions.map(([action]) => <td className="p-3 text-center" key={action}><input className="h-4 w-4 accent-sky-600" type="checkbox" checked={permissions?.[menu]?.[action] === true} onChange={() => toggle(menu, action)} /></td>)}</tr>)}</tbody></table></div>
         <div className="mt-5 flex justify-end"><Button type="button" disabled={saving} onClick={save}>{saving ? "กำลังบันทึก..." : "บันทึกสิทธิ์"}</Button></div>
       </Card>
+      <Card className="max-w-5xl">
+        <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-slate-900">กำหนดบทบาทให้บัญชี</h2><p className="mt-1 text-xs text-slate-500">การเปลี่ยนบทบาทจะมีผลเมื่อบัญชีนั้นเข้าสู่ระบบใหม่</p></div><Button type="button" variant="secondary" onClick={onRefreshUsers}>รีเฟรชบัญชี</Button></div>
+        <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="border-b border-sky-100 text-left text-xs text-slate-500"><th className="p-3">บัญชี</th><th className="p-3">เบอร์โทร</th><th className="p-3">บทบาท</th></tr></thead><tbody>{users.map((user) => <tr className="border-b border-slate-100" key={user.id}><td className="p-3"><b className="text-slate-800">{user.name}</b><span className="ml-2 text-xs text-slate-500">@{user.username}</span></td><td className="p-3 text-slate-600">{user.phone || "-"}</td><td className="p-3"><select className={`${inputClass} max-w-xs py-2`} value={String(user.role_key || user.role).toUpperCase()} onChange={(event) => onAssignUserRole?.(user.id, event.target.value)}>{profiles.map((item) => <option value={item.role} key={item.role}>{item.display_name || item.role}</option>)}</select></td></tr>)}</tbody></table></div>
+      </Card>
+      {createOpen ? <Modal label="เพิ่มบทบาท" maxWidth="max-w-xl" onClose={() => setCreateOpen(false)}><Card><h2 className="text-lg font-bold text-slate-900">เพิ่มบทบาท</h2><form className="mt-5 grid gap-4" onSubmit={create}><label className={labelClass}>ชื่อบทบาท<input className={inputClass} value={newRole.display_name} maxLength="80" onChange={(event) => setNewRole((current) => ({ ...current, display_name: event.target.value }))} placeholder="เช่น แคชเชียร์" required /></label><label className={labelClass}>รหัสบทบาท<input className={inputClass} value={newRole.role} maxLength="32" onChange={(event) => setNewRole((current) => ({ ...current, role: event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "") }))} placeholder="CASHIER" required /></label><label className={labelClass}>บทบาทพื้นฐาน<select className={inputClass} value={newRole.base_role} onChange={(event) => setNewRole((current) => ({ ...current, base_role: event.target.value }))}><option value="STAFF">Staff</option><option value="USER">User</option></select></label><div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setCreateOpen(false)}>ยกเลิก</Button><Button type="submit">เพิ่มบทบาท</Button></div></form></Card></Modal> : null}
     </section>
   );
 }
@@ -5820,6 +5829,7 @@ export default function GlassLayout({
   loyaltySettings,
   loyaltyMembers,
   rolePermissions,
+  systemUsers,
   notice,
   systemStatus,
   onAdd,
@@ -5831,6 +5841,10 @@ export default function GlassLayout({
   onDeleteLoyaltyMember,
   onRefreshRolePermissions,
   onUpdateRolePermissions,
+  onCreateRole,
+  onDeleteRole,
+  onRefreshSystemUsers,
+  onAssignUserRole,
   onValidateCoupon,
   onOpenCashShift,
   onCloseCashShift,
@@ -5976,8 +5990,13 @@ export default function GlassLayout({
     ) : activeView === "role-permissions" && user?.role === "admin" ? (
       <RolePermissionsPage
         profiles={rolePermissions}
+        users={systemUsers}
         onRefresh={onRefreshRolePermissions}
         onSave={onUpdateRolePermissions}
+        onCreate={onCreateRole}
+        onDelete={onDeleteRole}
+        onRefreshUsers={onRefreshSystemUsers}
+        onAssignUserRole={onAssignUserRole}
       />
     ) : activeView === "sales-channels" && user?.role === "admin" ? (
       <SalesChannelsPage

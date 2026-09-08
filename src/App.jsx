@@ -245,6 +245,7 @@ function AppContent() {
   const [loyalty, setLoyalty] = useState({ account: null, rules: null });
   const [loyaltyMembers, setLoyaltyMembers] = useState([]);
   const [rolePermissions, setRolePermissions] = useState([]);
+  const [systemUsers, setSystemUsers] = useState([]);
   const [loyaltySettings, setLoyaltySettings] = useState({
     is_enabled: true,
     earn_mode: "SPEND",
@@ -657,6 +658,36 @@ function AppContent() {
     }
     return null;
   };
+  const createRole = async (role) => {
+    try {
+      const response = await axios.post(`${API_BASE}/api/admin/role-permissions`, role);
+      if (response.data?.success) { await refreshRolePermissions(); return response.data.data; }
+    } catch (error) { showError(error, "ไม่สามารถเพิ่มบทบาทได้"); }
+    return null;
+  };
+  const deleteRole = async (role) => {
+    const confirmed = await confirmAction({ tone: "danger", title: "ลบบทบาท?", message: `ต้องการลบบทบาท ${role.display_name || role.role} ใช่หรือไม่`, confirmLabel: "ลบบทบาท" });
+    if (!confirmed) return false;
+    try {
+      const response = await axios.delete(`${API_BASE}/api/admin/role-permissions/${role.role}`);
+      if (response.data?.success) { await refreshRolePermissions(); return true; }
+    } catch (error) { showError(error, "ไม่สามารถลบบทบาทได้"); }
+    return false;
+  };
+  const refreshSystemUsers = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/admin/users`);
+      if (response.data?.success && Array.isArray(response.data.data)) { setSystemUsers(response.data.data); return response.data.data; }
+    } catch (error) { console.warn("System users refresh unavailable.", error); }
+    return [];
+  };
+  const assignUserRole = async (userId, roleKey) => {
+    try {
+      const response = await axios.put(`${API_BASE}/api/admin/users/${userId}/role`, { role_key: roleKey });
+      if (response.data?.success) { await refreshSystemUsers(); return response.data.data; }
+    } catch (error) { showError(error, "ไม่สามารถกำหนดบทบาทให้บัญชีได้"); }
+    return null;
+  };
   const refreshMyLoyalty = useCallback(async () => {
     if (session?.role !== "user") {
       setLoyalty({ account: null, rules: null });
@@ -851,7 +882,7 @@ function AppContent() {
       )
         setExpenseRows(expensesResponse.data.data);
       if (session.role === "admin") {
-        await Promise.all([refreshCoupons(), refreshCashShifts(), refreshSalesBreakdown(), refreshLoyaltySettings(), refreshLoyaltyMembers(), refreshRolePermissions()]);
+        await Promise.all([refreshCoupons(), refreshCashShifts(), refreshSalesBreakdown(), refreshLoyaltySettings(), refreshLoyaltyMembers(), refreshRolePermissions(), refreshSystemUsers()]);
       }
     };
     fetchOrders();
@@ -1690,6 +1721,7 @@ function AppContent() {
         loyaltySettings={loyaltySettings}
         loyaltyMembers={loyaltyMembers}
         rolePermissions={rolePermissions}
+        systemUsers={systemUsers}
         notice={notice}
         systemStatus={systemStatus}
         onAdd={addOrder}
@@ -1701,6 +1733,10 @@ function AppContent() {
         onDeleteLoyaltyMember={deleteLoyaltyMember}
         onRefreshRolePermissions={refreshRolePermissions}
         onUpdateRolePermissions={updateRolePermissions}
+        onCreateRole={createRole}
+        onDeleteRole={deleteRole}
+        onRefreshSystemUsers={refreshSystemUsers}
+        onAssignUserRole={assignUserRole}
         onValidateCoupon={validateCoupon}
         onOpenCashShift={openCashShift}
         onCloseCashShift={closeCashShift}
