@@ -97,7 +97,7 @@ export default function AnonymousOrderStatus({ apiBase, onBack }) {
   };
 
   return (
-    <div className="shop-scene text-slate-800">
+    <div className="app-viewport shop-scene text-slate-800">
       <header className="shop-topbar relative z-10 border-b">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 p-4 sm:p-6">
           <div className="flex items-center gap-3">

@@ -529,14 +529,14 @@ export default function StaffWorkspace({
   ));
 
   if (!user?.permissions) {
-    return <main className="shop-scene flex min-h-screen items-center justify-center p-6 text-sm font-semibold text-sky-700">กำลังตรวจสอบสิทธิ์การใช้งาน...</main>;
+    return <main className="app-viewport shop-scene flex min-h-screen items-center justify-center p-6 text-sm font-semibold text-sky-700">กำลังตรวจสอบสิทธิ์การใช้งาน...</main>;
   }
 
   if (showAllOrders && canViewOrders) {
     return (
-      <div className="shop-scene min-h-screen text-slate-800">
+      <div className="app-viewport shop-scene min-h-screen text-slate-800">
         <header className="shop-topbar relative z-10 border-b">
-          <div className="mx-auto flex w-full max-w-[1500px] items-center justify-between gap-4 p-4 sm:p-6">
+            <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-4 p-4 sm:p-6">
             <div className="flex items-center gap-3">
               <span className="shop-orb grid h-10 w-10 place-items-center rounded-xl bg-sky-600 font-black text-white">S</span>
               <div><p className="font-bold text-slate-900">STOCKPOS</p></div>
@@ -544,7 +544,7 @@ export default function StaffWorkspace({
             <Button type="button" variant="secondary" onClick={() => setShowAllOrders(false)}>← กลับหน้าขาย</Button>
           </div>
         </header>
-        <main className="relative mx-auto w-full max-w-[1500px] p-4 pb-10 sm:p-6">
+        <main className="relative mx-auto w-full max-w-[1440px] p-4 pb-10 sm:p-6">
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold text-slate-900">รายการคำสั่งซื้อทั้งหมด</h1>
@@ -568,9 +568,9 @@ export default function StaffWorkspace({
   }
 
   return (
-    <div className="shop-scene text-slate-800">
+    <div className="app-viewport shop-scene text-slate-800">
       <header className="shop-topbar relative z-10 border-b">
-        <div className="mx-auto flex w-full max-w-[1500px] items-center justify-between gap-4 p-4 sm:p-6">
+        <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-4 p-4 sm:p-6">
           <div className="flex items-center gap-3">
             <span className="shop-orb grid h-10 w-10 place-items-center rounded-xl bg-sky-600 font-black text-white">
               S
@@ -608,7 +608,7 @@ export default function StaffWorkspace({
         </div>
       </header>
 
-      <main className="relative mx-auto w-full max-w-[1500px] space-y-6 p-4 pb-10 sm:p-6">
+      <main className="relative mx-auto w-full max-w-[1440px] space-y-5 p-4 pb-10 sm:p-6">
         <section className="relative overflow-hidden rounded-3xl border border-sky-200 bg-gradient-to-r from-sky-700 via-sky-600 to-cyan-500 p-5 text-white shadow-xl shadow-sky-200/60 sm:p-7">
           <div className="relative z-10 max-w-2xl sm:max-w-[64%] xl:max-w-2xl">
             <h1 className="text-2xl font-bold sm:text-3xl">การขายและคำสั่งซื้อ</h1>

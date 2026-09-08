@@ -4840,11 +4840,13 @@ function FinancePage({
   onCreateSales,
   onUpdateSales,
   onDeleteSales,
+  onUpdateOrderStatus,
   onRefreshSalesBreakdown,
   onRefreshSalesReport,
   onFetchDailyClosing,
   onCloseBusinessDay,
 }) {
+  const { confirmAction, showMessage } = useActionDialog();
   const [selectedDate, setSelectedDate] = useState(todayInBangkok);
   const [orderSearch, setOrderSearch] = useState("");
   const [orderNoFilter, setOrderNoFilter] = useState("ALL");
@@ -5029,6 +5031,25 @@ function FinancePage({
     setExpenseEditingId(null);
     setExpense({ amount: "", category: "OPERATING_EXPENSE", description: "" });
     setExpenseModalOpen(false);
+  };
+  const cancelSalesOrder = async (order) => {
+    if (String(order.status || "").toUpperCase() === "CANCELLED") return;
+    const confirmed = await confirmAction({
+      tone: "danger",
+      title: "ยกเลิกคำสั่งซื้อ?",
+      message: `ต้องการยกเลิกออเดอร์ #${order.order_no} ใช่หรือไม่\nระบบจะคืนสต็อก ปรับยอดการเงิน และบันทึกประวัติการแก้ไข`,
+      confirmLabel: "ยืนยันยกเลิก",
+    });
+    if (!confirmed) return;
+    const saved = await onUpdateOrderStatus?.(order.id, "CANCELLED");
+    if (saved) {
+      setDetailModal(null);
+      showMessage({
+        tone: "success",
+        title: "ยกเลิกคำสั่งซื้อแล้ว",
+        message: `ออเดอร์ #${order.order_no} ถูกยกเลิกและปรับข้อมูลที่เกี่ยวข้องแล้ว`,
+      });
+    }
   };
   return (
     <div className="space-y-5">
@@ -5376,7 +5397,7 @@ function FinancePage({
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-slate-900">รายการขาย</h2>
-              <p className="mt-1 text-xs text-slate-500">ค้นหาด้วยเลขที่คำสั่งซื้อ ชื่อลูกค้า หรือหมายเลขสมาชิกในวันที่ที่กำลังดู</p>
+              <p className="mt-1 text-xs text-slate-500">ค้นหาด้วยเลขออเดอร์ ชื่อลูกค้า หรือหมายเลขสมาชิก และจัดการยกเลิกได้</p>
             </div>
             <span className="text-sm text-slate-500">
               {visibleOrders.length} / {dateOrders.length} รายการ
@@ -5433,6 +5454,12 @@ function FinancePage({
                     <p className="mt-1 truncate text-sm text-slate-500">
                       {order.channel_name} · {order.items}
                     </p>
+                    {(order.customer_name || order.customer_nickname || order.customer_phone) ? (
+                      <p className="mt-1 truncate text-xs text-violet-700">
+                        ลูกค้า: {order.customer_name || order.customer_nickname || "ไม่ระบุชื่อ"}
+                        {order.customer_phone ? ` · ${maskPhone(order.customer_phone)}` : ""}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Status status={order.status} />
@@ -5445,6 +5472,15 @@ function FinancePage({
                         แก้ไข
                       </Button>
                     )}
+                    {String(order.status || "").toUpperCase() !== "CANCELLED" ? (
+                      <Button
+                        className="text-xs"
+                        variant="danger"
+                        onClick={() => cancelSalesOrder(order)}
+                      >
+                        ยกเลิกออเดอร์
+                      </Button>
+                    ) : null}
                     <Button
                       className="text-xs"
                       variant="danger"
@@ -6093,6 +6129,7 @@ export default function GlassLayout({
         onCreateSales={onCreateSales}
         onUpdateSales={onUpdateSales}
         onDeleteSales={onDeleteSales}
+        onUpdateOrderStatus={onUpdate}
         onRefreshSalesBreakdown={onRefreshSalesBreakdown}
         onRefreshSalesReport={onRefreshSalesReport}
         onFetchDailyClosing={onFetchDailyClosing}
@@ -6126,7 +6163,7 @@ export default function GlassLayout({
       </div>
     );
   return (
-    <div className="shop-scene text-slate-800">
+    <div className="app-viewport admin-viewport shop-scene text-slate-800">
       <aside className="shop-topbar fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r px-3 py-5 lg:flex">
         <div className="flex items-center gap-3 px-2">
           <span className="shop-orb grid h-10 w-10 place-items-center rounded-xl bg-sky-600 text-lg font-black text-white">

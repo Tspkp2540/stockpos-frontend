@@ -39,6 +39,13 @@ body {
     linear-gradient(155deg, #f8fdff 0%, #eefaff 45%, #e0f6ff 100%);
 }
 
+/* Keep the desktop application inside a familiar 16:9 working canvas.
+   Narrow screens remain fluid so forms and tables can scroll naturally. */
+.app-viewport {
+  position: relative;
+  min-height: 100svh;
+}
+
 .shop-scene::before,
 .shop-scene::after {
   position: fixed;
@@ -86,10 +93,19 @@ body {
 }
 
 @media (min-width: 1024px) {
+  .app-viewport {
+    width: min(100%, 177.777778svh);
+    margin-inline: auto;
+  }
+
+  .admin-viewport > aside {
+    left: max(0px, calc(50vw - 88.888889svh));
+  }
+
   .admin-workspace {
     width: calc(100% - 19.5rem);
     max-width: 1440px;
-    min-height: clamp(560px, calc((100vw - 19.5rem) * 0.5625), 810px);
+    min-height: clamp(560px, 72svh, 810px);
   }
 
   .shop-panel {

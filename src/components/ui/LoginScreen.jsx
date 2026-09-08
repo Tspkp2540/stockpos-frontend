@@ -27,7 +27,7 @@ export default function LoginScreen({ onLogin, onRegister, onAnonymous, onHome }
     }
   };
 
-  return <main className="shop-scene grid place-items-center p-4 sm:p-8">
+  return <main className="app-viewport shop-scene grid place-items-center p-4 sm:p-8">
     <section className="shop-panel grid w-full max-w-5xl overflow-hidden rounded-3xl border md:grid-cols-[1fr_420px]">
       <div className="relative hidden min-h-[640px] overflow-hidden bg-sky-100 md:block">
         <img className="absolute inset-0 h-full w-full object-cover object-[50%_22%]" src={coffeeBarista} alt="ตัวละครบาริสต้า KIN CHA KAN ชูแก้วกาแฟ" />

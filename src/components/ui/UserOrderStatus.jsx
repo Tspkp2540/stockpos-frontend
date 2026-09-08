@@ -56,11 +56,11 @@ export default function UserOrderStatus({ user, orders, loyalty, onRefreshLoyalt
       : orders;
   }, [orders, query]);
   if (!user?.permissions) {
-    return <main className="shop-scene flex min-h-screen items-center justify-center p-6 text-sm font-semibold text-sky-700">กำลังตรวจสอบสิทธิ์การใช้งาน...</main>;
+    return <main className="app-viewport shop-scene flex min-h-screen items-center justify-center p-6 text-sm font-semibold text-sky-700">กำลังตรวจสอบสิทธิ์การใช้งาน...</main>;
   }
   if (user.permissions?.orders?.view !== true) {
     return (
-      <main className="shop-scene flex min-h-screen items-center justify-center p-6 text-center text-slate-700">
+      <main className="app-viewport shop-scene flex min-h-screen items-center justify-center p-6 text-center text-slate-700">
         <section className="shop-panel max-w-md rounded-3xl border p-7">
           <h1 className="text-xl font-bold text-slate-900">ไม่มีเมนูที่ได้รับสิทธิ์</h1>
           <p className="mt-2 text-sm text-slate-500">โปรดติดต่อผู้ดูแลระบบหากต้องการเข้าดูคำสั่งซื้อ</p>
@@ -70,7 +70,7 @@ export default function UserOrderStatus({ user, orders, loyalty, onRefreshLoyalt
     );
   }
   return (
-    <div className="shop-scene text-slate-800">
+    <div className="app-viewport shop-scene text-slate-800">
       <header className="shop-topbar relative z-10 border-b">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 p-4 sm:p-6">
           <div className="flex items-center gap-3">
