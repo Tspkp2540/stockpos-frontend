@@ -120,11 +120,11 @@ export default function AnonymousOrderStatus({ apiBase, onBack }) {
         <section className="relative overflow-hidden rounded-3xl border border-sky-200 bg-gradient-to-br from-sky-700 via-sky-600 to-cyan-500 p-6 text-white shadow-xl shadow-sky-200/60 sm:p-8">
           <div className="relative z-10 max-w-2xl md:max-w-[62%]">
           <h1 className="text-2xl font-bold sm:text-3xl">
-            คิวออเดอร์รายวัน
+            คิวคำสั่งซื้อประจำวัน
           </h1>
           <p className="mt-2 text-sm text-sky-50">
             ดูคิวของวันนี้ได้เลยโดยไม่ต้องสมัครสมาชิก
-            ใช้เบอร์โทรเมื่อต้องการค้นหาและกรองออเดอร์ของวันนี้
+            ระบุหมายเลขโทรศัพท์เมื่อต้องการค้นหาและกรองคำสั่งซื้อของวันนี้
           </p>
           <form
             className="mt-5 flex max-w-xl flex-col gap-3 sm:flex-row"
@@ -173,11 +173,11 @@ export default function AnonymousOrderStatus({ apiBase, onBack }) {
               <h2 className="text-lg font-bold text-slate-900">
                 {activePhone
                   ? `ผลการค้นหา: ${maskPhone(activePhone)}`
-                  : "Dashboard คิวออเดอร์"}
+                  : "ภาพรวมคิวคำสั่งซื้อ"}
               </h2>
               <p className="mt-1 text-sm text-slate-500">
                 {activePhone
-                  ? `แสดงเฉพาะออเดอร์ของเบอร์ที่ค้นหาในวันนี้ ${dateLabel(todayInBangkok())}`
+                  ? `แสดงเฉพาะคำสั่งซื้อของหมายเลขโทรศัพท์ที่ค้นหาในวันนี้ ${dateLabel(todayInBangkok())}`
                   : `แสดงคิวทั้งหมดของวันนี้ ${dateLabel(todayInBangkok())}`}
               </p>
             </div>

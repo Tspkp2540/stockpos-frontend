@@ -43,7 +43,7 @@ function ItemList({ items }) {
 export default function UserOrderStatus({ user, orders, loyalty, onRefreshLoyalty, onLogout }) {
   const [query, setQuery] = useState("");
   const account = loyalty?.account;
-  const rules = loyalty?.rules || { spend_per_point: 25, baht_per_point: 0.1 };
+  const rules = loyalty?.rules || { is_enabled: true, spend_per_point: 25, baht_per_point: 0.1 };
   const visibleOrders = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return normalized
@@ -86,23 +86,23 @@ export default function UserOrderStatus({ user, orders, loyalty, onRefreshLoyalt
             ประวัติการสั่งซื้อทั้งหมด
           </h1>
           <p className="mt-2 text-sm text-sky-50">
-            แสดงทุกออเดอร์ที่ระบุเบอร์โทร {maskPhone(user.phone) || "ของบัญชีคุณ"}
+            แสดงคำสั่งซื้อทั้งหมดที่ระบุหมายเลขโทรศัพท์ {maskPhone(user.phone) || "ของบัญชีคุณ"}
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
             <div>
-              <p className="text-xs font-semibold text-sky-100">แต้มสมาชิกคงเหลือ</p>
-              <strong className="mt-0.5 block text-2xl text-white">{Number(account?.points_balance || 0).toLocaleString()} แต้ม</strong>
+              <p className="text-xs font-semibold text-sky-100">คะแนนสะสมคงเหลือ</p>
+              <strong className="mt-0.5 block text-2xl text-white">{Number(account?.points_balance || 0).toLocaleString()} คะแนน</strong>
             </div>
-            <p className="text-xs leading-5 text-sky-50">ทุก {Number(rules.spend_per_point || 25).toLocaleString()} บาท รับ 1 แต้ม<br />{Math.round(1 / Number(rules.baht_per_point || 0.1))} แต้ม ใช้ลดได้ 1 บาท</p>
+            <p className="text-xs leading-5 text-sky-50">{rules.is_enabled === false ? "ระบบคะแนนสะสมปิดใช้งานอยู่" : <>ทุก {Number(rules.spend_per_point || 25).toLocaleString()} บาท รับ 1 คะแนน<br />{Math.round(1 / Number(rules.baht_per_point || 0.1))} คะแนน ใช้ลดได้ 1 บาท</>}</p>
             <button className="ml-auto rounded-lg border border-white/30 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-white/10" type="button" onClick={onRefreshLoyalty}>รีเฟรช</button>
           </div>
           <label className="mt-5 block max-w-xl">
-            <span className="sr-only">ค้นหาประวัติออเดอร์</span>
+            <span className="sr-only">ค้นหาประวัติคำสั่งซื้อ</span>
             <input
               className="w-full rounded-xl border-0 bg-white px-4 py-3 text-sm text-slate-800 outline-none ring-4 ring-white/15 placeholder:text-slate-400"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="ค้นหาด้วยเลขคิว ชื่อเล่น หรือหมายเลขออเดอร์"
+              placeholder="ค้นหาด้วยเลขคิว ชื่อเล่น หรือเลขที่คำสั่งซื้อ"
             />
           </label>
           </div>

@@ -243,6 +243,12 @@ function AppContent() {
   const [restocked, setRestocked] = useState([]);
   const [notice, setNotice] = useState("LIVE SYNC · 14:32:08");
   const [loyalty, setLoyalty] = useState({ account: null, rules: null });
+  const [loyaltySettings, setLoyaltySettings] = useState({
+    is_enabled: true,
+    spend_per_point: 25,
+    baht_per_point: 0.1,
+    max_redeem_percent: 50,
+  });
   const [channels, setChannels] = useState(fallbackChannels);
   const [products, setProducts] = useState(fallbackProducts);
   const [inventoryRows, setInventoryRows] = useState(inventory);
@@ -541,6 +547,32 @@ function AppContent() {
     if (response.data?.success) return response.data.data;
     throw new Error(response.data?.error || "ไม่สามารถค้นหาข้อมูลสมาชิกได้");
   };
+  const refreshLoyaltySettings = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/loyalty/settings`);
+      if (response.data?.success) {
+        setLoyaltySettings(response.data.data);
+        return response.data.data;
+      }
+    } catch (error) {
+      console.warn("Loyalty settings refresh unavailable.", error);
+    }
+    return null;
+  };
+  const updateLoyaltySettings = async (settings) => {
+    try {
+      const response = await axios.put(`${API_BASE}/api/loyalty/settings`, settings);
+      if (response.data?.success) {
+        setLoyaltySettings(response.data.data);
+        setNotice("LOYALTY SETTINGS UPDATED · POS RULES SYNCED");
+        return response.data.data;
+      }
+    } catch (error) {
+      showError(error, "ไม่สามารถบันทึกการตั้งค่าคะแนนสะสมได้");
+      console.warn("Loyalty settings update failed.", error);
+    }
+    return null;
+  };
   const refreshMyLoyalty = useCallback(async () => {
     if (session?.role !== "user") {
       setLoyalty({ account: null, rules: null });
@@ -735,7 +767,7 @@ function AppContent() {
       )
         setExpenseRows(expensesResponse.data.data);
       if (session.role === "admin") {
-        await Promise.all([refreshCoupons(), refreshCashShifts(), refreshSalesBreakdown()]);
+        await Promise.all([refreshCoupons(), refreshCashShifts(), refreshSalesBreakdown(), refreshLoyaltySettings()]);
       }
     };
     fetchOrders();
@@ -841,6 +873,7 @@ function AppContent() {
         customer_phone: payload.customer_phone || undefined,
         manual_discount_amount: Number(payload.manual_discount_amount) || 0,
         coupon_code: payload.coupon_code || undefined,
+        loyalty_points_redeemed: Number(payload.loyalty_points_redeemed) || 0,
         payment_method: payload.payment_method || "OTHER",
         amount_received:
           payload.amount_received === undefined || payload.amount_received === ""
@@ -1536,6 +1569,7 @@ function AppContent() {
           channels={channels}
           products={products}
           currentShift={currentShift}
+          loyaltyRules={loyaltySettings}
           onAdd={addOrder}
           onLookupLoyalty={lookupLoyalty}
           onValidateCoupon={validateCoupon}
@@ -1569,10 +1603,12 @@ function AppContent() {
         expenses={expenses}
         expenseRows={expenseRows}
         currentShift={currentShift}
+        loyaltySettings={loyaltySettings}
         notice={notice}
         systemStatus={systemStatus}
         onAdd={addOrder}
         onLookupLoyalty={lookupLoyalty}
+        onUpdateLoyaltySettings={updateLoyaltySettings}
         onValidateCoupon={validateCoupon}
         onOpenCashShift={openCashShift}
         onCloseCashShift={closeCashShift}

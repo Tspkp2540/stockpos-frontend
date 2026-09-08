@@ -94,6 +94,7 @@ export default function StaffWorkspace({
   channels,
   products,
   currentShift,
+  loyaltyRules,
   onAdd,
   onLookupLoyalty,
   onValidateCoupon,
@@ -227,13 +228,20 @@ export default function StaffWorkspace({
       : rawDiscount;
     return Math.min(eligibleAmount, cappedDiscount);
   }, [appliedCoupon, manualDiscountAmount, subtotal]);
+  const activeLoyaltyRules = loyaltyData?.rules || loyaltyRules || {};
+  const loyaltyEnabled = activeLoyaltyRules.is_enabled !== false;
+  const loyaltySpendPerPoint = Math.max(0.01, Number(activeLoyaltyRules.spend_per_point || 25));
+  const loyaltyBahtPerPoint = Math.max(0.01, Number(activeLoyaltyRules.baht_per_point || 0.1));
+  const loyaltyMaxRedeemPercent = Math.max(0, Math.min(100, Number(activeLoyaltyRules.max_redeem_percent ?? 50)));
   const loyaltyBaseAmount = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
   const loyaltyBalance = Math.max(0, Number(loyaltyData?.account?.points_balance || 0));
-  const loyaltyMaxPoints = Math.min(loyaltyBalance, Math.floor((loyaltyBaseAmount * 0.5) / 0.1));
+  const loyaltyMaxPoints = loyaltyEnabled
+    ? Math.min(loyaltyBalance, Math.floor((loyaltyBaseAmount * (loyaltyMaxRedeemPercent / 100)) / loyaltyBahtPerPoint))
+    : 0;
   const loyaltyPointsRedeemed = Math.min(loyaltyMaxPoints, Math.max(0, Math.floor(Number(loyaltyPoints) || 0)));
-  const loyaltyDiscountAmount = Number((loyaltyPointsRedeemed * 0.1).toFixed(2));
+  const loyaltyDiscountAmount = Number((loyaltyPointsRedeemed * loyaltyBahtPerPoint).toFixed(2));
   const total = Math.max(0, loyaltyBaseAmount - loyaltyDiscountAmount);
-  const estimatedLoyaltyPoints = customerPhone.replace(/\D/g, '').length >= 9 ? Math.floor(total / 25) : 0;
+  const estimatedLoyaltyPoints = loyaltyEnabled && customerPhone.replace(/\D/g, '').length >= 9 ? Math.floor(total / loyaltySpendPerPoint) : 0;
   const receivedAmount = Number(amountReceived || 0);
   const changeAmount = paymentMethod === "CASH" && receivedAmount >= total
     ? receivedAmount - total
@@ -520,14 +528,14 @@ export default function StaffWorkspace({
         <main className="relative mx-auto w-full max-w-[1500px] p-4 pb-10 sm:p-6">
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">รายการออเดอร์ทั้งหมด</h1>
+              <h1 className="text-2xl font-bold text-slate-900">รายการคำสั่งซื้อทั้งหมด</h1>
               <p className="mt-1 text-sm text-slate-500">ติดตามและเปลี่ยนสถานะคิวจากจุดเดียว</p>
             </div>
             <span className="rounded-full bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-700">{filteredOrders.length} / {orders.length} รายการ</span>
           </div>
           <section className="shop-panel mb-5 grid gap-2 rounded-2xl border p-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_145px_175px_160px_auto]">
-            <input aria-label="ค้นหาออเดอร์" className={inputClass} value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="ค้นหาเลขออเดอร์ คิว ชื่อลูกค้า หรือเบอร์โทร" />
-            <select aria-label="กรองสถานะออเดอร์" className={inputClass} value={orderStatusFilter} onChange={(event) => setOrderStatusFilter(event.target.value)}><option value="ALL">ทุกสถานะ</option><option value="COOKING">กำลังทำ</option><option value="READY">พร้อมรับ</option><option value="COMPLETED">สำเร็จ</option><option value="CANCELLED">ยกเลิก</option></select>
+            <input aria-label="ค้นหาคำสั่งซื้อ" className={inputClass} value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="ค้นหาเลขที่คำสั่งซื้อ คิว ชื่อลูกค้า หรือหมายเลขโทรศัพท์" />
+            <select aria-label="กรองสถานะคำสั่งซื้อ" className={inputClass} value={orderStatusFilter} onChange={(event) => setOrderStatusFilter(event.target.value)}><option value="ALL">ทุกสถานะ</option><option value="COOKING">กำลังจัดเตรียม</option><option value="READY">พร้อมรับสินค้า</option><option value="COMPLETED">ดำเนินการเสร็จสิ้น</option><option value="CANCELLED">ยกเลิก</option></select>
             <select aria-label="กรองช่องทางขาย" className={inputClass} value={orderChannelFilter} onChange={(event) => setOrderChannelFilter(event.target.value)}><option value="ALL">ทุกช่องทาง</option>{orderChannels.map((channel) => <option value={channel} key={channel}>{channel}</option>)}</select>
             <input aria-label="กรองวันที่ออเดอร์" className={inputClass} type="date" value={orderDateFilter} onChange={(event) => setOrderDateFilter(event.target.value)} />
             <Button type="button" variant="secondary" onClick={() => { setOrderSearch(""); setOrderStatusFilter("ALL"); setOrderChannelFilter("ALL"); setOrderDateFilter(""); }}>ล้างตัวกรอง</Button>
@@ -584,13 +592,13 @@ export default function StaffWorkspace({
       <main className="relative mx-auto w-full max-w-[1500px] space-y-6 p-4 pb-10 sm:p-6">
         <section className="relative overflow-hidden rounded-3xl border border-sky-200 bg-gradient-to-r from-sky-700 via-sky-600 to-cyan-500 p-5 text-white shadow-xl shadow-sky-200/60 sm:p-7">
           <div className="relative z-10 max-w-2xl sm:max-w-[64%] xl:max-w-2xl">
-            <h1 className="text-2xl font-bold sm:text-3xl">ขายและออเดอร์</h1>
+            <h1 className="text-2xl font-bold sm:text-3xl">การขายและคำสั่งซื้อ</h1>
             <p className="mt-2 text-sm text-sky-100">
-              กรอกข้อมูลลูกค้า เลือกเมนู และยืนยันออเดอร์จากจุดเดียว
+              ระบุข้อมูลลูกค้า เลือกเมนู และยืนยันคำสั่งซื้อจากหน้าจอเดียว
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold backdrop-blur-sm">
-                {orders.length} ออเดอร์ทั้งหมด
+                {orders.length} คำสั่งซื้อทั้งหมด
               </span>
               <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold backdrop-blur-sm">
                 {cookingOrders} คิวกำลังทำ
@@ -615,7 +623,7 @@ export default function StaffWorkspace({
                   1
                 </span>
                 <div>
-                  <h2 className="font-bold text-slate-900">ระบุข้อมูลออเดอร์</h2>
+                  <h2 className="font-bold text-slate-900">ข้อมูลคำสั่งซื้อ</h2>
                   <p className="text-xs text-slate-500">ข้อมูลลูกค้าเป็นข้อมูลเสริม</p>
                 </div>
               </div>
@@ -657,19 +665,19 @@ export default function StaffWorkspace({
                 <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/70 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <p className="text-xs font-bold text-violet-800">แต้มสมาชิก</p>
-                      <p className="mt-0.5 text-xs text-violet-700">ทุก 25 บาท รับ 1 แต้ม · 10 แต้ม ลดได้ 1 บาท</p>
+                      <p className="text-xs font-bold text-violet-800">คะแนนสะสม</p>
+                      <p className="mt-0.5 text-xs text-violet-700">{loyaltyEnabled ? `ทุก ${money(loyaltySpendPerPoint)} รับ 1 คะแนน · 10 คะแนน ลดได้ ${money(loyaltyBahtPerPoint * 10)}` : "ระบบคะแนนสะสมปิดใช้งานอยู่"}</p>
                     </div>
-                    <Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => lookupLoyalty()}>ตรวจคะแนน</Button>
+                    {loyaltyEnabled ? <Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => lookupLoyalty()}>ตรวจสอบคะแนนสะสม</Button> : null}
                   </div>
-                  {loyaltyData?.account ? (
+                  {!loyaltyEnabled ? <p className="mt-2 text-xs text-violet-700">รายการนี้จะไม่สะสมหรือใช้คะแนน</p> : loyaltyData?.account ? (
                     <div className="mt-3">
                       <div className="flex flex-wrap items-end justify-between gap-2">
-                        <p className="text-sm font-semibold text-slate-700">คะแนนคงเหลือ <strong className="text-lg text-violet-700">{loyaltyBalance.toLocaleString()} แต้ม</strong></p>
-                        <button className="text-xs font-bold text-violet-700 hover:text-violet-900 disabled:opacity-50" type="button" disabled={!loyaltyMaxPoints} onClick={() => setLoyaltyPoints(String(loyaltyMaxPoints))}>ใช้ได้สูงสุด {loyaltyMaxPoints.toLocaleString()} แต้ม</button>
+                        <p className="text-sm font-semibold text-slate-700">คะแนนสะสมคงเหลือ <strong className="text-lg text-violet-700">{loyaltyBalance.toLocaleString()} คะแนน</strong></p>
+                        <button className="text-xs font-bold text-violet-700 hover:text-violet-900 disabled:opacity-50" type="button" disabled={!loyaltyMaxPoints} onClick={() => setLoyaltyPoints(String(loyaltyMaxPoints))}>ตัดได้สูงสุด {loyaltyMaxPoints.toLocaleString()} คะแนน</button>
                       </div>
                       <label className="mt-2 grid gap-1 text-xs font-semibold text-slate-600">
-                        ใช้แต้มเป็นส่วนลด
+                        ตัดคะแนนสะสมเพื่อเป็นส่วนลด
                         <input
                           className={inputClass}
                           type="number"
@@ -679,10 +687,10 @@ export default function StaffWorkspace({
                           inputMode="numeric"
                           value={loyaltyPoints}
                           onChange={(event) => setLoyaltyPoints(String(Math.min(loyaltyMaxPoints, Math.max(0, Math.floor(Number(event.target.value) || 0)))))}
-                          placeholder={`ใช้ได้สูงสุด ${loyaltyMaxPoints.toLocaleString()} แต้ม`}
+                          placeholder={`ตัดได้สูงสุด ${loyaltyMaxPoints.toLocaleString()} คะแนน`}
                         />
                       </label>
-                      {loyaltyPointsRedeemed ? <p className="mt-2 text-xs font-semibold text-violet-700">ใช้ {loyaltyPointsRedeemed.toLocaleString()} แต้ม ลด {money(loyaltyDiscountAmount)}</p> : null}
+                      {loyaltyPointsRedeemed ? <p className="mt-2 text-xs font-semibold text-violet-700">ตัด {loyaltyPointsRedeemed.toLocaleString()} คะแนน เป็นส่วนลด {money(loyaltyDiscountAmount)} · คงเหลือ {Math.max(0, loyaltyBalance - loyaltyPointsRedeemed).toLocaleString()} คะแนน</p> : <p className="mt-2 text-xs text-violet-700">ระบบจะตัดคะแนนเมื่อยืนยันคำสั่งซื้อเท่านั้น</p>}
                     </div>
                   ) : loyaltyError ? (
                     <p className="mt-2 text-xs font-medium text-rose-600">{loyaltyError}</p>
@@ -1016,7 +1024,7 @@ export default function StaffWorkspace({
                   ) : null}
                   {loyaltyPointsRedeemed ? (
                     <div className="flex items-center justify-between text-violet-700">
-                      <span>ใช้แต้มสมาชิก {loyaltyPointsRedeemed.toLocaleString()} แต้ม</span>
+                      <span>ตัดคะแนนสะสม {loyaltyPointsRedeemed.toLocaleString()} คะแนน</span>
                       <span>-{money(loyaltyDiscountAmount)}</span>
                     </div>
                   ) : null}
@@ -1026,7 +1034,7 @@ export default function StaffWorkspace({
                   <strong className="text-2xl text-sky-700">{money(total)}</strong>
                 </div>
                 <Button className="w-full" disabled={!cart.length} onClick={submit}>
-                  ยืนยันออเดอร์
+                  ยืนยันคำสั่งซื้อ
                 </Button>
               </div>
                   </div>
@@ -1039,16 +1047,16 @@ export default function StaffWorkspace({
         <section>
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">ออเดอร์ล่าสุด</h2>
+              <h2 className="text-xl font-bold text-slate-900">คำสั่งซื้อล่าสุด</h2>
               <p className="mt-1 text-sm text-slate-500">แสดง 5 รายการล่าสุดจากทั้งหมด {orders.length} รายการ</p>
               {orders.length > 1 ? <p className="mt-1 text-xs font-semibold text-sky-700">← เลื่อนซ้าย–ขวาเพื่อดูคิวล่าสุด →</p> : null}
             </div>
             {orders.length > 5 ? <Button type="button" variant="secondary" className="text-xs" onClick={() => setShowAllOrders(true)}>ดูทั้งหมด →</Button> : <span className="text-sm text-slate-500">{orders.length} รายการ</span>}
           </div>
           <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 pr-1">
-            {orders.length ? orderCards(orders.slice(0, 5), true) : <div className="shop-panel w-full rounded-2xl border border-dashed p-5 text-center text-sm text-slate-500">ยังไม่มีออเดอร์</div>}
+            {orders.length ? orderCards(orders.slice(0, 5), true) : <div className="shop-panel w-full rounded-2xl border border-dashed p-5 text-center text-sm text-slate-500">ยังไม่มีคำสั่งซื้อ</div>}
           </div>
-          {orders.length > 5 ? <div className="mt-4 flex justify-center"><Button type="button" variant="secondary" onClick={() => setShowAllOrders(true)}>ดูรายการออเดอร์ทั้งหมด ({orders.length}) →</Button></div> : null}
+          {orders.length > 5 ? <div className="mt-4 flex justify-center"><Button type="button" variant="secondary" onClick={() => setShowAllOrders(true)}>ดูรายการคำสั่งซื้อทั้งหมด ({orders.length}) →</Button></div> : null}
         </section>
       </main>
       {pendingProduct ? (

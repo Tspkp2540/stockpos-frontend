@@ -19,34 +19,35 @@ import { useActionDialog } from "./ActionDialog";
 const navigationGroups = [
   {
     id: "overview",
-    label: "ภาพรวมร้าน",
-    items: [{ id: "operations", icon: "◉", label: "ศูนย์ปฏิบัติการ" }],
+    label: "ภาพรวมการดำเนินงาน",
+    items: [{ id: "operations", icon: "◉", label: "ภาพรวมการดำเนินงานร้าน" }],
   },
   {
     id: "counter",
-    label: "หน้าร้าน",
+    label: "การขายหน้าร้าน",
     items: [
-      { id: "pos", icon: "▣", label: "ขายและออเดอร์" },
-      { id: "kitchen", icon: "☕", label: "จอเตรียมสินค้า" },
-      { id: "cash-shifts", icon: "◴", label: "เปิด/ปิดกะเงินสด", adminOnly: true },
+      { id: "pos", icon: "▣", label: "การขายและคำสั่งซื้อ" },
+      { id: "kitchen", icon: "☕", label: "หน้าจอเตรียมสินค้า" },
+      { id: "cash-shifts", icon: "◴", label: "จัดการกะเงินสด", adminOnly: true },
     ],
   },
   {
     id: "stock",
-    label: "สินค้าและสต็อก",
+    label: "สินค้าและสินค้าคงคลัง",
     items: [
-      { id: "alerts", icon: "⚠", label: "แจ้งเตือน" },
-      { id: "inventory", icon: "□", label: "วัตถุดิบ" },
-      { id: "menu", icon: "☷", label: "เมนูสินค้า" },
-      { id: "procurement", icon: "▤", label: "จัดซื้อและผู้ขาย", adminOnly: true },
+      { id: "alerts", icon: "⚠", label: "การแจ้งเตือน" },
+      { id: "inventory", icon: "□", label: "จัดการวัตถุดิบ" },
+      { id: "menu", icon: "☷", label: "จัดการเมนูสินค้า" },
+      { id: "procurement", icon: "▤", label: "การจัดซื้อและผู้จำหน่าย", adminOnly: true },
     ],
   },
   {
     id: "settings",
-    label: "ตั้งค่าร้าน",
+    label: "การตั้งค่าร้าน",
     items: [
-      { id: "sales-channels", icon: "◫", label: "ช่องทางขาย", adminOnly: true },
+      { id: "sales-channels", icon: "◫", label: "จัดการช่องทางการขาย", adminOnly: true },
       { id: "coupons", icon: "◇", label: "จัดการคูปอง", adminOnly: true },
+      { id: "loyalty-settings", icon: "★", label: "ตั้งค่าคะแนนสะสม", adminOnly: true },
       { id: "printing", icon: "⎙", label: "ตั้งค่าการพิมพ์", adminOnly: true },
     ],
   },
@@ -54,7 +55,7 @@ const navigationGroups = [
     id: "finance",
     label: "การเงินและรายงาน",
     items: [
-      { id: "finance", icon: "฿", label: "การเงิน" },
+      { id: "finance", icon: "฿", label: "ข้อมูลการเงิน" },
       { id: "business-reports", icon: "▥", label: "รายงานเชิงธุรกิจ", adminOnly: true },
     ],
   },
@@ -249,7 +250,7 @@ function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
   return (
     <div className="space-y-5">
       <Heading
-        title={preview ? "ออเดอร์ล่าสุด" : "รายการออเดอร์ทั้งหมด"}
+        title={preview ? "คำสั่งซื้อล่าสุด" : "รายการคำสั่งซื้อทั้งหมด"}
         description={preview ? `แสดง 5 รายการล่าสุดจากทั้งหมด ${orders.length} รายการ` : "ติดตามสถานะออเดอร์ทั้งหมดจากจุดเดียว"}
         action={headingAction}
       />
@@ -424,7 +425,7 @@ function KitchenDisplayPage({ orders, onUpdate }) {
   return (
     <div className="space-y-5">
       <Heading
-        title="จอเตรียมสินค้า"
+        title="หน้าจอเตรียมสินค้า"
         description="จัดการคิวแบบสองขั้น: กำลังทำ → พร้อมรับ → ส่งมอบแล้ว"
         action={<span className="rounded-full bg-sky-100 px-3 py-2 text-sm font-bold text-sky-700">{activeOrders.length} คิวที่ต้องดูแล</span>}
       />
@@ -512,7 +513,7 @@ function PrintingSettingsPage() {
   );
 }
 
-function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onValidateCoupon, onOpenCashShift, onCloseCashShift }) {
+function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onLookupLoyalty, onValidateCoupon, onOpenCashShift, onCloseCashShift }) {
   const { showMessage } = useActionDialog();
   const [channelId, setChannelId] = useState(channels[0]?.id || "");
   const activeChannels = useMemo(
@@ -616,13 +617,20 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
       : rawDiscount;
     return Math.min(eligibleAmount, cappedDiscount);
   }, [appliedCoupon, manualDiscountAmount, subtotal]);
+  const activeLoyaltyRules = loyaltyData?.rules || loyaltySettings || {};
+  const loyaltyEnabled = activeLoyaltyRules.is_enabled !== false;
+  const loyaltySpendPerPoint = Math.max(0.01, Number(activeLoyaltyRules.spend_per_point || 25));
+  const loyaltyBahtPerPoint = Math.max(0.01, Number(activeLoyaltyRules.baht_per_point || 0.1));
+  const loyaltyMaxRedeemPercent = Math.max(0, Math.min(100, Number(activeLoyaltyRules.max_redeem_percent ?? 50)));
   const loyaltyBaseAmount = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
   const loyaltyBalance = Math.max(0, Number(loyaltyData?.account?.points_balance || 0));
-  const loyaltyMaxPoints = Math.min(loyaltyBalance, Math.floor((loyaltyBaseAmount * 0.5) / 0.1));
+  const loyaltyMaxPoints = loyaltyEnabled
+    ? Math.min(loyaltyBalance, Math.floor((loyaltyBaseAmount * (loyaltyMaxRedeemPercent / 100)) / loyaltyBahtPerPoint))
+    : 0;
   const loyaltyPointsRedeemed = Math.min(loyaltyMaxPoints, Math.max(0, Math.floor(Number(loyaltyPoints) || 0)));
-  const loyaltyDiscountAmount = Number((loyaltyPointsRedeemed * 0.1).toFixed(2));
+  const loyaltyDiscountAmount = Number((loyaltyPointsRedeemed * loyaltyBahtPerPoint).toFixed(2));
   const total = Math.max(0, loyaltyBaseAmount - loyaltyDiscountAmount);
-  const estimatedLoyaltyPoints = customerPhone.replace(/\D/g, '').length >= 9 ? Math.floor(total / 25) : 0;
+  const estimatedLoyaltyPoints = loyaltyEnabled && customerPhone.replace(/\D/g, '').length >= 9 ? Math.floor(total / loyaltySpendPerPoint) : 0;
   const receivedAmount = Number(amountReceived || 0);
   const changeAmount = paymentMethod === "CASH" && receivedAmount >= total
     ? receivedAmount - total
@@ -851,7 +859,7 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
     <div className="space-y-5">
       <div>
         <Heading
-          title="เปิดรายการขาย"
+          title="บันทึกการขาย"
           description="เลือกช่องทางและเมนู แล้วส่งออเดอร์ได้ทันที"
           action={
             <button
@@ -1099,23 +1107,23 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
             </div>
             {customerPhone ? (
               <div className="rounded-xl border border-violet-100 bg-violet-50/70 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-xs font-bold text-violet-800">แต้มสมาชิก</p>
-                    <p className="mt-0.5 text-xs text-violet-700">ทุก 25 บาท รับ 1 แต้ม · 10 แต้ม ใช้ลดได้ 1 บาท</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                    <p className="text-xs font-bold text-violet-800">คะแนนสะสม</p>
+                    <p className="mt-0.5 text-xs text-violet-700">{loyaltyEnabled ? `ทุก ${money(loyaltySpendPerPoint)} รับ 1 คะแนน · 10 คะแนน ลดได้ ${money(loyaltyBahtPerPoint * 10)}` : "ระบบคะแนนสะสมปิดใช้งานอยู่"}</p>
                   </div>
-                  <Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => lookupLoyalty()}>
-                    ตรวจคะแนน
-                  </Button>
+                  {loyaltyEnabled ? <Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => lookupLoyalty()}>
+                    ตรวจสอบคะแนนสะสม
+                  </Button> : null}
                 </div>
-                {loyaltyData?.account ? (
+                {!loyaltyEnabled ? <p className="mt-2 text-xs text-violet-700">รายการนี้จะไม่สะสมหรือใช้คะแนน</p> : loyaltyData?.account ? (
                   <div className="mt-3">
                     <div className="flex flex-wrap items-end justify-between gap-2">
-                      <p className="text-sm font-semibold text-slate-700">คะแนนคงเหลือ <strong className="text-lg text-violet-700">{loyaltyBalance.toLocaleString()} แต้ม</strong></p>
-                      <button className="text-xs font-bold text-violet-700 hover:text-violet-900 disabled:opacity-50" type="button" disabled={!loyaltyMaxPoints} onClick={() => setLoyaltyPoints(String(loyaltyMaxPoints))}>ใช้ได้สูงสุด {loyaltyMaxPoints.toLocaleString()} แต้ม</button>
+                      <p className="text-sm font-semibold text-slate-700">คะแนนสะสมคงเหลือ <strong className="text-lg text-violet-700">{loyaltyBalance.toLocaleString()} คะแนน</strong></p>
+                      <button className="text-xs font-bold text-violet-700 hover:text-violet-900 disabled:opacity-50" type="button" disabled={!loyaltyMaxPoints} onClick={() => setLoyaltyPoints(String(loyaltyMaxPoints))}>ตัดได้สูงสุด {loyaltyMaxPoints.toLocaleString()} คะแนน</button>
                     </div>
                     <label className="mt-2 grid gap-1 text-xs font-semibold text-slate-600">
-                      ใช้แต้มเป็นส่วนลด
+                      ตัดคะแนนสะสมเพื่อเป็นส่วนลด
                       <input
                         className={inputClass}
                         type="number"
@@ -1125,10 +1133,10 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
                         inputMode="numeric"
                         value={loyaltyPoints}
                         onChange={(event) => setLoyaltyPoints(String(Math.min(loyaltyMaxPoints, Math.max(0, Math.floor(Number(event.target.value) || 0)))))}
-                        placeholder={`ใช้ได้สูงสุด ${loyaltyMaxPoints.toLocaleString()} แต้ม`}
+                          placeholder={`ตัดได้สูงสุด ${loyaltyMaxPoints.toLocaleString()} คะแนน`}
                       />
                     </label>
-                    {loyaltyPointsRedeemed ? <p className="mt-2 text-xs font-semibold text-violet-700">ใช้ {loyaltyPointsRedeemed.toLocaleString()} แต้ม ลด {money(loyaltyDiscountAmount)}</p> : null}
+                    {loyaltyPointsRedeemed ? <p className="mt-2 text-xs font-semibold text-violet-700">ตัด {loyaltyPointsRedeemed.toLocaleString()} คะแนน เป็นส่วนลด {money(loyaltyDiscountAmount)} · คงเหลือ {Math.max(0, loyaltyBalance - loyaltyPointsRedeemed).toLocaleString()} คะแนน</p> : <p className="mt-2 text-xs text-violet-700">ระบบจะตัดคะแนนเมื่อยืนยันคำสั่งซื้อเท่านั้น</p>}
                   </div>
                 ) : loyaltyError ? (
                   <p className="mt-2 text-xs font-medium text-rose-600">{loyaltyError}</p>
@@ -1273,7 +1281,7 @@ function PosPage({ channels, products, currentShift, onAdd, onLookupLoyalty, onV
               ) : null}
               {loyaltyPointsRedeemed ? (
                 <div className="flex items-center justify-between text-violet-700">
-                  <span>ใช้แต้มสมาชิก {loyaltyPointsRedeemed.toLocaleString()} แต้ม</span>
+                  <span>ตัดคะแนนสะสม {loyaltyPointsRedeemed.toLocaleString()} คะแนน</span>
                   <span>-{money(loyaltyDiscountAmount)}</span>
                 </div>
               ) : null}
@@ -1598,7 +1606,7 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
   return (
     <div className="space-y-5">
       <Heading
-        title="วัตถุดิบ"
+        title="จัดการวัตถุดิบ"
         description="เพิ่ม แก้ไข และติดตามสต็อกวัตถุดิบ"
         action={
           <div className="flex flex-wrap gap-2">
@@ -1993,7 +2001,7 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
   return (
     <div className="space-y-5">
       <Heading
-        title="เมนูสินค้า"
+        title="จัดการเมนูสินค้า"
         description="จัดการเมนูขายและสูตรวัตถุดิบ แยกจากหน้าคลังสินค้า"
         action={
           <Button
@@ -2529,7 +2537,7 @@ function LegacyFinancePage({
   return (
     <div className="space-y-5">
       <Heading
-        title="การเงินและบันทึกยอดขาย"
+        title="ข้อมูลการเงินและยอดขาย"
         description="ติดตามยอดขาย เพิ่มรายการขาย และจัดการค่าใช้จ่าย"
       />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -3429,7 +3437,7 @@ function ProcurementPage({ inventoryRows, suppliers, receipts, purchaseOrders, o
   const recentPurchaseTotal = receipts.reduce((sum, receipt) => sum + Number(receipt.total_amount || 0), 0);
   return (
     <div className="space-y-5">
-      <Heading title="จัดซื้อและผู้ขาย" description="สร้างใบสั่งซื้อ รับวัตถุดิบเป็นล็อต และติดตามต้นทุนจากผู้ขายในจุดเดียว" action={<div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => setReceivingOpen(true)}>+ รับวัตถุดิบเข้า</Button><Button type="button" onClick={() => setPurchaseOrderOpen(true)}>+ สร้างใบสั่งซื้อ</Button></div>} />
+      <Heading title="การจัดซื้อและผู้จำหน่าย" description="สร้างใบสั่งซื้อ รับวัตถุดิบเป็นล็อต และติดตามต้นทุนจากผู้จำหน่ายในหน้าเดียว" action={<div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => setReceivingOpen(true)}>+ รับวัตถุดิบเข้า</Button><Button type="button" onClick={() => setPurchaseOrderOpen(true)}>+ สร้างใบสั่งซื้อ</Button></div>} />
       <section className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl border border-sky-100 bg-sky-50 p-4"><p className="text-xs font-bold text-sky-700">ผู้ขายที่ใช้งาน</p><b className="mt-1 block text-3xl text-slate-900">{activeSuppliers}</b><p className="mt-1 text-xs text-slate-500">ราย</p></div><div className="rounded-2xl border border-amber-100 bg-amber-50 p-4"><p className="text-xs font-bold text-amber-800">ใบสั่งซื้อที่รอดำเนินการ</p><b className="mt-1 block text-3xl text-slate-900">{pendingOrders}</b><p className="mt-1 text-xs text-slate-500">ฉบับ</p></div><div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4"><p className="text-xs font-bold text-emerald-700">มูลค่ารับของล่าสุด</p><b className="mt-1 block text-3xl text-slate-900">{money(recentPurchaseTotal)}</b><p className="mt-1 text-xs text-slate-500">จาก {receipts.length} ใบรับของล่าสุด</p></div></section>
       <PurchaseRecommendationPanel inventoryRows={inventoryRows} suppliers={suppliers} onNavigate={onNavigate} onCreatePurchaseOrder={onCreatePurchaseOrder} />
       <PurchaseOrderHistory orders={purchaseOrders} onUpdateStatus={onUpdatePurchaseOrderStatus} onReceive={onReceivePurchaseOrder} />
@@ -3457,7 +3465,7 @@ function AlertsPage({ products, inventoryRows, inventoryLots, suppliers, purchas
   return (
     <div className="space-y-5">
       <Heading
-        title="ศูนย์แจ้งเตือน"
+        title="การแจ้งเตือน"
         description="รวมสัญญาณที่ต้องดำเนินการจากเมนู วัตถุดิบ และล็อตคงเหลือ"
         action={<span className={`rounded-full px-3 py-2 text-xs font-bold ${criticalCount ? "bg-rose-50 text-rose-700" : alerts.length ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>{criticalCount ? `${criticalCount} รายการเร่งด่วน` : alerts.length ? `${alerts.length} รายการต้องติดตาม` : "● ทุกอย่างปกติ"}</span>}
       />
@@ -3836,6 +3844,69 @@ function CouponPage({ coupons, onCreateCoupon, onUpdateCoupon }) {
   );
 }
 
+function LoyaltySettingsPage({ settings, onSave }) {
+  const defaults = { is_enabled: true, spend_per_point: 25, baht_per_point: 0.1, max_redeem_percent: 50 };
+  const [form, setForm] = useState({ ...defaults, ...settings });
+  const [saving, setSaving] = useState(false);
+  useEffect(() => setForm({ ...defaults, ...settings }), [settings]);
+  const save = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await onSave?.({
+        is_enabled: Boolean(form.is_enabled),
+        spend_per_point: Number(form.spend_per_point),
+        baht_per_point: Number(form.baht_per_point),
+        max_redeem_percent: Number(form.max_redeem_percent),
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+  const spendPerPoint = Math.max(0.01, Number(form.spend_per_point) || 0);
+  const bahtPerPoint = Math.max(0, Number(form.baht_per_point) || 0);
+  const maxRedeemPercent = Math.max(0, Math.min(100, Number(form.max_redeem_percent) || 0));
+  return (
+    <section className="space-y-5">
+      <Heading
+        title="ตั้งค่าคะแนนสะสม"
+        description="กำหนดกติกาการได้รับและใช้คะแนนสำหรับคำสั่งซื้อใหม่"
+      />
+      <form onSubmit={save}>
+        <Card className="max-w-3xl border-violet-100 bg-white">
+          <label className="flex items-start gap-3 rounded-2xl bg-violet-50 p-4 text-sm text-slate-700">
+            <input
+              className="mt-0.5 h-4 w-4 accent-violet-600"
+              type="checkbox"
+              checked={form.is_enabled !== false}
+              onChange={(event) => setForm((current) => ({ ...current, is_enabled: event.target.checked }))}
+            />
+            <span><strong className="block text-violet-900">เปิดใช้ระบบคะแนนสะสม</strong><span className="mt-1 block text-xs text-violet-700">เมื่อปิด ระบบจะไม่เพิ่มบัญชีคะแนนใหม่ ไม่ให้รับคะแนน และไม่ให้ใช้คะแนนกับคำสั่งซื้อใหม่</span></span>
+          </label>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <label className={labelClass}>
+              ยอดซื้อที่ได้รับ 1 คะแนน (บาท)
+              <input className={inputClass} type="number" min="0.01" max="1000000" step="0.01" inputMode="decimal" value={form.spend_per_point ?? ""} onChange={(event) => setForm((current) => ({ ...current, spend_per_point: event.target.value }))} required disabled={form.is_enabled === false} />
+            </label>
+            <label className={labelClass}>
+              มูลค่าส่วนลดต่อ 1 คะแนน (บาท)
+              <input className={inputClass} type="number" min="0.01" max="100000" step="0.01" inputMode="decimal" value={form.baht_per_point ?? ""} onChange={(event) => setForm((current) => ({ ...current, baht_per_point: event.target.value }))} required disabled={form.is_enabled === false} />
+            </label>
+            <label className={labelClass}>
+              ใช้คะแนนลดได้สูงสุดต่อคำสั่งซื้อ (%)
+              <input className={inputClass} type="number" min="0" max="100" step="0.01" inputMode="decimal" value={form.max_redeem_percent ?? ""} onChange={(event) => setForm((current) => ({ ...current, max_redeem_percent: event.target.value }))} required disabled={form.is_enabled === false} />
+            </label>
+          </div>
+          <div className="mt-5 rounded-2xl border border-sky-100 bg-sky-50/70 p-4 text-sm text-sky-900">
+            {form.is_enabled === false ? "ระบบคะแนนสะสมถูกปิดอยู่" : `ตัวอย่าง: ยอดซื้อ ${money(spendPerPoint)} ได้ 1 คะแนน · 10 คะแนนลดได้ ${money(bahtPerPoint * 10)} · ใช้ส่วนลดจากคะแนนได้ไม่เกิน ${maxRedeemPercent}% ของยอดที่เข้าเกณฑ์`}
+          </div>
+          <div className="mt-5 flex justify-end"><Button type="submit" disabled={saving}>{saving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}</Button></div>
+        </Card>
+      </form>
+    </section>
+  );
+}
+
 function SalesChannelsPage({ channels, onCreateChannel, onUpdateChannel }) {
   const blankChannel = () => ({ name: "", gp_percent: "0", is_active: true });
   const [channel, setChannel] = useState(blankChannel);
@@ -3875,7 +3946,7 @@ function SalesChannelsPage({ channels, onCreateChannel, onUpdateChannel }) {
   return (
     <div className="space-y-5">
       <Heading
-        title="ช่องทางขาย"
+        title="จัดการช่องทางการขาย"
         description="กำหนดช่องทางที่เลือกได้ใน POS และเปอร์เซ็นต์ค่าธรรมเนียมที่หักจากรายรับ"
         action={<Button type="button" onClick={() => { setChannel(blankChannel()); setEditingId(null); setFormOpen(true); }}>+ เพิ่มช่องทางขาย</Button>}
       />
@@ -3955,7 +4026,7 @@ function CashShiftPage({ currentShift, shifts, onOpenCashShift, onCloseCashShift
   return (
     <div className="space-y-5">
       <Heading
-        title="เปิด/ปิดกะเงินสด"
+        title="จัดการกะเงินสด"
         description="จัดการเงินทอนเริ่มกะ ตรวจยอดขายเงินสด และบันทึกยอดนับเมื่อปิดกะ"
         action={<Button type="button" variant="secondary" disabled={refreshing} onClick={refresh}>{refreshing ? "กำลังรีเฟรช…" : "รีเฟรชข้อมูล"}</Button>}
       />
@@ -4780,7 +4851,7 @@ function FinancePage({
   return (
     <div className="space-y-5">
       <Heading
-        title="การเงิน"
+        title="ข้อมูลการเงิน"
         description={`สรุปข้อมูลวันที่ ${dateLabel(selectedDate)}`}
         action={
           <div className="flex flex-wrap items-end gap-2">
@@ -5411,7 +5482,7 @@ function OperationsPage({ orders, inventoryRows, expenseRows, isAdmin }) {
   return (
     <div className="space-y-5">
       <Heading
-        title="ศูนย์ปฏิบัติการร้าน"
+        title="ภาพรวมการดำเนินงานร้าน"
         description={`ภาพรวมการทำงานประจำวันที่ ${dateLabel(today)} จากข้อมูลจริงในระบบ`}
         action={
           <span className="rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
@@ -5458,7 +5529,7 @@ function OperationsPage({ orders, inventoryRows, expenseRows, isAdmin }) {
         <OperationsZone
           image={coffeeBarista}
           imagePosition="50% 14%"
-          title="หน้าร้าน"
+          title="การดำเนินงานหน้าร้าน"
           status={
             pendingOrders.length
               ? `กำลังทำ ${pendingOrders.length} ออเดอร์`
@@ -5492,7 +5563,7 @@ function OperationsPage({ orders, inventoryRows, expenseRows, isAdmin }) {
         <OperationsZone
           image={stockCoordinator}
           imagePosition="50% 20%"
-          title="สต็อกวัตถุดิบ"
+          title="สินค้าคงคลังวัตถุดิบ"
           status={
             lowStockRows.length
               ? `ต้องตรวจ ${lowStockRows.length} รายการ`
@@ -5522,7 +5593,7 @@ function OperationsPage({ orders, inventoryRows, expenseRows, isAdmin }) {
         <OperationsZone
           image={officeCoordinator}
           imagePosition="50% 30%"
-          title="ออฟฟิศและการเงิน"
+          title="การบริหารและการเงิน"
           status="สรุปยอดอัตโนมัติ"
           statusTone="sky"
         >
@@ -5634,10 +5705,12 @@ export default function GlassLayout({
   expenses,
   expenseRows,
   currentShift,
+  loyaltySettings,
   notice,
   systemStatus,
   onAdd,
   onLookupLoyalty,
+  onUpdateLoyaltySettings,
   onValidateCoupon,
   onOpenCashShift,
   onCloseCashShift,
@@ -5755,6 +5828,11 @@ export default function GlassLayout({
         onCreateCoupon={onCreateCoupon}
         onUpdateCoupon={onUpdateCoupon}
       />
+    ) : activeView === "loyalty-settings" && user?.role === "admin" ? (
+      <LoyaltySettingsPage
+        settings={loyaltySettings}
+        onSave={onUpdateLoyaltySettings}
+      />
     ) : activeView === "sales-channels" && user?.role === "admin" ? (
       <SalesChannelsPage
         channels={channels}
@@ -5803,6 +5881,7 @@ export default function GlassLayout({
           channels={channels}
           products={products}
           currentShift={currentShift}
+          loyaltySettings={loyaltySettings}
           onAdd={onAdd}
           onLookupLoyalty={onLookupLoyalty}
           onValidateCoupon={onValidateCoupon}
