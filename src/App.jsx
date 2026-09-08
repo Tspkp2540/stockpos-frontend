@@ -245,7 +245,9 @@ function AppContent() {
   const [loyalty, setLoyalty] = useState({ account: null, rules: null });
   const [loyaltySettings, setLoyaltySettings] = useState({
     is_enabled: true,
+    earn_mode: "SPEND",
     spend_per_point: 25,
+    cups_per_point: 1,
     baht_per_point: 0.1,
     max_redeem_percent: 50,
   });

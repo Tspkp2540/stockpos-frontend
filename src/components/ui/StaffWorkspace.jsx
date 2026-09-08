@@ -230,7 +230,9 @@ export default function StaffWorkspace({
   }, [appliedCoupon, manualDiscountAmount, subtotal]);
   const activeLoyaltyRules = loyaltyData?.rules || loyaltyRules || {};
   const loyaltyEnabled = activeLoyaltyRules.is_enabled !== false;
+  const loyaltyEarnMode = String(activeLoyaltyRules.earn_mode || "SPEND").toUpperCase() === "CUP" ? "CUP" : "SPEND";
   const loyaltySpendPerPoint = Math.max(0.01, Number(activeLoyaltyRules.spend_per_point || 25));
+  const loyaltyCupsPerPoint = Math.max(1, Number(activeLoyaltyRules.cups_per_point || 1));
   const loyaltyBahtPerPoint = Math.max(0.01, Number(activeLoyaltyRules.baht_per_point || 0.1));
   const loyaltyMaxRedeemPercent = Math.max(0, Math.min(100, Number(activeLoyaltyRules.max_redeem_percent ?? 50)));
   const loyaltyBaseAmount = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
@@ -241,7 +243,9 @@ export default function StaffWorkspace({
   const loyaltyPointsRedeemed = Math.min(loyaltyMaxPoints, Math.max(0, Math.floor(Number(loyaltyPoints) || 0)));
   const loyaltyDiscountAmount = Number((loyaltyPointsRedeemed * loyaltyBahtPerPoint).toFixed(2));
   const total = Math.max(0, loyaltyBaseAmount - loyaltyDiscountAmount);
-  const estimatedLoyaltyPoints = loyaltyEnabled && customerPhone.replace(/\D/g, '').length >= 9 ? Math.floor(total / loyaltySpendPerPoint) : 0;
+  const estimatedLoyaltyPoints = loyaltyEnabled && customerPhone.replace(/\D/g, '').length >= 9
+    ? Math.floor(loyaltyEarnMode === "CUP" ? cartItemCount / loyaltyCupsPerPoint : total / loyaltySpendPerPoint)
+    : 0;
   const receivedAmount = Number(amountReceived || 0);
   const changeAmount = paymentMethod === "CASH" && receivedAmount >= total
     ? receivedAmount - total
@@ -666,7 +670,7 @@ export default function StaffWorkspace({
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="text-xs font-bold text-violet-800">คะแนนสะสม</p>
-                      <p className="mt-0.5 text-xs text-violet-700">{loyaltyEnabled ? `ทุก ${money(loyaltySpendPerPoint)} รับ 1 คะแนน · 10 คะแนน ลดได้ ${money(loyaltyBahtPerPoint * 10)}` : "ระบบคะแนนสะสมปิดใช้งานอยู่"}</p>
+                      <p className="mt-0.5 text-xs text-violet-700">{loyaltyEnabled ? `${loyaltyEarnMode === "CUP" ? `ทุก ${loyaltyCupsPerPoint} แก้ว รับ 1 คะแนน` : `ทุก ${money(loyaltySpendPerPoint)} รับ 1 คะแนน`} · 10 คะแนน ลดได้ ${money(loyaltyBahtPerPoint * 10)}` : "ระบบคะแนนสะสมปิดใช้งานอยู่"}</p>
                     </div>
                     {loyaltyEnabled ? <Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => lookupLoyalty()}>ตรวจสอบคะแนนสะสม</Button> : null}
                   </div>

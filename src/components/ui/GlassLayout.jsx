@@ -619,7 +619,9 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
   }, [appliedCoupon, manualDiscountAmount, subtotal]);
   const activeLoyaltyRules = loyaltyData?.rules || loyaltySettings || {};
   const loyaltyEnabled = activeLoyaltyRules.is_enabled !== false;
+  const loyaltyEarnMode = String(activeLoyaltyRules.earn_mode || "SPEND").toUpperCase() === "CUP" ? "CUP" : "SPEND";
   const loyaltySpendPerPoint = Math.max(0.01, Number(activeLoyaltyRules.spend_per_point || 25));
+  const loyaltyCupsPerPoint = Math.max(1, Number(activeLoyaltyRules.cups_per_point || 1));
   const loyaltyBahtPerPoint = Math.max(0.01, Number(activeLoyaltyRules.baht_per_point || 0.1));
   const loyaltyMaxRedeemPercent = Math.max(0, Math.min(100, Number(activeLoyaltyRules.max_redeem_percent ?? 50)));
   const loyaltyBaseAmount = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
@@ -630,7 +632,9 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
   const loyaltyPointsRedeemed = Math.min(loyaltyMaxPoints, Math.max(0, Math.floor(Number(loyaltyPoints) || 0)));
   const loyaltyDiscountAmount = Number((loyaltyPointsRedeemed * loyaltyBahtPerPoint).toFixed(2));
   const total = Math.max(0, loyaltyBaseAmount - loyaltyDiscountAmount);
-  const estimatedLoyaltyPoints = loyaltyEnabled && customerPhone.replace(/\D/g, '').length >= 9 ? Math.floor(total / loyaltySpendPerPoint) : 0;
+  const estimatedLoyaltyPoints = loyaltyEnabled && customerPhone.replace(/\D/g, '').length >= 9
+    ? Math.floor(loyaltyEarnMode === "CUP" ? cartItemCount / loyaltyCupsPerPoint : total / loyaltySpendPerPoint)
+    : 0;
   const receivedAmount = Number(amountReceived || 0);
   const changeAmount = paymentMethod === "CASH" && receivedAmount >= total
     ? receivedAmount - total
@@ -1110,7 +1114,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                     <p className="text-xs font-bold text-violet-800">คะแนนสะสม</p>
-                    <p className="mt-0.5 text-xs text-violet-700">{loyaltyEnabled ? `ทุก ${money(loyaltySpendPerPoint)} รับ 1 คะแนน · 10 คะแนน ลดได้ ${money(loyaltyBahtPerPoint * 10)}` : "ระบบคะแนนสะสมปิดใช้งานอยู่"}</p>
+                    <p className="mt-0.5 text-xs text-violet-700">{loyaltyEnabled ? `${loyaltyEarnMode === "CUP" ? `ทุก ${loyaltyCupsPerPoint} แก้ว รับ 1 คะแนน` : `ทุก ${money(loyaltySpendPerPoint)} รับ 1 คะแนน`} · 10 คะแนน ลดได้ ${money(loyaltyBahtPerPoint * 10)}` : "ระบบคะแนนสะสมปิดใช้งานอยู่"}</p>
                   </div>
                   {loyaltyEnabled ? <Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => lookupLoyalty()}>
                     ตรวจสอบคะแนนสะสม
@@ -3845,7 +3849,7 @@ function CouponPage({ coupons, onCreateCoupon, onUpdateCoupon }) {
 }
 
 function LoyaltySettingsPage({ settings, onSave }) {
-  const defaults = { is_enabled: true, spend_per_point: 25, baht_per_point: 0.1, max_redeem_percent: 50 };
+  const defaults = { is_enabled: true, earn_mode: "SPEND", spend_per_point: 25, cups_per_point: 1, baht_per_point: 0.1, max_redeem_percent: 50 };
   const [form, setForm] = useState({ ...defaults, ...settings });
   const [saving, setSaving] = useState(false);
   useEffect(() => setForm({ ...defaults, ...settings }), [settings]);
@@ -3855,7 +3859,9 @@ function LoyaltySettingsPage({ settings, onSave }) {
     try {
       await onSave?.({
         is_enabled: Boolean(form.is_enabled),
+        earn_mode: form.earn_mode,
         spend_per_point: Number(form.spend_per_point),
+        cups_per_point: Number(form.cups_per_point),
         baht_per_point: Number(form.baht_per_point),
         max_redeem_percent: Number(form.max_redeem_percent),
       });
@@ -3864,6 +3870,7 @@ function LoyaltySettingsPage({ settings, onSave }) {
     }
   };
   const spendPerPoint = Math.max(0.01, Number(form.spend_per_point) || 0);
+  const cupsPerPoint = Math.max(1, Number(form.cups_per_point) || 0);
   const bahtPerPoint = Math.max(0, Number(form.baht_per_point) || 0);
   const maxRedeemPercent = Math.max(0, Math.min(100, Number(form.max_redeem_percent) || 0));
   return (
@@ -3885,9 +3892,23 @@ function LoyaltySettingsPage({ settings, onSave }) {
           </label>
           <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <label className={labelClass}>
+              รูปแบบการได้รับคะแนน
+              <select className={inputClass} value={form.earn_mode} onChange={(event) => setForm((current) => ({ ...current, earn_mode: event.target.value }))} disabled={form.is_enabled === false}>
+                <option value="SPEND">สะสมตามยอดซื้อ</option>
+                <option value="CUP">สะสมตามจำนวนแก้ว</option>
+              </select>
+            </label>
+            {form.earn_mode === "CUP" ? (
+              <label className={labelClass}>
+                จำนวนแก้วที่ได้รับ 1 คะแนน
+                <input className={inputClass} type="number" min="1" max="100000" step="1" inputMode="numeric" value={form.cups_per_point ?? ""} onChange={(event) => setForm((current) => ({ ...current, cups_per_point: event.target.value }))} required disabled={form.is_enabled === false} />
+              </label>
+            ) : (
+            <label className={labelClass}>
               ยอดซื้อที่ได้รับ 1 คะแนน (บาท)
               <input className={inputClass} type="number" min="0.01" max="1000000" step="0.01" inputMode="decimal" value={form.spend_per_point ?? ""} onChange={(event) => setForm((current) => ({ ...current, spend_per_point: event.target.value }))} required disabled={form.is_enabled === false} />
             </label>
+            )}
             <label className={labelClass}>
               มูลค่าส่วนลดต่อ 1 คะแนน (บาท)
               <input className={inputClass} type="number" min="0.01" max="100000" step="0.01" inputMode="decimal" value={form.baht_per_point ?? ""} onChange={(event) => setForm((current) => ({ ...current, baht_per_point: event.target.value }))} required disabled={form.is_enabled === false} />
@@ -3898,7 +3919,7 @@ function LoyaltySettingsPage({ settings, onSave }) {
             </label>
           </div>
           <div className="mt-5 rounded-2xl border border-sky-100 bg-sky-50/70 p-4 text-sm text-sky-900">
-            {form.is_enabled === false ? "ระบบคะแนนสะสมถูกปิดอยู่" : `ตัวอย่าง: ยอดซื้อ ${money(spendPerPoint)} ได้ 1 คะแนน · 10 คะแนนลดได้ ${money(bahtPerPoint * 10)} · ใช้ส่วนลดจากคะแนนได้ไม่เกิน ${maxRedeemPercent}% ของยอดที่เข้าเกณฑ์`}
+            {form.is_enabled === false ? "ระบบคะแนนสะสมถูกปิดอยู่" : `ตัวอย่าง: ${form.earn_mode === "CUP" ? `ซื้อ ${cupsPerPoint} แก้ว ได้ 1 คะแนน` : `ยอดซื้อ ${money(spendPerPoint)} ได้ 1 คะแนน`} · 10 คะแนนลดได้ ${money(bahtPerPoint * 10)} · ใช้ส่วนลดจากคะแนนได้ไม่เกิน ${maxRedeemPercent}% ของยอดที่เข้าเกณฑ์`}
           </div>
           <div className="mt-5 flex justify-end"><Button type="submit" disabled={saving}>{saving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}</Button></div>
         </Card>
@@ -5748,6 +5769,13 @@ export default function GlassLayout({
   onDeleteSales,
 }) {
   const alertCount = storeAlertsFor({ products, inventoryRows, inventoryLots }).length;
+  const [expandedNavigationGroups, setExpandedNavigationGroups] = useState(() => new Set(navigationGroups.map((group) => group.id)));
+  const toggleNavigationGroup = (groupId) => setExpandedNavigationGroups((current) => {
+    const next = new Set(current);
+    if (next.has(groupId)) next.delete(groupId);
+    else next.add(groupId);
+    return next;
+  });
   const visibleNavigationGroups = navigationGroups
     .map((group) => ({
       ...group,
@@ -5901,11 +5929,13 @@ export default function GlassLayout({
             <p className="font-bold tracking-wide text-slate-900">STOCKPOS</p>
           </div>
         </div>
-        <nav className="mt-8 space-y-5">
+        <nav className="mt-8 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
           {visibleNavigationGroups.map((group) => (
             <section key={group.id}>
-              <p className="mb-2 px-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">{group.label}</p>
-              <div className="grid gap-1.5">
+              <button className="mb-2 flex w-full items-center justify-between rounded-lg px-2 py-1 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 transition hover:bg-sky-50 hover:text-sky-700" type="button" onClick={() => toggleNavigationGroup(group.id)} aria-expanded={expandedNavigationGroups.has(group.id)}>
+                <span>{group.label}</span><span className="text-sm leading-none">{expandedNavigationGroups.has(group.id) ? "⌃" : "⌄"}</span>
+              </button>
+              <div className={`grid gap-1.5 overflow-hidden transition-all ${expandedNavigationGroups.has(group.id) ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
                 {group.items.map((item) => {
                   const selected = activeView === item.id || (item.id === "pos" && activeView === "orders");
                   return (
@@ -5954,8 +5984,10 @@ export default function GlassLayout({
         <nav className="mt-3 flex gap-4 overflow-x-auto pb-1">
           {visibleNavigationGroups.map((group) => (
             <section className="shrink-0" key={group.id}>
-              <p className="mb-1 px-1 text-[10px] font-bold text-slate-400">{group.label}</p>
-              <div className="flex gap-2">
+              <button className="mb-1 flex items-center gap-1 px-1 text-[10px] font-bold text-slate-400" type="button" onClick={() => toggleNavigationGroup(group.id)} aria-expanded={expandedNavigationGroups.has(group.id)}>
+                {group.label} <span>{expandedNavigationGroups.has(group.id) ? "⌃" : "⌄"}</span>
+              </button>
+              <div className={`flex gap-2 overflow-hidden transition-all ${expandedNavigationGroups.has(group.id) ? "max-w-[900px] opacity-100" : "max-w-0 opacity-0"}`}>
                 {group.items.map((item) => {
                   const selected = activeView === item.id || (item.id === "pos" && activeView === "orders");
                   return (

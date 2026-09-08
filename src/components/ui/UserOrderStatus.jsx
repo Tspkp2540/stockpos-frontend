@@ -44,6 +44,7 @@ export default function UserOrderStatus({ user, orders, loyalty, onRefreshLoyalt
   const [query, setQuery] = useState("");
   const account = loyalty?.account;
   const rules = loyalty?.rules || { is_enabled: true, spend_per_point: 25, baht_per_point: 0.1 };
+  const earnsByCup = String(rules.earn_mode || "SPEND").toUpperCase() === "CUP";
   const visibleOrders = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return normalized
@@ -93,7 +94,7 @@ export default function UserOrderStatus({ user, orders, loyalty, onRefreshLoyalt
               <p className="text-xs font-semibold text-sky-100">คะแนนสะสมคงเหลือ</p>
               <strong className="mt-0.5 block text-2xl text-white">{Number(account?.points_balance || 0).toLocaleString()} คะแนน</strong>
             </div>
-            <p className="text-xs leading-5 text-sky-50">{rules.is_enabled === false ? "ระบบคะแนนสะสมปิดใช้งานอยู่" : <>ทุก {Number(rules.spend_per_point || 25).toLocaleString()} บาท รับ 1 คะแนน<br />{Math.round(1 / Number(rules.baht_per_point || 0.1))} คะแนน ใช้ลดได้ 1 บาท</>}</p>
+            <p className="text-xs leading-5 text-sky-50">{rules.is_enabled === false ? "ระบบคะแนนสะสมปิดใช้งานอยู่" : <>{earnsByCup ? `ทุก ${Number(rules.cups_per_point || 1).toLocaleString()} แก้ว รับ 1 คะแนน` : `ทุก ${Number(rules.spend_per_point || 25).toLocaleString()} บาท รับ 1 คะแนน`}<br />{Math.round(1 / Number(rules.baht_per_point || 0.1))} คะแนน ใช้ลดได้ 1 บาท</>}</p>
             <button className="ml-auto rounded-lg border border-white/30 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-white/10" type="button" onClick={onRefreshLoyalty}>รีเฟรช</button>
           </div>
           <label className="mt-5 block max-w-xl">
