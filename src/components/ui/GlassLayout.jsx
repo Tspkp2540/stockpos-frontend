@@ -38,7 +38,7 @@ const navigationGroups = [
       { id: "alerts", icon: "⚠", label: "การแจ้งเตือน" },
       { id: "inventory", icon: "□", label: "จัดการวัตถุดิบ" },
       { id: "menu", icon: "☷", label: "จัดการเมนูสินค้า" },
-      { id: "procurement", icon: "▤", label: "การจัดซื้อและผู้จำหน่าย", adminOnly: true },
+      { id: "procurement", icon: "▤", label: "การจัดซื้อ", adminOnly: true },
     ],
   },
   {
@@ -48,6 +48,8 @@ const navigationGroups = [
       { id: "sales-channels", icon: "◫", label: "จัดการช่องทางการขาย", adminOnly: true },
       { id: "coupons", icon: "◇", label: "จัดการคูปอง", adminOnly: true },
       { id: "loyalty-settings", icon: "★", label: "ตั้งค่าคะแนนสะสม", adminOnly: true },
+      { id: "loyalty-members", icon: "♙", label: "จัดการสมาชิก", adminOnly: true },
+      { id: "role-permissions", icon: "⚿", label: "จัดการสิทธิ์บทบาท", adminOnly: true },
       { id: "printing", icon: "⎙", label: "ตั้งค่าการพิมพ์", adminOnly: true },
     ],
   },
@@ -2807,6 +2809,7 @@ function LegacyFinancePage({
                     <p className="mt-1 truncate text-sm text-slate-500">
                       {order.channel_name} · {order.items}
                     </p>
+                    {(order.customer_name || order.customer_nickname || order.customer_phone) ? <p className="mt-1 truncate text-xs text-violet-700">ลูกค้า: {order.customer_name || order.customer_nickname || "ไม่ระบุชื่อ"}{order.customer_phone ? ` · สมาชิก ${maskPhone(order.customer_phone)}` : ""}</p> : null}
                   </div>
                   <div className="flex items-center gap-2">
                     <Status status={order.status} />
@@ -3928,6 +3931,88 @@ function LoyaltySettingsPage({ settings, onSave }) {
   );
 }
 
+function LoyaltyMembersPage({ members, onRefresh, onCreate, onUpdate, onDelete }) {
+  const blankMember = () => ({ customer_name: "", customer_phone: "", points_balance: "0", opening_points: "0" });
+  const [search, setSearch] = useState("");
+  const [member, setMember] = useState(blankMember);
+  const [editingId, setEditingId] = useState(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const refresh = async () => { setLoading(true); try { await onRefresh?.(search); } finally { setLoading(false); } };
+  const openCreate = () => { setMember(blankMember()); setEditingId(null); setFormOpen(true); };
+  const openEdit = (item) => {
+    setEditingId(item.id);
+    setMember({ customer_name: item.customer_name || "", customer_phone: item.customer_phone || "", points_balance: String(item.points_balance || 0), opening_points: "0" });
+    setFormOpen(true);
+  };
+  const save = async (event) => {
+    event.preventDefault();
+    const payload = {
+      customer_name: member.customer_name.trim(),
+      customer_phone: member.customer_phone,
+      ...(editingId ? { points_balance: Number(member.points_balance) } : { opening_points: Number(member.opening_points) }),
+    };
+    const saved = editingId ? await onUpdate?.(editingId, payload) : await onCreate?.(payload);
+    if (saved) { setFormOpen(false); setEditingId(null); }
+  };
+  return (
+    <section className="space-y-5">
+      <Heading title="จัดการสมาชิก" description="ค้นหา เพิ่ม แก้ไข หรือลบข้อมูลสมาชิกและยอดคะแนนสะสม" action={<div className="flex gap-2"><Button type="button" variant="secondary" onClick={refresh} disabled={loading}>{loading ? "กำลังโหลด..." : "รีเฟรช"}</Button><Button type="button" onClick={openCreate}>+ เพิ่มสมาชิก</Button></div>} />
+      <Card>
+        <div className="flex flex-wrap gap-2">
+          <input className={inputClass} value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") refresh(); }} placeholder="ค้นหาชื่อหรือเบอร์สมาชิก" />
+          <Button type="button" variant="secondary" onClick={refresh}>ค้นหา</Button>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {members.length ? members.map((item) => (
+            <article className="rounded-2xl border border-violet-100 bg-violet-50/35 p-4" key={item.id}>
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="truncate font-bold text-slate-900">{item.customer_name || "ไม่ระบุชื่อ"}</h2><p className="mt-1 text-sm text-slate-600">{item.customer_phone}</p></div><strong className="shrink-0 text-lg text-violet-700">{Number(item.points_balance || 0).toLocaleString()} คะแนน</strong></div>
+              <p className="mt-3 text-xs text-slate-500">สะสมทั้งหมด {Number(item.lifetime_points || 0).toLocaleString()} คะแนน · ซื้อ {Number(item.order_count || 0).toLocaleString()} ครั้ง</p>
+              <div className="mt-3 flex flex-wrap gap-2"><Button type="button" className="text-xs" variant="secondary" onClick={() => openEdit(item)}>แก้ไข</Button><Button type="button" className="text-xs" variant="danger" onClick={() => onDelete?.(item)}>ลบ</Button></div>
+            </article>
+          )) : <Empty>ไม่พบข้อมูลสมาชิก</Empty>}
+        </div>
+      </Card>
+      {formOpen ? <Modal label={editingId ? "แก้ไขสมาชิก" : "เพิ่มสมาชิก"} maxWidth="max-w-xl" onClose={() => setFormOpen(false)}><Card>
+        <h2 className="text-lg font-bold text-slate-900">{editingId ? "แก้ไขสมาชิก" : "เพิ่มสมาชิก"}</h2>
+        <form className="mt-5 grid gap-4" onSubmit={save}>
+          <label className={labelClass}>ชื่อสมาชิก<input className={inputClass} value={member.customer_name} maxLength="120" onChange={(event) => setMember((current) => ({ ...current, customer_name: event.target.value }))} placeholder="ไม่บังคับ" /></label>
+          <label className={labelClass}>เบอร์สมาชิก<input className={inputClass} inputMode="tel" value={member.customer_phone} maxLength="20" onChange={(event) => setMember((current) => ({ ...current, customer_phone: event.target.value }))} required /></label>
+          {editingId ? <label className={labelClass}>คะแนนคงเหลือ<input className={inputClass} type="number" min="0" step="1" value={member.points_balance} onChange={(event) => setMember((current) => ({ ...current, points_balance: event.target.value }))} required /></label> : <label className={labelClass}>คะแนนเริ่มต้น<input className={inputClass} type="number" min="0" step="1" value={member.opening_points} onChange={(event) => setMember((current) => ({ ...current, opening_points: event.target.value }))} required /></label>}
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setFormOpen(false)}>ยกเลิก</Button><Button type="submit">บันทึก</Button></div>
+        </form>
+      </Card></Modal> : null}
+    </section>
+  );
+}
+
+function RolePermissionsPage({ profiles, onRefresh, onSave }) {
+  const menus = [
+    ["pos", "การขายหน้าร้าน"],
+    ["orders", "คำสั่งซื้อ"],
+    ["kitchen", "จอเตรียมสินค้า"],
+    ["operations", "ภาพรวมการดำเนินงาน"],
+  ];
+  const actions = [["view", "ดู"], ["create", "สร้าง"], ["update", "แก้ไข"], ["delete", "ลบ"]];
+  const [selectedRole, setSelectedRole] = useState("STAFF");
+  const [permissions, setPermissions] = useState({});
+  const [saving, setSaving] = useState(false);
+  const profile = profiles.find((item) => item.role === selectedRole);
+  useEffect(() => setPermissions(profile?.permissions || {}), [profile]);
+  const toggle = (menu, action) => setPermissions((current) => ({ ...current, [menu]: { ...(current[menu] || {}), [action]: !current?.[menu]?.[action] } }));
+  const save = async () => { setSaving(true); try { await onSave?.(selectedRole, permissions); } finally { setSaving(false); } };
+  return (
+    <section className="space-y-5">
+      <Heading title="จัดการสิทธิ์บทบาท" description="กำหนดสิทธิ์ดู สร้าง แก้ไข และลบสำหรับ Staff และ User โดยระบบตรวจสิทธิ์ก่อนดำเนินการ" action={<Button type="button" variant="secondary" onClick={onRefresh}>รีเฟรช</Button>} />
+      <Card className="max-w-5xl">
+        <div className="flex flex-wrap items-center justify-between gap-3"><label className={`${labelClass} max-w-xs`}>บทบาท<select className={inputClass} value={selectedRole} onChange={(event) => setSelectedRole(event.target.value)}><option value="STAFF">Staff</option><option value="USER">User</option></select></label><p className="text-xs text-slate-500">Admin มีสิทธิ์เต็มระบบและไม่สามารถถูกปิดสิทธิ์จากหน้านี้</p></div>
+        <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[650px] text-sm"><thead><tr className="border-b border-sky-100 text-left text-xs text-slate-500"><th className="p-3">เมนู</th>{actions.map(([, label]) => <th className="p-3 text-center" key={label}>{label}</th>)}</tr></thead><tbody>{menus.map(([menu, label]) => <tr className="border-b border-slate-100" key={menu}><td className="p-3 font-semibold text-slate-800">{label}</td>{actions.map(([action]) => <td className="p-3 text-center" key={action}><input className="h-4 w-4 accent-sky-600" type="checkbox" checked={permissions?.[menu]?.[action] === true} onChange={() => toggle(menu, action)} /></td>)}</tr>)}</tbody></table></div>
+        <div className="mt-5 flex justify-end"><Button type="button" disabled={saving} onClick={save}>{saving ? "กำลังบันทึก..." : "บันทึกสิทธิ์"}</Button></div>
+      </Card>
+    </section>
+  );
+}
+
 function SalesChannelsPage({ channels, onCreateChannel, onUpdateChannel }) {
   const blankChannel = () => ({ name: "", gp_percent: "0", is_active: true });
   const [channel, setChannel] = useState(blankChannel);
@@ -4731,7 +4816,13 @@ function FinancePage({
     const query = orderSearch.trim().toLowerCase();
     return dateOrders.filter((order) => {
       const orderNo = String(order.order_no || "").toLowerCase();
-      return (!query || orderNo.includes(query))
+      const searchable = [
+        order.order_no,
+        order.customer_name,
+        order.customer_nickname,
+        order.customer_phone,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return (!query || searchable.includes(query))
         && (orderNoFilter === "ALL" || String(order.order_no) === orderNoFilter);
     });
   }, [dateOrders, orderNoFilter, orderSearch]);
@@ -5215,7 +5306,7 @@ function FinancePage({
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-slate-900">รายการขาย</h2>
-              <p className="mt-1 text-xs text-slate-500">ค้นหาและเลือกเลขออเดอร์ในวันที่ที่กำลังดู</p>
+              <p className="mt-1 text-xs text-slate-500">ค้นหาด้วยเลขที่คำสั่งซื้อ ชื่อลูกค้า หรือหมายเลขสมาชิกในวันที่ที่กำลังดู</p>
             </div>
             <span className="text-sm text-slate-500">
               {visibleOrders.length} / {dateOrders.length} รายการ
@@ -5223,14 +5314,14 @@ function FinancePage({
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
             <input
-              aria-label="ค้นหาเลขออเดอร์"
+              aria-label="ค้นหารายการขาย"
               className={inputClass}
               value={orderSearch}
               onChange={(event) => {
                 setOrderSearch(event.target.value);
                 setOrderNoFilter("ALL");
               }}
-              placeholder="ค้นหาเลขออเดอร์ เช่น ORD-001"
+              placeholder="เลขที่คำสั่งซื้อ ชื่อลูกค้า หรือเบอร์สมาชิก"
             />
             <select
               aria-label="กรองด้วยเลขออเดอร์"
@@ -5727,11 +5818,19 @@ export default function GlassLayout({
   expenseRows,
   currentShift,
   loyaltySettings,
+  loyaltyMembers,
+  rolePermissions,
   notice,
   systemStatus,
   onAdd,
   onLookupLoyalty,
   onUpdateLoyaltySettings,
+  onRefreshLoyaltyMembers,
+  onCreateLoyaltyMember,
+  onUpdateLoyaltyMember,
+  onDeleteLoyaltyMember,
+  onRefreshRolePermissions,
+  onUpdateRolePermissions,
   onValidateCoupon,
   onOpenCashShift,
   onCloseCashShift,
@@ -5865,6 +5964,20 @@ export default function GlassLayout({
       <LoyaltySettingsPage
         settings={loyaltySettings}
         onSave={onUpdateLoyaltySettings}
+      />
+    ) : activeView === "loyalty-members" && user?.role === "admin" ? (
+      <LoyaltyMembersPage
+        members={loyaltyMembers}
+        onRefresh={onRefreshLoyaltyMembers}
+        onCreate={onCreateLoyaltyMember}
+        onUpdate={onUpdateLoyaltyMember}
+        onDelete={onDeleteLoyaltyMember}
+      />
+    ) : activeView === "role-permissions" && user?.role === "admin" ? (
+      <RolePermissionsPage
+        profiles={rolePermissions}
+        onRefresh={onRefreshRolePermissions}
+        onSave={onUpdateRolePermissions}
       />
     ) : activeView === "sales-channels" && user?.role === "admin" ? (
       <SalesChannelsPage

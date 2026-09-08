@@ -243,6 +243,8 @@ function AppContent() {
   const [restocked, setRestocked] = useState([]);
   const [notice, setNotice] = useState("LIVE SYNC · 14:32:08");
   const [loyalty, setLoyalty] = useState({ account: null, rules: null });
+  const [loyaltyMembers, setLoyaltyMembers] = useState([]);
+  const [rolePermissions, setRolePermissions] = useState([]);
   const [loyaltySettings, setLoyaltySettings] = useState({
     is_enabled: true,
     earn_mode: "SPEND",
@@ -575,6 +577,86 @@ function AppContent() {
     }
     return null;
   };
+  const refreshLoyaltyMembers = async (search = "") => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/admin/loyalty-members`, { params: { search, limit: 200 } });
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        setLoyaltyMembers(response.data.data);
+        return response.data.data;
+      }
+    } catch (error) {
+      console.warn("Loyalty members refresh unavailable.", error);
+    }
+    return [];
+  };
+  const createLoyaltyMember = async (member) => {
+    try {
+      const response = await axios.post(`${API_BASE}/api/admin/loyalty-members`, member);
+      if (response.data?.success) {
+        await refreshLoyaltyMembers();
+        return response.data.data;
+      }
+    } catch (error) {
+      showError(error, "ไม่สามารถเพิ่มสมาชิกได้");
+    }
+    return null;
+  };
+  const updateLoyaltyMember = async (id, member) => {
+    try {
+      const response = await axios.put(`${API_BASE}/api/admin/loyalty-members/${id}`, member);
+      if (response.data?.success) {
+        await refreshLoyaltyMembers();
+        return response.data.data;
+      }
+    } catch (error) {
+      showError(error, "ไม่สามารถแก้ไขสมาชิกได้");
+    }
+    return null;
+  };
+  const deleteLoyaltyMember = async (member) => {
+    const confirmed = await confirmAction({
+      tone: "danger",
+      title: "ลบสมาชิก?",
+      message: `ต้องการลบข้อมูลสมาชิก ${member.customer_name || member.customer_phone} ใช่หรือไม่\nประวัติคะแนนของสมาชิกนี้จะถูกลบด้วย`,
+      confirmLabel: "ลบสมาชิก",
+    });
+    if (!confirmed) return false;
+    try {
+      const response = await axios.delete(`${API_BASE}/api/admin/loyalty-members/${member.id}`);
+      if (response.data?.success) {
+        await refreshLoyaltyMembers();
+        return true;
+      }
+    } catch (error) {
+      showError(error, "ไม่สามารถลบสมาชิกได้");
+    }
+    return false;
+  };
+  const refreshRolePermissions = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/admin/role-permissions`);
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        setRolePermissions(response.data.data);
+        return response.data.data;
+      }
+    } catch (error) {
+      console.warn("Role permissions refresh unavailable.", error);
+    }
+    return [];
+  };
+  const updateRolePermissions = async (role, permissions) => {
+    try {
+      const response = await axios.put(`${API_BASE}/api/admin/role-permissions/${role}`, { permissions });
+      if (response.data?.success) {
+        setRolePermissions((current) => current.map((item) => item.role === response.data.data.role ? response.data.data : item));
+        setNotice("ROLE PERMISSIONS UPDATED");
+        return response.data.data;
+      }
+    } catch (error) {
+      showError(error, "ไม่สามารถบันทึกสิทธิ์บทบาทได้");
+    }
+    return null;
+  };
   const refreshMyLoyalty = useCallback(async () => {
     if (session?.role !== "user") {
       setLoyalty({ account: null, rules: null });
@@ -769,7 +851,7 @@ function AppContent() {
       )
         setExpenseRows(expensesResponse.data.data);
       if (session.role === "admin") {
-        await Promise.all([refreshCoupons(), refreshCashShifts(), refreshSalesBreakdown(), refreshLoyaltySettings()]);
+        await Promise.all([refreshCoupons(), refreshCashShifts(), refreshSalesBreakdown(), refreshLoyaltySettings(), refreshLoyaltyMembers(), refreshRolePermissions()]);
       }
     };
     fetchOrders();
@@ -1606,11 +1688,19 @@ function AppContent() {
         expenseRows={expenseRows}
         currentShift={currentShift}
         loyaltySettings={loyaltySettings}
+        loyaltyMembers={loyaltyMembers}
+        rolePermissions={rolePermissions}
         notice={notice}
         systemStatus={systemStatus}
         onAdd={addOrder}
         onLookupLoyalty={lookupLoyalty}
         onUpdateLoyaltySettings={updateLoyaltySettings}
+        onRefreshLoyaltyMembers={refreshLoyaltyMembers}
+        onCreateLoyaltyMember={createLoyaltyMember}
+        onUpdateLoyaltyMember={updateLoyaltyMember}
+        onDeleteLoyaltyMember={deleteLoyaltyMember}
+        onRefreshRolePermissions={refreshRolePermissions}
+        onUpdateRolePermissions={updateRolePermissions}
         onValidateCoupon={validateCoupon}
         onOpenCashShift={openCashShift}
         onCloseCashShift={closeCashShift}
