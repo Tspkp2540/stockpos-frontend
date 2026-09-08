@@ -51,6 +51,7 @@ const navigationGroups = [
       { id: "loyalty-settings", icon: "★", label: "ตั้งค่าคะแนนสะสม", adminOnly: true },
       { id: "loyalty-members", icon: "♙", label: "จัดการสมาชิก", adminOnly: true },
       { id: "role-permissions", icon: "⚿", label: "จัดการสิทธิ์บทบาท", adminOnly: true },
+      { id: "audit-logs", icon: "◷", label: "ประวัติการแก้ไข", adminOnly: true },
       { id: "printing", icon: "⎙", label: "ตั้งค่าการพิมพ์", adminOnly: true },
     ],
   },
@@ -602,6 +603,10 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
     () => cart.reduce((sum, item) => sum + Math.max(0, Number(item.qty) || 0), 0),
     [cart],
   );
+  const loyaltyCupCount = useMemo(
+    () => cart.reduce((sum, item) => item.counts_as_loyalty_cup === true ? sum + Math.max(0, Number(item.qty) || 0) : sum, 0),
+    [cart],
+  );
   const manualDiscountAmount = useMemo(() => {
     const value = Math.max(0, Number(discountValue) || 0);
     return discountType === "percent"
@@ -636,7 +641,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
   const loyaltyDiscountAmount = Number((loyaltyPointsRedeemed * loyaltyBahtPerPoint).toFixed(2));
   const total = Math.max(0, loyaltyBaseAmount - loyaltyDiscountAmount);
   const estimatedLoyaltyPoints = loyaltyEnabled && customerPhone.replace(/\D/g, '').length >= 9
-    ? Math.floor(loyaltyEarnMode === "CUP" ? cartItemCount / loyaltyCupsPerPoint : total / loyaltySpendPerPoint)
+    ? Math.floor(loyaltyEarnMode === "CUP" ? loyaltyCupCount / loyaltyCupsPerPoint : total / loyaltySpendPerPoint)
     : 0;
   const receivedAmount = Number(amountReceived || 0);
   const changeAmount = paymentMethod === "CASH" && receivedAmount >= total
@@ -668,6 +673,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
               product_id: product.id,
               name: product.name,
               base_price: Number(product.price_retail || 0),
+              counts_as_loyalty_cup: product.counts_as_loyalty_cup === true,
               price: Number(product.price_retail || 0) + modifierAdjustment,
               modifiers,
               modifier_groups: product.modifier_groups || [],
@@ -739,6 +745,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
               cart_key: nextCartKey,
               name: product.name,
               base_price: Number(product.price_retail || 0),
+              counts_as_loyalty_cup: product.counts_as_loyalty_cup === true,
               price: Number(product.price_retail || 0) + modifierAdjustment,
               modifiers,
               modifier_groups: product.modifier_groups || [],
@@ -1870,6 +1877,7 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
     barcode: "",
     price_retail: "",
     price_wholesale: "",
+    counts_as_loyalty_cup: false,
     recipe: [],
     modifiers: [],
     channel_settings: [],
@@ -1984,6 +1992,7 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
       barcode: product.barcode || "",
       price_retail: product.price_retail || "",
       price_wholesale: product.price_wholesale || "",
+      counts_as_loyalty_cup: product.counts_as_loyalty_cup === true,
       recipe: (product.recipe || []).map((item) => ({
         ingredient_id: item.ingredient_id,
         quantity_used: item.quantity_used,
@@ -2058,6 +2067,7 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
                   <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
                     <span className="rounded-md bg-slate-100 px-1.5 py-1 text-slate-600">สูตร {product.recipe?.length || 0}</span>
                     <span className="rounded-md bg-violet-50 px-1.5 py-1 text-violet-700">ตัวเลือก {product.modifier_groups?.length || 0}</span>
+                    {product.counts_as_loyalty_cup === true ? <span className="rounded-md bg-cyan-50 px-1.5 py-1 text-cyan-700">นับเป็นแก้วสะสมแต้ม</span> : null}
                     {product.barcode ? <span className="max-w-full truncate rounded-md bg-amber-50 px-1.5 py-1 text-amber-800">รหัส {product.barcode}</span> : null}
                     <span className={`rounded-md px-1.5 py-1 font-bold ${availability.isAvailable ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-600"}`}>
                       {menuAvailabilityLabel(product)}
@@ -2181,6 +2191,15 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
                   />
                 </label>
               </div>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-cyan-100 bg-cyan-50/60 p-3 text-sm text-slate-700">
+                <input
+                  className="mt-0.5 h-4 w-4 accent-sky-600"
+                  type="checkbox"
+                  checked={form.counts_as_loyalty_cup === true}
+                  onChange={(event) => setForm((current) => ({ ...current, counts_as_loyalty_cup: event.target.checked }))}
+                />
+                <span><b className="block">นับเป็นแก้วสะสมแต้ม</b><span className="mt-0.5 block text-xs text-slate-500">เมื่อระบบสะสมแต้มแบบแก้ว เปิดเฉพาะเครื่องดื่มหรือสินค้าที่ต้องการให้นับเป็นแก้ว</span></span>
+              </label>
               <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-3">
                 <div>
                   <p className="text-sm font-bold text-slate-700">ช่องทางขายและราคาเฉพาะช่องทาง</p>
@@ -3993,7 +4012,7 @@ function RolePermissionsPage({ profiles, users, onRefresh, onSave, onCreate, onD
     ["orders", "คำสั่งซื้อ"],
     ["kitchen", "จอเตรียมสินค้า"],
     ["operations", "ภาพรวมการดำเนินงาน"],
-    ["cash-shifts", "กะเงินสด"], ["alerts", "การแจ้งเตือน"], ["inventory", "วัตถุดิบ"], ["menu", "เมนูสินค้า"], ["procurement", "การจัดซื้อ"], ["sales-channels", "ช่องทางการขาย"], ["coupons", "คูปอง"], ["loyalty-settings", "ตั้งค่าคะแนน"], ["loyalty-members", "สมาชิก"], ["role-permissions", "จัดการสิทธิ์บทบาท"], ["finance", "การเงิน"], ["business-reports", "รายงาน"],
+    ["cash-shifts", "กะเงินสด"], ["alerts", "การแจ้งเตือน"], ["inventory", "วัตถุดิบ"], ["menu", "เมนูสินค้า"], ["procurement", "การจัดซื้อ"], ["sales-channels", "ช่องทางการขาย"], ["coupons", "คูปอง"], ["loyalty-settings", "ตั้งค่าคะแนน"], ["loyalty-members", "สมาชิก"], ["role-permissions", "จัดการสิทธิ์บทบาท"], ["audit-logs", "ประวัติการแก้ไข"], ["finance", "การเงิน"], ["business-reports", "รายงาน"],
   ];
   const actions = [["view", "ดู"], ["create", "สร้าง"], ["update", "แก้ไข"], ["delete", "ลบ"]];
   const [selectedRole, setSelectedRole] = useState("STAFF");
@@ -4020,6 +4039,46 @@ function RolePermissionsPage({ profiles, users, onRefresh, onSave, onCreate, onD
         <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="border-b border-sky-100 text-left text-xs text-slate-500"><th className="p-3">บัญชี</th><th className="p-3">เบอร์โทร</th><th className="p-3">บทบาท</th></tr></thead><tbody>{users.map((user) => <tr className="border-b border-slate-100" key={user.id}><td className="p-3"><b className="text-slate-800">{user.name}</b><span className="ml-2 text-xs text-slate-500">@{user.username}</span></td><td className="p-3 text-slate-600">{user.phone || "-"}</td><td className="p-3"><select className={`${inputClass} max-w-xs py-2`} value={String(user.role_key || user.role).toUpperCase()} onChange={(event) => onAssignUserRole?.(user.id, event.target.value)}>{profiles.map((item) => <option value={item.role} key={item.role}>{item.display_name || item.role}</option>)}</select></td></tr>)}</tbody></table></div>
       </Card>
       {createOpen ? <Modal label="เพิ่มบทบาท" maxWidth="max-w-xl" onClose={() => setCreateOpen(false)}><Card><h2 className="text-lg font-bold text-slate-900">เพิ่มบทบาท</h2><form className="mt-5 grid gap-4" onSubmit={create}><label className={labelClass}>ชื่อบทบาท<input className={inputClass} value={newRole.display_name} maxLength="80" onChange={(event) => setNewRole((current) => ({ ...current, display_name: event.target.value }))} placeholder="เช่น แคชเชียร์" required /></label><label className={labelClass}>รหัสบทบาท<input className={inputClass} value={newRole.role} maxLength="32" onChange={(event) => setNewRole((current) => ({ ...current, role: event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "") }))} placeholder="CASHIER" required /></label><label className={labelClass}>บทบาทพื้นฐาน<select className={inputClass} value={newRole.base_role} onChange={(event) => setNewRole((current) => ({ ...current, base_role: event.target.value }))}><option value="ADMIN">Admin</option><option value="STAFF">Staff</option><option value="USER">User</option></select><span className="text-xs font-normal text-slate-500">เลือก Admin เฉพาะบทบาทผู้จัดการ แล้วกำหนดสิทธิ์รายเมนูให้เหมาะสม</span></label><div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setCreateOpen(false)}>ยกเลิก</Button><Button type="submit">เพิ่มบทบาท</Button></div></form></Card></Modal> : null}
+    </section>
+  );
+}
+
+function AuditLogPage({ onLoad }) {
+  const [logs, setLogs] = useState([]);
+  const [filter, setFilter] = useState("ALL");
+  const [loading, setLoading] = useState(true);
+  const refresh = async () => {
+    setLoading(true);
+    const nextLogs = await onLoad?.(100);
+    setLogs(Array.isArray(nextLogs) ? nextLogs : []);
+    setLoading(false);
+  };
+  useEffect(() => { refresh(); }, [onLoad]);
+  const eventFor = (item) => {
+    const resource = String(item.resource || "");
+    if (resource === "admin/loyalty-members") return { key: "LOYALTY", label: item.action === "DELETE" ? "ลบสมาชิก" : "แก้ไขข้อมูลหรือคะแนนสมาชิก" };
+    if (resource === "admin/users") return { key: "ROLE", label: "เปลี่ยนบทบาทผู้ใช้งาน" };
+    if (resource.startsWith("products/")) return { key: "PRICE", label: "แก้ไขราคาเมนู" };
+    if (resource.startsWith("orders/")) return { key: "ORDER", label: "เปลี่ยนหรือยกเลิกคำสั่งซื้อ" };
+    return { key: "OTHER", label: `${item.action} · ${resource}` };
+  };
+  const detailFor = (item) => {
+    const details = item.request_summary && typeof item.request_summary === "object" ? item.request_summary : {};
+    const resource = String(item.resource || "");
+    if (resource === "admin/loyalty-members") return [details.customer_name, details.customer_phone, details.points_balance !== undefined ? `คะแนน ${details.points_balance}` : ""].filter(Boolean).join(" · ") || "อัปเดตข้อมูลสมาชิก";
+    if (resource === "admin/users") return details.role_key ? `กำหนดบทบาท ${details.role_key}` : "อัปเดตบทบาทบัญชี";
+    if (resource.startsWith("products/")) return details.price_retail !== undefined ? `ราคาขาย ${money(details.price_retail)}` : "อัปเดตเมนูสินค้า";
+    if (resource.startsWith("orders/")) return details.status ? `สถานะ ${details.status}` : "อัปเดตคำสั่งซื้อ";
+    return "อัปเดตข้อมูล";
+  };
+  const visibleLogs = logs.filter((item) => filter === "ALL" || eventFor(item).key === filter);
+  return (
+    <section className="space-y-5">
+      <Heading title="ประวัติการแก้ไขข้อมูลสำคัญ" description="ติดตามการแก้คะแนนสมาชิก เปลี่ยนบทบาท ลบสมาชิก แก้ราคา และคำสั่งซื้อย้อนหลัง" action={<Button type="button" variant="secondary" onClick={refresh} disabled={loading}>{loading ? "กำลังโหลด..." : "รีเฟรช"}</Button>} />
+      <Card>
+        <div className="flex flex-wrap gap-2">{[["ALL", "ทั้งหมด"], ["LOYALTY", "สมาชิกและคะแนน"], ["ROLE", "บทบาท"], ["PRICE", "ราคาเมนู"], ["ORDER", "คำสั่งซื้อ"]].map(([key, label]) => <Button key={key} type="button" className="text-xs" variant={filter === key ? "primary" : "secondary"} onClick={() => setFilter(key)}>{label}</Button>)}</div>
+        <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead><tr className="border-b border-sky-100 text-left text-xs text-slate-500"><th className="p-3">เหตุการณ์</th><th className="p-3">รายละเอียด</th><th className="p-3">ผู้ดำเนินการ</th><th className="p-3">เวลา</th></tr></thead><tbody>{visibleLogs.length ? visibleLogs.map((item) => { const event = eventFor(item); return <tr className="border-b border-slate-100" key={item.id}><td className="p-3 font-semibold text-slate-800">{event.label}</td><td className="p-3 text-slate-600">{detailFor(item)}</td><td className="p-3 text-slate-600">{item.actor_name || "ระบบ"}</td><td className="p-3 whitespace-nowrap text-slate-500">{dateTimeLabel(item.created_at)}</td></tr>; }) : <tr><td className="p-8 text-center text-slate-500" colSpan="4">{loading ? "กำลังโหลดประวัติ..." : "ยังไม่มีประวัติที่ตรงกับตัวกรอง"}</td></tr>}</tbody></table></div>
+      </Card>
     </section>
   );
 }
@@ -5849,6 +5908,7 @@ export default function GlassLayout({
   onDeleteRole,
   onRefreshSystemUsers,
   onAssignUserRole,
+  onLoadAuditLogs,
   onValidateCoupon,
   onOpenCashShift,
   onCloseCashShift,
@@ -6006,6 +6066,8 @@ export default function GlassLayout({
         onRefreshUsers={onRefreshSystemUsers}
         onAssignUserRole={onAssignUserRole}
       />
+    ) : activeView === "audit-logs" && user?.role === "admin" ? (
+      <AuditLogPage onLoad={onLoadAuditLogs} />
     ) : activeView === "sales-channels" && user?.role === "admin" ? (
       <SalesChannelsPage
         channels={channels}

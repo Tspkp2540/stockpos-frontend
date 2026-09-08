@@ -215,6 +215,10 @@ export default function StaffWorkspace({
     () => cart.reduce((sum, item) => sum + Math.max(0, Number(item.qty) || 0), 0),
     [cart],
   );
+  const loyaltyCupCount = useMemo(
+    () => cart.reduce((sum, item) => item.counts_as_loyalty_cup === true ? sum + Math.max(0, Number(item.qty) || 0) : sum, 0),
+    [cart],
+  );
   const manualDiscountAmount = useMemo(() => {
     const value = Math.max(0, Number(discountValue) || 0);
     return discountType === "percent"
@@ -249,7 +253,7 @@ export default function StaffWorkspace({
   const loyaltyDiscountAmount = Number((loyaltyPointsRedeemed * loyaltyBahtPerPoint).toFixed(2));
   const total = Math.max(0, loyaltyBaseAmount - loyaltyDiscountAmount);
   const estimatedLoyaltyPoints = loyaltyEnabled && customerPhone.replace(/\D/g, '').length >= 9
-    ? Math.floor(loyaltyEarnMode === "CUP" ? cartItemCount / loyaltyCupsPerPoint : total / loyaltySpendPerPoint)
+    ? Math.floor(loyaltyEarnMode === "CUP" ? loyaltyCupCount / loyaltyCupsPerPoint : total / loyaltySpendPerPoint)
     : 0;
   const receivedAmount = Number(amountReceived || 0);
   const changeAmount = paymentMethod === "CASH" && receivedAmount >= total
@@ -284,6 +288,7 @@ export default function StaffWorkspace({
               product_id: product.id,
               name: product.name,
               base_price: Number(product.price_retail || 0),
+              counts_as_loyalty_cup: product.counts_as_loyalty_cup === true,
               price: Number(product.price_retail || 0) + modifierAdjustment,
               modifiers,
               modifier_groups: product.modifier_groups || [],
@@ -355,6 +360,7 @@ export default function StaffWorkspace({
               cart_key: nextCartKey,
               name: product.name,
               base_price: Number(product.price_retail || 0),
+              counts_as_loyalty_cup: product.counts_as_loyalty_cup === true,
               price: Number(product.price_retail || 0) + modifierAdjustment,
               modifiers,
               modifier_groups: product.modifier_groups || [],

@@ -646,6 +646,15 @@ function AppContent() {
     }
     return [];
   };
+  const loadAuditLogs = async (limit = 100) => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/admin/audit-logs`, { params: { limit, scope: "important" } });
+      return response.data?.success && Array.isArray(response.data.data) ? response.data.data : [];
+    } catch (error) {
+      showError(error, "ไม่สามารถโหลดประวัติการแก้ไขได้");
+      return [];
+    }
+  };
   const updateRolePermissions = async (role, permissions) => {
     try {
       const response = await axios.put(`${API_BASE}/api/admin/role-permissions/${role}`, { permissions });
@@ -1724,6 +1733,7 @@ function AppContent() {
         onDeleteRole={deleteRole}
         onRefreshSystemUsers={refreshSystemUsers}
         onAssignUserRole={assignUserRole}
+        onLoadAuditLogs={loadAuditLogs}
         onValidateCoupon={validateCoupon}
         onOpenCashShift={openCashShift}
         onCloseCashShift={closeCashShift}
