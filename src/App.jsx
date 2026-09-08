@@ -1635,21 +1635,6 @@ function AppContent() {
       console.warn("Expense delete API unavailable.", error);
     }
   };
-  const recordExpense = async (amount, category) => {
-    try {
-      const response = await axios.post(`${API_BASE}/api/expenses`, {
-        amount,
-        category,
-      });
-      if (response.data?.success) {
-        setExpenses((current) => current + amount);
-        setNotice(`EXPENSE RECORDED · ${money(amount)} MOVED TO SAFE`);
-      }
-    } catch (error) {
-      console.warn("Expense API unavailable; expense was not recorded.", error);
-    }
-  };
-
   if (!session && anonymousMode)
     return (
       <>
@@ -1766,7 +1751,6 @@ function AppContent() {
         onUpdateMenu={updateMenu}
         onDeleteMenu={deleteMenu}
         onSetMenuAvailability={setMenuAvailability}
-        onExpense={recordExpense}
         onCreateExpense={createExpense}
         onUpdateExpense={updateExpense}
         onDeleteExpense={deleteExpense}
