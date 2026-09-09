@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
 import { ActionDialogProvider, useActionDialog } from "./components/ui/ActionDialog";
+import { createOrderSubmissionFingerprint } from "./utils/orderSubmission";
 
 const GlassLayout = lazy(() => import("./components/ui/GlassLayout"));
 const LoginScreen = lazy(() => import("./components/ui/LoginScreen"));
@@ -153,31 +154,6 @@ const writePendingOrderSubmissions = (submissions) => {
     console.warn("Unable to persist pending order submission.", error);
   }
 };
-
-const orderSubmissionFingerprint = (payload) =>
-  JSON.stringify({
-    channel_id: Number(payload.channel_id),
-    record_date: payload.record_date || todayInBangkok(),
-    customer_name: String(payload.customer_name || "").trim(),
-    customer_nickname: String(payload.customer_nickname || "").trim(),
-    customer_phone: String(payload.customer_phone || "").replace(/\D/g, ""),
-    manual_discount_amount: Number(payload.manual_discount_amount) || 0,
-    coupon_code: String(payload.coupon_code || "").trim().toUpperCase(),
-    loyalty_points_redeemed: Number(payload.loyalty_points_redeemed) || 0,
-    payment_method: String(payload.payment_method || "OTHER").toUpperCase(),
-    amount_received:
-      payload.amount_received === undefined || payload.amount_received === ""
-        ? null
-        : Number(payload.amount_received),
-    items: (payload.items || []).map((item) => ({
-      product_id: Number(item.product_id),
-      qty: Number(item.qty),
-      price: Number(item.price),
-      modifiers: (item.modifiers || [])
-        .map((modifier) => Number(modifier?.option_id ?? modifier))
-        .sort((left, right) => left - right),
-    })),
-  });
 
 function ConnectionBanner({ systemStatus, realtimeConnected }) {
   const state = systemStatus?.state || "checking";
@@ -962,7 +938,7 @@ function AppContent() {
       return false;
     }
     const recordDate = payload.record_date || todayInBangkok();
-    const fingerprint = orderSubmissionFingerprint({ ...payload, record_date: recordDate });
+    const fingerprint = createOrderSubmissionFingerprint({ ...payload, record_date: recordDate }, recordDate);
     const pendingSubmissions = readPendingOrderSubmissions();
     const previousSubmission = pendingSubmissions[fingerprint];
     const submission = previousSubmission || {

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
+import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.webp";
 import MenuModifierPicker from "./MenuModifierPicker";
 import CashShiftDialog from "./CashShiftDialog";
 import { menuAvailability, menuAvailabilityLabel } from "../../utils/menuAvailability";

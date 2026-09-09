@@ -1,5 +1,5 @@
 import { useState } from "react";
-import coffeeBarista from "../../assets/coffee-barista-login-clean.png";
+import coffeeBarista from "../../assets/coffee-barista-login-clean.webp";
 
 const inputClass = "w-full rounded-xl border border-sky-200 px-3 py-2.5 text-sm outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-100";
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CanvasTexture, SRGBColorSpace } from "three";
-import fallbackRoom from "../../assets/operations-dollhouse-room-blended.png";
+import fallbackRoom from "../../assets/operations-dollhouse-room-blended.webp";
 
 function Box({ args, color, position, rotation, roughness = 0.72 }) {
   return (

@@ -6,7 +6,10 @@
     "dev": "vite",
     "start": "node scripts/serve.js",
     "preview": "vite preview",
-    "build": "vite build"
+    "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "optimize:images": "node scripts/optimize-images.mjs"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",
@@ -34,5 +37,9 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "sharp": "^0.35.4",
+    "vitest": "^5.0.0"
   }
 }

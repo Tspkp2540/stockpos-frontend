@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
-import guestOrderLookup from "../../assets/guest-order-lookup.png";
+import guestOrderLookup from "../../assets/guest-order-lookup.webp";
 import { maskPhone } from "../../utils/phone";
 
 const statusLabel = (status) =>

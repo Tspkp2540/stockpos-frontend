@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.png";
-import officeCoordinator from "../../assets/operations-office-coordinator.png";
-import stockCoordinator from "../../assets/operations-stock-coordinator.png";
+import coffeeBarista from "../../assets/coffee-barista-kin-cha-kan-sky.webp";
+import officeCoordinator from "../../assets/operations-office-coordinator.webp";
+import stockCoordinator from "../../assets/operations-stock-coordinator.webp";
 import MenuModifierPicker from "./MenuModifierPicker";
 import CashShiftDialog from "./CashShiftDialog";
 import { exportExcel } from "../../utils/exportExcel";
@@ -5605,6 +5605,25 @@ function OperationsZone({
   );
 }
 
+function use3DSceneEnabled() {
+  const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    const viewport = window.matchMedia("(min-width: 768px)");
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setEnabled(viewport.matches && !reducedMotion.matches);
+    update();
+    viewport.addEventListener("change", update);
+    reducedMotion.addEventListener("change", update);
+    return () => {
+      viewport.removeEventListener("change", update);
+      reducedMotion.removeEventListener("change", update);
+    };
+  }, []);
+
+  return enabled;
+}
+
 function LiveWorkflowRoom({
   todayOrders,
   pendingOrders,
@@ -5621,6 +5640,7 @@ function LiveWorkflowRoom({
   const stockTitle = lowStockRows
     ? `ต้องเติม ${lowStockRows} รายการ`
     : "วัตถุดิบพร้อม";
+  const show3DScene = use3DSceneEnabled();
 
   return (
     <section className="mt-2 overflow-hidden py-3 sm:py-4">
@@ -5636,16 +5656,24 @@ function LiveWorkflowRoom({
       </div>
 
       <div className="operations-room-scene relative mt-5 aspect-video min-h-[220px] overflow-hidden bg-sky-50">
-        <Suspense fallback={<div className="flex h-full items-center justify-center text-sm font-semibold text-sky-700">กำลังเตรียมภาพรวมร้าน...</div>}>
-          <OperationsRoom3D
-            pendingOrders={pendingOrders}
-            lowStockRows={lowStockRows}
-            inventoryRows={inventoryRows}
-            activeOrders={activeOrders}
-            financialSummary={financialSummary}
-            isAdmin={isAdmin}
-          />
-        </Suspense>
+        {show3DScene ? (
+          <Suspense fallback={<div className="flex h-full items-center justify-center text-sm font-semibold text-sky-700">กำลังเตรียมภาพรวมร้าน...</div>}>
+            <OperationsRoom3D
+              pendingOrders={pendingOrders}
+              lowStockRows={lowStockRows}
+              inventoryRows={inventoryRows}
+              activeOrders={activeOrders}
+              financialSummary={financialSummary}
+              isAdmin={isAdmin}
+            />
+          </Suspense>
+        ) : (
+          <div className="grid h-full grid-cols-3 gap-2 bg-gradient-to-br from-sky-100 via-cyan-50 to-white p-4 sm:gap-4 sm:p-6">
+            <div className="flex flex-col justify-end rounded-2xl border border-white/80 bg-white/75 p-3 shadow-sm"><span className="text-lg">☕</span><strong className="mt-2 text-sm text-slate-900">หน้าร้าน</strong><span className="mt-1 text-xs text-slate-500">{frontCounterTitle}</span></div>
+            <div className="flex flex-col justify-end rounded-2xl border border-white/80 bg-white/75 p-3 shadow-sm"><span className="text-lg">▦</span><strong className="mt-2 text-sm text-slate-900">คลังสินค้า</strong><span className="mt-1 text-xs text-slate-500">{stockTitle}</span></div>
+            <div className="flex flex-col justify-end rounded-2xl border border-white/80 bg-white/75 p-3 shadow-sm"><span className="text-lg">▤</span><strong className="mt-2 text-sm text-slate-900">การเงิน</strong><span className="mt-1 text-xs text-slate-500">กำไร {money(profitToday)}</span></div>
+          </div>
+        )}
       </div>
       <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
         <span>

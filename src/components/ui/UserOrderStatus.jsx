@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import customerOrderHistory from "../../assets/customer-order-history.png";
+import customerOrderHistory from "../../assets/customer-order-history.webp";
 import { maskPhone } from "../../utils/phone";
 
 const money = (amount) =>
