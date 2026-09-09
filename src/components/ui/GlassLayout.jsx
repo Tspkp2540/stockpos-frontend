@@ -6016,12 +6016,25 @@ export default function GlassLayout({
     )));
     return new Set(activeGroup ? [activeGroup.id] : []);
   });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const toggleNavigationGroup = (groupId) => setExpandedNavigationGroups((current) => {
     const next = new Set(current);
     if (next.has(groupId)) next.delete(groupId);
     else next.add(groupId);
     return next;
   });
+  const navigateFromMobileMenu = (view) => {
+    setActiveView(view);
+    setMobileMenuOpen(false);
+  };
+  useEffect(() => {
+    if (!mobileMenuOpen) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setMobileMenuOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [mobileMenuOpen]);
   const visibleNavigationGroups = navigationGroups
     .map((group) => ({
       ...group,
@@ -6245,38 +6258,80 @@ export default function GlassLayout({
             </span>
             <strong className="truncate text-slate-900">STOCKPOS</strong>
           </div>
-          <button
-            className="shrink-0 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-700 shadow-sm transition hover:bg-sky-50 focus:outline-none focus:ring-4 focus:ring-sky-100"
-            type="button"
-            onClick={onLogout}
-          >
-            ↪ ออกจากระบบ
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              aria-controls="mobile-navigation"
+              aria-expanded={mobileMenuOpen}
+              aria-label={mobileMenuOpen ? "ปิดเมนู" : "เปิดเมนู"}
+              className="grid h-10 w-10 place-items-center rounded-xl border border-sky-200 bg-white text-lg font-bold text-sky-700 shadow-sm transition hover:bg-sky-50 focus:outline-none focus:ring-4 focus:ring-sky-100"
+              type="button"
+              onClick={() => setMobileMenuOpen((current) => !current)}
+            >
+              <span aria-hidden="true">{mobileMenuOpen ? "×" : "☰"}</span>
+            </button>
+            <button
+              aria-label="ออกจากระบบ"
+              className="shrink-0 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-700 shadow-sm transition hover:bg-sky-50 focus:outline-none focus:ring-4 focus:ring-sky-100"
+              type="button"
+              onClick={onLogout}
+            >
+              <span aria-hidden="true">↪</span><span className="ml-1 hidden sm:inline">ออกจากระบบ</span>
+            </button>
+          </div>
         </div>
-        <nav className="mt-3 flex gap-4 overflow-x-auto pb-1">
-          {visibleNavigationGroups.map((group) => (
-            <section className="shrink-0" key={group.id}>
-              <button className="mb-1 flex items-center gap-1 px-1 text-[10px] font-bold text-slate-400" type="button" onClick={() => toggleNavigationGroup(group.id)} aria-expanded={expandedNavigationGroups.has(group.id)}>
-                {group.label} <span>{expandedNavigationGroups.has(group.id) ? "⌃" : "⌄"}</span>
-              </button>
-              <div className={`flex gap-2 overflow-hidden transition-all ${expandedNavigationGroups.has(group.id) ? "max-w-[900px] opacity-100" : "max-w-0 opacity-0"}`}>
-                {group.items.map((item) => {
-                  const selected = activeView === item.id || (item.id === "pos" && activeView === "orders");
-                  return (
-                    <button
-                      className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold ${selected ? "bg-sky-600 text-white" : "bg-sky-50 text-sky-700"}`}
-                      key={item.id}
-                      onClick={() => setActiveView(item.id)}
-                    >
-                      {item.icon} {item.label}{item.id === "alerts" && alertCount ? ` (${alertCount})` : ""}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
-        </nav>
       </header>
+      {mobileMenuOpen ? (
+        <div className="fixed inset-0 z-40 lg:hidden" role="presentation">
+          <button
+            aria-label="ปิดเมนู"
+            className="absolute inset-0 cursor-default bg-slate-950/35 backdrop-blur-[1px]"
+            type="button"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <aside
+            aria-label="เมนูหลัก"
+            className="shop-topbar relative flex h-full w-[min(20rem,calc(100%-2.5rem))] flex-col border-r border-sky-100 px-4 py-5 shadow-2xl shadow-slate-900/20"
+            id="mobile-navigation"
+          >
+            <div className="flex items-center justify-between gap-3 px-1">
+              <div className="flex items-center gap-2">
+                <span className="shop-orb grid h-9 w-9 place-items-center rounded-xl bg-sky-600 font-black text-white">S</span>
+                <strong className="text-slate-900">เมนูระบบ</strong>
+              </div>
+              <button aria-label="ปิดเมนู" className="grid h-9 w-9 place-items-center rounded-xl text-lg font-bold text-slate-500 hover:bg-sky-50 hover:text-sky-700" type="button" onClick={() => setMobileMenuOpen(false)}>×</button>
+            </div>
+            <nav className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+              {visibleNavigationGroups.map((group) => (
+                <section key={group.id}>
+                  <button className="mb-1.5 flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 hover:bg-sky-50 hover:text-sky-700" type="button" onClick={() => toggleNavigationGroup(group.id)} aria-expanded={expandedNavigationGroups.has(group.id)}>
+                    <span>{group.label}</span><span className="text-sm leading-none">{expandedNavigationGroups.has(group.id) ? "⌃" : "⌄"}</span>
+                  </button>
+                  <div className={`grid gap-1.5 overflow-hidden transition-all ${expandedNavigationGroups.has(group.id) ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
+                    {group.items.map((item) => {
+                      const selected = activeView === item.id || (item.id === "pos" && activeView === "orders");
+                      return (
+                        <button
+                          className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${selected ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
+                          key={item.id}
+                          onClick={() => navigateFromMobileMenu(item.id)}
+                        >
+                          <span className="w-5 text-center">{item.icon}</span>
+                          <span className="flex-1">{item.label}</span>
+                          {item.id === "alerts" && alertCount ? <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${selected ? "bg-white/20 text-white" : "bg-rose-100 text-rose-700"}`}>{alertCount}</span> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </nav>
+            <div className="mt-4 rounded-2xl border border-sky-100 bg-sky-50/80 p-3">
+              <p className="text-xs font-bold text-sky-700">{connectionLabel}</p>
+              <p className="mt-1 truncate text-xs text-slate-500">{notice}</p>
+            </div>
+          </aside>
+        </div>
+      ) : null}
       <main className="admin-workspace relative mx-auto w-full p-4 pb-8 sm:p-5 lg:ml-72 lg:mr-6 lg:p-6">
         {content}
       </main>
