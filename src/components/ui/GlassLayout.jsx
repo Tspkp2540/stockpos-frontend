@@ -6290,7 +6290,7 @@ export default function GlassLayout({
           />
           <aside
             aria-label="เมนูหลัก"
-            className="shop-topbar relative flex h-full w-[min(20rem,calc(100%-2.5rem))] flex-col border-r border-sky-100 px-4 py-5 shadow-2xl shadow-slate-900/20"
+            className="shop-topbar absolute inset-y-0 right-0 flex w-[min(20rem,calc(100%-2.5rem))] flex-col border-l border-sky-100 px-4 py-5 shadow-2xl shadow-slate-900/20"
             id="mobile-navigation"
           >
             <div className="flex items-center justify-between gap-3 px-1">
