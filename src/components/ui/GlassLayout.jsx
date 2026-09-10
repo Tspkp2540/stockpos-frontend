@@ -6030,8 +6030,6 @@ export default function GlassLayout({
   loyaltyMembers,
   rolePermissions,
   systemUsers,
-  notice,
-  systemStatus,
   onAdd,
   onLookupLoyalty,
   onUpdateLoyaltySettings,
@@ -6082,19 +6080,6 @@ export default function GlassLayout({
   onUpdateSales,
   onDeleteSales,
 }) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const navigateFromMobileMenu = (view) => {
-    setActiveView(view);
-    setMobileMenuOpen(false);
-  };
-  useEffect(() => {
-    if (!mobileMenuOpen) return undefined;
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape") setMobileMenuOpen(false);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [mobileMenuOpen]);
   const visibleNavigationGroups = navigationGroups
     .map((group) => ({
       ...group,
@@ -6108,14 +6093,6 @@ export default function GlassLayout({
   const activeCategoryGroup = visibleNavigationGroups.find(
     (group) => activeView === categoryViewId(group.id),
   );
-  const connectionLabel = ({
-    online: "● ออนไลน์",
-    checking: "◌ กำลังตรวจสอบ",
-    offline: "● ไม่มีอินเทอร์เน็ต",
-    api_offline: "● ติดต่อ API ไม่ได้",
-    database_offline: "● ฐานข้อมูลขัดข้อง",
-  })[systemStatus?.state] || "◌ กำลังตรวจสอบ";
-  const connectionTone = systemStatus?.state === "online" ? "text-emerald-700" : systemStatus?.state === "checking" ? "text-sky-700" : "text-rose-700";
   const content =
     activeView === "home" ? (
       <AdminHomePage groups={visibleNavigationGroups} onNavigate={setActiveView} />
@@ -6273,51 +6250,10 @@ export default function GlassLayout({
           onCloseCashShift={onCloseCashShift}
         />
       </div>
-    );
+  );
   return (
     <div className="app-viewport admin-viewport shop-scene text-slate-800">
-      <aside className="shop-topbar fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r px-3 py-5 lg:flex">
-        <div className="flex items-center gap-3 px-2">
-          <span className="shop-orb grid h-10 w-10 place-items-center rounded-xl bg-sky-600 text-lg font-black text-white">
-            S
-          </span>
-          <div>
-            <p className="font-bold tracking-wide text-slate-900">STOCKPOS</p>
-          </div>
-        </div>
-        <nav className="mt-6 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-          <button
-            className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${activeView === "home" ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
-            type="button"
-            onClick={() => setActiveView("home")}
-          >
-            <span className="w-5 text-center">⌂</span><span>หน้าหลัก</span>
-          </button>
-          {visibleNavigationGroups.map((group) => (
-            <button
-              className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${activeView === categoryViewId(group.id) || group.items.some((item) => activeView === item.id || (item.id === "pos" && activeView === "orders")) ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
-              key={group.id}
-              type="button"
-              onClick={() => setActiveView(categoryViewId(group.id))}
-            >
-              <span className="w-5 text-center">{group.icon}</span>
-              <span className="flex-1">{group.label}</span>
-              <span className="text-sm">›</span>
-            </button>
-          ))}
-        </nav>
-        <div className="mt-auto rounded-2xl border border-sky-100 bg-sky-50/80 p-4 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wider text-sky-600">
-            ระบบเชื่อมต่อ
-          </p>
-          <p className={`mt-2 text-sm font-semibold ${connectionTone}`}>{connectionLabel}</p>
-          <p className="mt-1 text-xs text-slate-500">{notice}</p>
-          <button className="mt-3 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-bold text-sky-700 transition hover:bg-sky-100" type="button" onClick={onLogout}>
-            ออกจากระบบ
-          </button>
-        </div>
-      </aside>
-      <header className="shop-topbar sticky top-0 z-20 border-b px-4 py-3 lg:hidden">
+      <header className="shop-topbar sticky top-0 z-20 border-b px-4 py-3 sm:px-5 lg:px-6">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <span className="shop-orb grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-600 font-black text-white">
@@ -6327,14 +6263,12 @@ export default function GlassLayout({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
-              aria-controls="mobile-navigation"
-              aria-expanded={mobileMenuOpen}
-              aria-label={mobileMenuOpen ? "ปิดเมนู" : "เปิดเมนู"}
-              className="grid h-10 w-10 place-items-center rounded-xl border border-sky-200 bg-white text-lg font-bold text-sky-700 shadow-sm transition hover:bg-sky-50 focus:outline-none focus:ring-4 focus:ring-sky-100"
+              aria-label="กลับหน้าหลัก"
+              className="rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-700 shadow-sm transition hover:bg-sky-50 focus:outline-none focus:ring-4 focus:ring-sky-100 sm:text-sm"
               type="button"
-              onClick={() => setMobileMenuOpen((current) => !current)}
+              onClick={() => setActiveView("home")}
             >
-              <span aria-hidden="true">{mobileMenuOpen ? "×" : "☰"}</span>
+              <span aria-hidden="true">⌂</span><span className="ml-1">หน้าหลัก</span>
             </button>
             <button
               aria-label="ออกจากระบบ"
@@ -6347,55 +6281,7 @@ export default function GlassLayout({
           </div>
         </div>
       </header>
-      {mobileMenuOpen ? (
-        <div className="fixed inset-0 z-40 lg:hidden" role="presentation">
-          <button
-            aria-label="ปิดเมนู"
-            className="absolute inset-0 cursor-default bg-slate-950/35 backdrop-blur-[1px]"
-            type="button"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-          <aside
-            aria-label="เมนูหลัก"
-            className="shop-topbar absolute inset-y-0 right-0 flex w-[min(20rem,calc(100%-2.5rem))] flex-col border-l border-sky-100 px-4 py-5 shadow-2xl shadow-slate-900/20"
-            id="mobile-navigation"
-          >
-            <div className="flex items-center justify-between gap-3 px-1">
-              <div className="flex items-center gap-2">
-                <span className="shop-orb grid h-9 w-9 place-items-center rounded-xl bg-sky-600 font-black text-white">S</span>
-                <strong className="text-slate-900">เมนูระบบ</strong>
-              </div>
-              <button aria-label="ปิดเมนู" className="grid h-9 w-9 place-items-center rounded-xl text-lg font-bold text-slate-500 hover:bg-sky-50 hover:text-sky-700" type="button" onClick={() => setMobileMenuOpen(false)}>×</button>
-            </div>
-            <nav className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-              <button
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${activeView === "home" ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
-                type="button"
-                onClick={() => navigateFromMobileMenu("home")}
-              >
-                <span className="w-5 text-center">⌂</span><span>หน้าหลัก</span>
-              </button>
-              {visibleNavigationGroups.map((group) => (
-                <button
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${activeView === categoryViewId(group.id) || group.items.some((item) => activeView === item.id || (item.id === "pos" && activeView === "orders")) ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
-                  key={group.id}
-                  type="button"
-                  onClick={() => navigateFromMobileMenu(categoryViewId(group.id))}
-                >
-                  <span className="w-5 text-center">{group.icon}</span>
-                  <span className="flex-1">{group.label}</span>
-                  <span className="text-sm">›</span>
-                </button>
-              ))}
-            </nav>
-            <div className="mt-4 rounded-2xl border border-sky-100 bg-sky-50/80 p-3">
-              <p className="text-xs font-bold text-sky-700">{connectionLabel}</p>
-              <p className="mt-1 truncate text-xs text-slate-500">{notice}</p>
-            </div>
-          </aside>
-        </div>
-      ) : null}
-      <main className="admin-workspace relative mx-auto w-full p-4 pb-8 sm:p-5 lg:ml-72 lg:mr-6 lg:p-6">
+      <main className="admin-workspace relative mx-auto w-full p-4 pb-8 sm:p-5 lg:max-w-[1440px] lg:p-6">
         {content}
       </main>
     </div>
