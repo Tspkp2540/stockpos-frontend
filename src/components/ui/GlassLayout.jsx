@@ -22,57 +22,57 @@ const OperationsRoom3D = lazy(() => import("./OperationsRoom3D"));
 const navigationGroups = [
   {
     id: "overview",
-    icon: "◉",
+    icon: "🏪",
     label: "ภาพรวมการดำเนินงาน",
     description: "ติดตามภาพรวมร้านและงานที่ต้องดูแล",
-    items: [{ id: "operations", icon: "◉", label: "ภาพรวมการดำเนินงานร้าน" }],
+    items: [{ id: "operations", icon: "📊", label: "ภาพรวมการดำเนินงานร้าน" }],
   },
   {
     id: "counter",
-    icon: "▣",
+    icon: "🧾",
     label: "การขายหน้าร้าน",
     description: "ขาย รับชำระ จัดคิว และเตรียมสินค้า",
     items: [
-      { id: "pos", icon: "▣", label: "การขายและคำสั่งซื้อ" },
-      { id: "kitchen", icon: "☕", label: "หน้าจอเตรียมสินค้า" },
-      { id: "cash-shifts", icon: "◴", label: "จัดการกะเงินสด", adminOnly: true },
+      { id: "pos", icon: "🛒", label: "การขายและคำสั่งซื้อ" },
+      { id: "kitchen", icon: "👨‍🍳", label: "หน้าจอเตรียมสินค้า" },
+      { id: "cash-shifts", icon: "💵", label: "จัดการกะเงินสด", adminOnly: true },
     ],
   },
   {
     id: "stock",
-    icon: "□",
+    icon: "📦",
     label: "สินค้าและสินค้าคงคลัง",
     description: "จัดการเมนู วัตถุดิบ และการจัดซื้อ",
     items: [
-      { id: "alerts", icon: "⚠", label: "การแจ้งเตือน" },
-      { id: "inventory", icon: "□", label: "จัดการวัตถุดิบ" },
-      { id: "menu", icon: "☷", label: "จัดการเมนูสินค้า" },
-      { id: "procurement", icon: "▤", label: "การจัดซื้อ", adminOnly: true },
+      { id: "alerts", icon: "🔔", label: "การแจ้งเตือน" },
+      { id: "inventory", icon: "🧺", label: "จัดการวัตถุดิบ" },
+      { id: "menu", icon: "☕", label: "จัดการเมนูสินค้า" },
+      { id: "procurement", icon: "🚚", label: "การจัดซื้อ", adminOnly: true },
     ],
   },
   {
     id: "settings",
-    icon: "⚙",
+    icon: "⚙️",
     label: "การตั้งค่าร้าน",
     description: "กำหนดช่องทางขาย สมาชิก สิทธิ์ และการพิมพ์",
     items: [
-      { id: "sales-channels", icon: "◫", label: "จัดการช่องทางการขาย", adminOnly: true },
-      { id: "coupons", icon: "◇", label: "จัดการคูปอง", adminOnly: true },
-      { id: "loyalty-settings", icon: "★", label: "ตั้งค่าคะแนนสะสม", adminOnly: true },
-      { id: "loyalty-members", icon: "♙", label: "จัดการสมาชิก", adminOnly: true },
-      { id: "role-permissions", icon: "⚿", label: "จัดการสิทธิ์บทบาท", adminOnly: true },
-      { id: "audit-logs", icon: "◷", label: "ประวัติการแก้ไข", adminOnly: true },
-      { id: "printing", icon: "⎙", label: "ตั้งค่าการพิมพ์", adminOnly: true },
+      { id: "sales-channels", icon: "📱", label: "จัดการช่องทางการขาย", adminOnly: true },
+      { id: "coupons", icon: "🎟️", label: "จัดการคูปอง", adminOnly: true },
+      { id: "loyalty-settings", icon: "⭐", label: "ตั้งค่าคะแนนสะสม", adminOnly: true },
+      { id: "loyalty-members", icon: "👥", label: "จัดการสมาชิก", adminOnly: true },
+      { id: "role-permissions", icon: "🔐", label: "จัดการสิทธิ์บทบาท", adminOnly: true },
+      { id: "audit-logs", icon: "🕘", label: "ประวัติการแก้ไข", adminOnly: true },
+      { id: "printing", icon: "🖨️", label: "ตั้งค่าการพิมพ์", adminOnly: true },
     ],
   },
   {
     id: "finance",
-    icon: "฿",
+    icon: "💰",
     label: "การเงินและรายงาน",
     description: "ติดตามยอดขาย ค่าใช้จ่าย และผลประกอบการ",
     items: [
-      { id: "finance", icon: "฿", label: "ข้อมูลการเงิน" },
-      { id: "business-reports", icon: "▥", label: "รายงานเชิงธุรกิจ", adminOnly: true },
+      { id: "finance", icon: "💳", label: "ข้อมูลการเงิน" },
+      { id: "business-reports", icon: "📈", label: "รายงานเชิงธุรกิจ", adminOnly: true },
     ],
   },
 ];
@@ -223,7 +223,7 @@ function AdminHomePage({ groups, onNavigate }) {
             onClick={() => onNavigate(categoryViewId(group.id))}
           >
             <div className="flex items-start justify-between gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-100 text-lg font-bold text-sky-700">{group.icon}</span>
+              <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-sky-100 text-3xl shadow-sm ring-1 ring-sky-200/70" aria-hidden="true">{group.icon}</span>
               <span className="text-sm font-bold text-sky-700 transition group-hover:translate-x-0.5">เปิด →</span>
             </div>
             <h2 className="mt-4 text-base font-bold text-slate-900">{group.label}</h2>
@@ -236,13 +236,12 @@ function AdminHomePage({ groups, onNavigate }) {
   );
 }
 
-function CategoryHubPage({ group, onNavigate, onBack }) {
+function CategoryHubPage({ group, onNavigate }) {
   return (
     <div className="space-y-5">
       <Heading
         title={group.label}
         description={group.description}
-        action={<Button type="button" variant="secondary" onClick={onBack}>← หน้าหลัก</Button>}
       />
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {group.items.map((item) => (
@@ -253,7 +252,7 @@ function CategoryHubPage({ group, onNavigate, onBack }) {
             onClick={() => onNavigate(item.id)}
           >
             <div className="flex items-center justify-between gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-100 text-lg font-bold text-sky-700">{item.icon}</span>
+              <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-sky-100 text-3xl shadow-sm ring-1 ring-sky-200/70" aria-hidden="true">{item.icon}</span>
               <span className="text-sm font-bold text-sky-700 transition group-hover:translate-x-0.5">เปิด →</span>
             </div>
             <h2 className="mt-4 text-base font-bold text-slate-900">{item.label}</h2>
@@ -6093,13 +6092,20 @@ export default function GlassLayout({
   const activeCategoryGroup = visibleNavigationGroups.find(
     (group) => activeView === categoryViewId(group.id),
   );
+  const currentNavigationGroup = visibleNavigationGroups.find(
+    (group) => group.items.some((item) => item.id === activeView || (item.id === "pos" && activeView === "orders")),
+  );
+  const backView = activeCategoryGroup
+    ? "home"
+    : currentNavigationGroup
+      ? categoryViewId(currentNavigationGroup.id)
+      : "home";
   const content =
     activeView === "home" ? (
       <AdminHomePage groups={visibleNavigationGroups} onNavigate={setActiveView} />
     ) : activeCategoryGroup ? (
       <CategoryHubPage
         group={activeCategoryGroup}
-        onBack={() => setActiveView("home")}
         onNavigate={setActiveView}
       />
     ) : activeView === "cash-shifts" && user?.role === "admin" ? (
@@ -6262,6 +6268,16 @@ export default function GlassLayout({
             <strong className="truncate text-slate-900">STOCKPOS</strong>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {activeView !== "home" ? (
+              <button
+                aria-label="ย้อนกลับ"
+                className="rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-700 shadow-sm transition hover:bg-sky-50 focus:outline-none focus:ring-4 focus:ring-sky-100 sm:text-sm"
+                type="button"
+                onClick={() => setActiveView(backView)}
+              >
+                <span aria-hidden="true">←</span><span className="ml-1 hidden sm:inline">ย้อนกลับ</span>
+              </button>
+            ) : null}
             <button
               aria-label="กลับหน้าหลัก"
               className="rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-700 shadow-sm transition hover:bg-sky-50 focus:outline-none focus:ring-4 focus:ring-sky-100 sm:text-sm"
