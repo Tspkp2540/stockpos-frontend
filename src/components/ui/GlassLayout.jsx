@@ -15,6 +15,8 @@ import { loadPosMenuUsage, recordPosMenuUsage } from "../../utils/posMenuUsage";
 import { productForChannel } from "../../utils/channelMenu";
 import { useActionDialog } from "./ActionDialog";
 
+// Keep the 3D workspace available for the next design phase without loading it in production now.
+const ENABLE_OPERATIONS_ROOM_3D = false;
 const OperationsRoom3D = lazy(() => import("./OperationsRoom3D"));
 
 const navigationGroups = [
@@ -5827,20 +5829,22 @@ function OperationsPage({ orders, inventoryRows, expenseRows, isAdmin }) {
         </div>
       </section>
 
-      <LiveWorkflowRoom
-        todayOrders={todayOrders.length}
-        pendingOrders={pendingOrders.length}
-        lowStockRows={lowStockRows.length}
-        inventoryRows={inventoryRows}
-        activeOrders={pendingOrders}
-        financialSummary={{
-          revenue: netToday,
-          expenses: expenseTotal,
-          profit: profitToday,
-        }}
-        profitToday={profitToday}
-        isAdmin={isAdmin}
-      />
+      {ENABLE_OPERATIONS_ROOM_3D ? (
+        <LiveWorkflowRoom
+          todayOrders={todayOrders.length}
+          pendingOrders={pendingOrders.length}
+          lowStockRows={lowStockRows.length}
+          inventoryRows={inventoryRows}
+          activeOrders={pendingOrders}
+          financialSummary={{
+            revenue: netToday,
+            expenses: expenseTotal,
+            profit: profitToday,
+          }}
+          profitToday={profitToday}
+          isAdmin={isAdmin}
+        />
+      ) : null}
 
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         <OperationsZone
