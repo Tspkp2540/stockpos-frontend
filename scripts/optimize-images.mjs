@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 const assetDirectory = fileURLToPath(new URL("../src/assets/", import.meta.url));
-const maxWidth = 1600;
-const quality = 82;
+const maxWidth = 900;
+const quality = 76;
 const files = (await readdir(assetDirectory)).filter((file) => /\.png$/i.test(file));
 
 for (const file of files) {

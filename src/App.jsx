@@ -215,7 +215,7 @@ function AppContent() {
   const { confirmAction, showMessage } = useActionDialog();
   const [session, setSession] = useState(loadSession);
   const [anonymousMode, setAnonymousMode] = useState(true);
-  const [activeView, setActiveView] = useState("operations");
+  const [activeView, setActiveView] = useState("home");
   const [orders, setOrders] = useState(initialOrders);
   const [restocked, setRestocked] = useState([]);
   const [notice, setNotice] = useState("LIVE SYNC · 14:32:08");
@@ -466,7 +466,7 @@ function AppContent() {
     };
     window.localStorage.setItem(SESSION_KEY, JSON.stringify(account));
     setSession(account);
-    setActiveView(account.role === "admin" ? "operations" : "pos");
+    setActiveView(account.role === "admin" ? "home" : "pos");
   };
   const login = async (credentials) => {
     try {
@@ -503,7 +503,7 @@ function AppContent() {
     delete axios.defaults.headers.common.Authorization;
     setSession(null);
     setAnonymousMode(true);
-    setActiveView("operations");
+    setActiveView("home");
     setCurrentShift(null);
     setCashShifts([]);
     setSalesBreakdown({ channels: [], payments: [] });

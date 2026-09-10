@@ -20,12 +20,16 @@ const OperationsRoom3D = lazy(() => import("./OperationsRoom3D"));
 const navigationGroups = [
   {
     id: "overview",
+    icon: "◉",
     label: "ภาพรวมการดำเนินงาน",
+    description: "ติดตามภาพรวมร้านและงานที่ต้องดูแล",
     items: [{ id: "operations", icon: "◉", label: "ภาพรวมการดำเนินงานร้าน" }],
   },
   {
     id: "counter",
+    icon: "▣",
     label: "การขายหน้าร้าน",
+    description: "ขาย รับชำระ จัดคิว และเตรียมสินค้า",
     items: [
       { id: "pos", icon: "▣", label: "การขายและคำสั่งซื้อ" },
       { id: "kitchen", icon: "☕", label: "หน้าจอเตรียมสินค้า" },
@@ -34,7 +38,9 @@ const navigationGroups = [
   },
   {
     id: "stock",
+    icon: "□",
     label: "สินค้าและสินค้าคงคลัง",
+    description: "จัดการเมนู วัตถุดิบ และการจัดซื้อ",
     items: [
       { id: "alerts", icon: "⚠", label: "การแจ้งเตือน" },
       { id: "inventory", icon: "□", label: "จัดการวัตถุดิบ" },
@@ -44,7 +50,9 @@ const navigationGroups = [
   },
   {
     id: "settings",
+    icon: "⚙",
     label: "การตั้งค่าร้าน",
+    description: "กำหนดช่องทางขาย สมาชิก สิทธิ์ และการพิมพ์",
     items: [
       { id: "sales-channels", icon: "◫", label: "จัดการช่องทางการขาย", adminOnly: true },
       { id: "coupons", icon: "◇", label: "จัดการคูปอง", adminOnly: true },
@@ -57,13 +65,17 @@ const navigationGroups = [
   },
   {
     id: "finance",
+    icon: "฿",
     label: "การเงินและรายงาน",
+    description: "ติดตามยอดขาย ค่าใช้จ่าย และผลประกอบการ",
     items: [
       { id: "finance", icon: "฿", label: "ข้อมูลการเงิน" },
       { id: "business-reports", icon: "▥", label: "รายงานเชิงธุรกิจ", adminOnly: true },
     ],
   },
 ];
+
+const categoryViewId = (groupId) => `category-${groupId}`;
 
 const money = (amount) =>
   `฿${Number(amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
@@ -189,6 +201,63 @@ function Empty({ children }) {
   return (
     <div className="rounded-xl border border-dashed border-sky-200 bg-sky-50/50 p-5 text-center text-sm text-slate-500">
       {children}
+    </div>
+  );
+}
+
+function AdminHomePage({ groups, onNavigate }) {
+  return (
+    <div className="space-y-5">
+      <Heading
+        title="ศูนย์จัดการร้าน"
+        description="เลือกหมวดงานเพื่อเข้าสู่เมนูที่เกี่ยวข้อง"
+      />
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {groups.map((group) => (
+          <button
+            className="group rounded-2xl border border-sky-100 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-sky-100"
+            key={group.id}
+            type="button"
+            onClick={() => onNavigate(categoryViewId(group.id))}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-100 text-lg font-bold text-sky-700">{group.icon}</span>
+              <span className="text-sm font-bold text-sky-700 transition group-hover:translate-x-0.5">เปิด →</span>
+            </div>
+            <h2 className="mt-4 text-base font-bold text-slate-900">{group.label}</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{group.description}</p>
+            <p className="mt-3 text-xs font-semibold text-sky-700">{group.items.length} เมนู</p>
+          </button>
+        ))}
+      </section>
+    </div>
+  );
+}
+
+function CategoryHubPage({ group, onNavigate, onBack }) {
+  return (
+    <div className="space-y-5">
+      <Heading
+        title={group.label}
+        description={group.description}
+        action={<Button type="button" variant="secondary" onClick={onBack}>← หน้าหลัก</Button>}
+      />
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {group.items.map((item) => (
+          <button
+            className="group rounded-2xl border border-sky-100 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-sky-100"
+            key={item.id}
+            type="button"
+            onClick={() => onNavigate(item.id)}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-100 text-lg font-bold text-sky-700">{item.icon}</span>
+              <span className="text-sm font-bold text-sky-700 transition group-hover:translate-x-0.5">เปิด →</span>
+            </div>
+            <h2 className="mt-4 text-base font-bold text-slate-900">{item.label}</h2>
+          </button>
+        ))}
+      </section>
     </div>
   );
 }
@@ -5580,7 +5649,7 @@ function OperationsZone({
   };
   return (
     <article className="overflow-hidden rounded-3xl border border-sky-100 bg-white shadow-sm">
-      <div className="relative aspect-[4/3] min-h-60 overflow-hidden bg-sky-100">
+      <div className="relative aspect-[16/9] min-h-44 overflow-hidden bg-sky-100">
         <img
           className="h-full w-full object-cover"
           src={image}
@@ -6009,20 +6078,7 @@ export default function GlassLayout({
   onUpdateSales,
   onDeleteSales,
 }) {
-  const alertCount = storeAlertsFor({ products, inventoryRows, inventoryLots }).length;
-  const [expandedNavigationGroups, setExpandedNavigationGroups] = useState(() => {
-    const activeGroup = navigationGroups.find((group) => group.items.some((item) => (
-      item.id === activeView || (item.id === "pos" && activeView === "orders")
-    )));
-    return new Set(activeGroup ? [activeGroup.id] : []);
-  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const toggleNavigationGroup = (groupId) => setExpandedNavigationGroups((current) => {
-    const next = new Set(current);
-    if (next.has(groupId)) next.delete(groupId);
-    else next.add(groupId);
-    return next;
-  });
   const navigateFromMobileMenu = (view) => {
     setActiveView(view);
     setMobileMenuOpen(false);
@@ -6045,6 +6101,9 @@ export default function GlassLayout({
       }),
     }))
     .filter((group) => group.items.length);
+  const activeCategoryGroup = visibleNavigationGroups.find(
+    (group) => activeView === categoryViewId(group.id),
+  );
   const connectionLabel = ({
     online: "● ออนไลน์",
     checking: "◌ กำลังตรวจสอบ",
@@ -6054,7 +6113,15 @@ export default function GlassLayout({
   })[systemStatus?.state] || "◌ กำลังตรวจสอบ";
   const connectionTone = systemStatus?.state === "online" ? "text-emerald-700" : systemStatus?.state === "checking" ? "text-sky-700" : "text-rose-700";
   const content =
-    activeView === "cash-shifts" && user?.role === "admin" ? (
+    activeView === "home" ? (
+      <AdminHomePage groups={visibleNavigationGroups} onNavigate={setActiveView} />
+    ) : activeCategoryGroup ? (
+      <CategoryHubPage
+        group={activeCategoryGroup}
+        onBack={() => setActiveView("home")}
+        onNavigate={setActiveView}
+      />
+    ) : activeView === "cash-shifts" && user?.role === "admin" ? (
       <CashShiftPage
         currentShift={currentShift}
         shifts={cashShifts}
@@ -6215,28 +6282,24 @@ export default function GlassLayout({
           </div>
         </div>
         <nav className="mt-6 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+          <button
+            className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${activeView === "home" ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
+            type="button"
+            onClick={() => setActiveView("home")}
+          >
+            <span className="w-5 text-center">⌂</span><span>หน้าหลัก</span>
+          </button>
           {visibleNavigationGroups.map((group) => (
-            <section key={group.id}>
-              <button className="mb-2 flex w-full items-center justify-between rounded-lg px-2 py-1 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 transition hover:bg-sky-50 hover:text-sky-700" type="button" onClick={() => toggleNavigationGroup(group.id)} aria-expanded={expandedNavigationGroups.has(group.id)}>
-                <span>{group.label}</span><span className="text-sm leading-none">{expandedNavigationGroups.has(group.id) ? "⌃" : "⌄"}</span>
-              </button>
-              <div className={`grid gap-1.5 overflow-hidden transition-all ${expandedNavigationGroups.has(group.id) ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
-                {group.items.map((item) => {
-                  const selected = activeView === item.id || (item.id === "pos" && activeView === "orders");
-                  return (
-                    <button
-                      className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${selected ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
-                      key={item.id}
-                      onClick={() => setActiveView(item.id)}
-                    >
-                      <span className="w-5 text-center">{item.icon}</span>
-                      <span className="flex-1">{item.label}</span>
-                      {item.id === "alerts" && alertCount ? <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">{alertCount}</span> : null}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
+            <button
+              className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${activeView === categoryViewId(group.id) || group.items.some((item) => activeView === item.id || (item.id === "pos" && activeView === "orders")) ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
+              key={group.id}
+              type="button"
+              onClick={() => setActiveView(categoryViewId(group.id))}
+            >
+              <span className="w-5 text-center">{group.icon}</span>
+              <span className="flex-1">{group.label}</span>
+              <span className="text-sm">›</span>
+            </button>
           ))}
         </nav>
         <div className="mt-auto rounded-2xl border border-sky-100 bg-sky-50/80 p-4 shadow-sm">
@@ -6301,28 +6364,24 @@ export default function GlassLayout({
               <button aria-label="ปิดเมนู" className="grid h-9 w-9 place-items-center rounded-xl text-lg font-bold text-slate-500 hover:bg-sky-50 hover:text-sky-700" type="button" onClick={() => setMobileMenuOpen(false)}>×</button>
             </div>
             <nav className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+              <button
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${activeView === "home" ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
+                type="button"
+                onClick={() => navigateFromMobileMenu("home")}
+              >
+                <span className="w-5 text-center">⌂</span><span>หน้าหลัก</span>
+              </button>
               {visibleNavigationGroups.map((group) => (
-                <section key={group.id}>
-                  <button className="mb-1.5 flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 hover:bg-sky-50 hover:text-sky-700" type="button" onClick={() => toggleNavigationGroup(group.id)} aria-expanded={expandedNavigationGroups.has(group.id)}>
-                    <span>{group.label}</span><span className="text-sm leading-none">{expandedNavigationGroups.has(group.id) ? "⌃" : "⌄"}</span>
-                  </button>
-                  <div className={`grid gap-1.5 overflow-hidden transition-all ${expandedNavigationGroups.has(group.id) ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
-                    {group.items.map((item) => {
-                      const selected = activeView === item.id || (item.id === "pos" && activeView === "orders");
-                      return (
-                        <button
-                          className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${selected ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
-                          key={item.id}
-                          onClick={() => navigateFromMobileMenu(item.id)}
-                        >
-                          <span className="w-5 text-center">{item.icon}</span>
-                          <span className="flex-1">{item.label}</span>
-                          {item.id === "alerts" && alertCount ? <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${selected ? "bg-white/20 text-white" : "bg-rose-100 text-rose-700"}`}>{alertCount}</span> : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
+                <button
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${activeView === categoryViewId(group.id) || group.items.some((item) => activeView === item.id || (item.id === "pos" && activeView === "orders")) ? "bg-sky-600 text-white shadow-lg shadow-sky-200" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}
+                  key={group.id}
+                  type="button"
+                  onClick={() => navigateFromMobileMenu(categoryViewId(group.id))}
+                >
+                  <span className="w-5 text-center">{group.icon}</span>
+                  <span className="flex-1">{group.label}</span>
+                  <span className="text-sm">›</span>
+                </button>
               ))}
             </nav>
             <div className="mt-4 rounded-2xl border border-sky-100 bg-sky-50/80 p-3">
