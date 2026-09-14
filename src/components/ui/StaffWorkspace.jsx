@@ -40,6 +40,15 @@ const bangkokDate = (value) => {
   return `${part("year")}-${part("month")}-${part("day")}`;
 };
 
+function MenuThumbnail({ product, className = "h-8 w-8" }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const imageSource = product?.image_data || product?.image_url;
+  if (imageSource && !imageFailed) {
+    return <img alt="" className={`${className} shrink-0 rounded-lg border border-sky-100 object-cover`} loading="lazy" src={imageSource} onError={() => setImageFailed(true)} />;
+  }
+  return <span className={`grid ${className} shrink-0 place-items-center rounded-lg bg-sky-50 text-base`} aria-hidden="true">{product?.icon || "▦"}</span>;
+}
+
 function LowStockMenuAlert({ products }) {
   const lowStockMenus = products.filter((product) => menuAvailability(product).isLowStock);
   if (!lowStockMenus.length) return null;
@@ -747,6 +756,7 @@ export default function StaffWorkspace({
               </fieldset>
             </div>
 
+            <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.42fr)]">
             <div className="shop-panel rounded-2xl border p-4 sm:p-5">
               <div className="mb-4 flex items-center justify-between">
                 <div>
@@ -804,7 +814,7 @@ export default function StaffWorkspace({
                         type="button"
                         onClick={() => addProduct(product)}
                       >
-                        <span className="grid h-7 w-7 place-items-center rounded-md bg-amber-50">{product.icon || "▦"}</span>
+                        <MenuThumbnail product={product} className="h-7 w-7" />
                         <span className="min-w-0"><span className="block truncate">{product.name}</span><span className="text-sky-700">{money(product.price_retail)}</span></span>
                       </button>
                     ))}
@@ -821,9 +831,7 @@ export default function StaffWorkspace({
                       key={product.id}
                       onClick={() => addProduct(product)}
                     >
-                      <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-base shadow-sm">
-                        {product.icon || "▦"}
-                      </span>
+                      <MenuThumbnail product={product} className="h-12 w-12 shadow-sm" />
                       <p className="mt-2 truncate text-sm font-bold text-slate-800">{product.name}</p>
                       <p className="mt-0.5 text-xs font-semibold text-sky-700">
                         {money(product.price_retail)}
@@ -836,6 +844,24 @@ export default function StaffWorkspace({
                 })}
               </div>
               {!visibleProducts.length ? <p className="py-4 text-center text-sm text-slate-500">ไม่พบเมนูที่ตรงกับการค้นหาหรือหมวดหมู่</p> : null}
+            </div>
+            <aside className="xl:sticky xl:top-24">
+              <div className="shop-panel overflow-hidden rounded-2xl border !p-0">
+                <div className="flex items-center justify-between border-b border-sky-100 bg-sky-50/70 px-4 py-3">
+                  <div><h2 className="font-bold text-slate-900">รายการที่เลือก</h2><p className="text-xs text-slate-500">ตรวจสอบก่อนชำระเงิน</p></div>
+                  <span className="rounded-full bg-sky-600 px-2.5 py-1 text-xs font-bold text-white">{cartItemCount} ชิ้น</span>
+                </div>
+                <div className="max-h-[42vh] space-y-2 overflow-y-auto p-3">
+                  {cart.length ? cart.map((item) => (
+                    <article className="rounded-xl border border-sky-100 bg-white p-2.5" key={item.cart_key}>
+                      <div className="flex items-start gap-2"><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{item.name}</p>{item.modifiers?.length ? <p className="mt-0.5 truncate text-xs text-violet-700">{item.modifiers.map((modifier) => modifier.name).join(" · ")}</p> : null}</div><strong className="shrink-0 text-sm text-sky-700">{money(Number(item.price) * Number(item.qty))}</strong></div>
+                      <div className="mt-2 flex items-center justify-between gap-2"><div className="inline-flex items-center rounded-lg border border-sky-100 bg-sky-50"><button aria-label={`ลดจำนวน ${item.name}`} className="h-7 w-7 text-sm font-bold text-sky-700 hover:bg-sky-100" type="button" onClick={() => item.qty <= 1 ? setCart((current) => current.filter((row) => row.cart_key !== item.cart_key)) : updateQuantity(item.cart_key, item.qty - 1)}>−</button><span className="min-w-7 text-center text-xs font-bold text-slate-700">{item.qty}</span><button aria-label={`เพิ่มจำนวน ${item.name}`} className="h-7 w-7 text-sm font-bold text-sky-700 hover:bg-sky-100" type="button" onClick={() => updateQuantity(item.cart_key, Number(item.qty) + 1)}>+</button></div><button className="text-xs font-bold text-rose-600 hover:text-rose-800" type="button" onClick={() => setCart((current) => current.filter((row) => row.cart_key !== item.cart_key))}>ลบ</button></div>
+                    </article>
+                  )) : <p className="rounded-xl border border-dashed border-sky-200 bg-sky-50/50 p-5 text-center text-sm text-slate-500">เลือกเมนูเพื่อเริ่มรายการขาย</p>}
+                </div>
+                <div className="border-t border-sky-100 bg-white p-3"><div className="flex items-center justify-between gap-3 text-sm"><span className="text-slate-500">ยอดสินค้า</span><strong className="text-lg text-sky-700">{money(subtotal)}</strong></div><Button className="mt-3 w-full" disabled={!cart.length} type="button" onClick={() => setCartOpen(true)}>ตรวจสอบและชำระเงิน</Button></div>
+              </div>
+            </aside>
             </div>
           </div>
 

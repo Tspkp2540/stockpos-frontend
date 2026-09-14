@@ -183,6 +183,62 @@ function Status({ status }) {
   );
 }
 
+function ProductVisual({ product, className = "h-10 w-10" }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const imageSource = product?.image_data || product?.image_url;
+  if (imageSource && !imageFailed) {
+    return (
+      <img
+        alt=""
+        className={`${className} shrink-0 rounded-lg border border-sky-100 bg-sky-50 object-cover`}
+        loading="lazy"
+        src={imageSource}
+        onError={() => setImageFailed(true)}
+      />
+    );
+  }
+  return (
+    <span className={`grid ${className} shrink-0 place-items-center rounded-lg bg-sky-50 text-lg`} aria-hidden="true">
+      {product?.icon || "▦"}
+    </span>
+  );
+}
+
+const compressMenuImage = (file) => new Promise((resolve, reject) => {
+  if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    reject(new Error("กรุณาเลือกไฟล์ JPG, PNG หรือ WebP"));
+    return;
+  }
+  if (file.size > 12 * 1024 * 1024) {
+    reject(new Error("รูปต้นฉบับต้องมีขนาดไม่เกิน 12 MB"));
+    return;
+  }
+  const objectUrl = URL.createObjectURL(file);
+  const image = new Image();
+  image.onload = () => {
+    URL.revokeObjectURL(objectUrl);
+    const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
+    const scale = longestSide > 640 ? 640 / longestSide : 1;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
+    for (const quality of [0.76, 0.64, 0.52]) {
+      const result = canvas.toDataURL("image/webp", quality);
+      if (result.startsWith("data:image/webp") && result.length <= 160000) {
+        resolve(result);
+        return;
+      }
+    }
+    reject(new Error("รูปมีรายละเอียดมากเกินไป กรุณาเลือกรูปอื่น"));
+  };
+  image.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    reject(new Error("ไม่สามารถอ่านไฟล์รูปภาพได้"));
+  };
+  image.src = objectUrl;
+});
+
 function Heading({ title, description, action }) {
   return (
     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -993,7 +1049,8 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
             </div>
           </fieldset>
         </Card>
-        <Card className="mt-5">
+        <div className="mt-5 grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.42fr)]">
+        <Card>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900">เมนูขาย</h2>
             <span className="text-sm text-slate-500">
@@ -1050,7 +1107,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
                     type="button"
                     onClick={() => addItem(product)}
                   >
-                    <span className="grid h-7 w-7 place-items-center rounded-md bg-amber-50">{product.icon || "▦"}</span>
+                    <ProductVisual product={product} className="h-7 w-7" />
                     <span className="min-w-0"><span className="block truncate">{product.name}</span><span className="text-sky-700">{money(product.price_retail)}</span></span>
                   </button>
                 ))}
@@ -1067,9 +1124,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
                   key={product.id}
                   onClick={() => addItem(product)}
                 >
-                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-base shadow-sm">
-                    {product.icon || "▦"}
-                  </span>
+                  <ProductVisual product={product} className="h-12 w-12 shadow-sm" />
                   <p className="mt-2 truncate text-sm font-bold text-slate-800">
                     {product.name}
                   </p>
@@ -1085,6 +1140,48 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
           </div>
           {!visibleProducts.length ? <Empty>ไม่พบเมนูที่ตรงกับการค้นหาหรือหมวดหมู่</Empty> : null}
         </Card>
+        <aside className="xl:sticky xl:top-24">
+          <Card className="overflow-hidden !p-0">
+            <div className="flex items-center justify-between border-b border-sky-100 bg-sky-50/70 px-4 py-3">
+              <div>
+                <h2 className="font-bold text-slate-900">รายการที่เลือก</h2>
+                <p className="text-xs text-slate-500">ตรวจสอบก่อนชำระเงิน</p>
+              </div>
+              <span className="rounded-full bg-sky-600 px-2.5 py-1 text-xs font-bold text-white">{cartItemCount} ชิ้น</span>
+            </div>
+            <div className="max-h-[42vh] space-y-2 overflow-y-auto p-3">
+              {cart.length ? cart.map((item) => (
+                <article className="rounded-xl border border-sky-100 bg-white p-2.5" key={item.cart_key}>
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-slate-800">{item.name}</p>
+                      {item.modifiers?.length ? <p className="mt-0.5 truncate text-xs text-violet-700">{item.modifiers.map((modifier) => modifier.name).join(" · ")}</p> : null}
+                    </div>
+                    <strong className="shrink-0 text-sm text-sky-700">{money(Number(item.price) * Number(item.qty))}</strong>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <div className="inline-flex items-center rounded-lg border border-sky-100 bg-sky-50">
+                      <button aria-label={`ลดจำนวน ${item.name}`} className="h-7 w-7 text-sm font-bold text-sky-700 hover:bg-sky-100" type="button" onClick={() => item.qty <= 1 ? setCart((current) => current.filter((row) => row.cart_key !== item.cart_key)) : changeQty(item.cart_key, item.qty - 1)}>−</button>
+                      <span className="min-w-7 text-center text-xs font-bold text-slate-700">{item.qty}</span>
+                      <button aria-label={`เพิ่มจำนวน ${item.name}`} className="h-7 w-7 text-sm font-bold text-sky-700 hover:bg-sky-100" type="button" onClick={() => changeQty(item.cart_key, Number(item.qty) + 1)}>+</button>
+                    </div>
+                    <button className="text-xs font-bold text-rose-600 hover:text-rose-800" type="button" onClick={() => setCart((current) => current.filter((row) => row.cart_key !== item.cart_key))}>ลบ</button>
+                  </div>
+                </article>
+              )) : <Empty>เลือกเมนูจากรายการด้านซ้าย</Empty>}
+            </div>
+            <div className="border-t border-sky-100 bg-white p-3">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-slate-500">ยอดสินค้า</span>
+                <strong className="text-lg text-sky-700">{money(subtotal)}</strong>
+              </div>
+              <Button className="mt-3 w-full" disabled={!cart.length} type="button" onClick={() => setCartOpen(true)}>
+                ตรวจสอบและชำระเงิน
+              </Button>
+            </div>
+          </Card>
+        </aside>
+        </div>
       </div>
       {cartOpen ? (
         <Modal label="ตะกร้าสินค้าและยืนยันออเดอร์" maxWidth="max-w-2xl" onClose={() => setCartOpen(false)}>
@@ -1945,6 +2042,8 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
     name: "",
     category: "",
     barcode: "",
+    image_url: "",
+    image_data: "",
     price_retail: "",
     price_wholesale: "",
     counts_as_loyalty_cup: false,
@@ -1955,6 +2054,17 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
   const [form, setForm] = useState(initial);
   const [editingId, setEditingId] = useState(null);
   const [menuModalOpen, setMenuModalOpen] = useState(false);
+  const selectMenuImage = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const imageData = await compressMenuImage(file);
+      setForm((current) => ({ ...current, image_data: imageData, image_url: "" }));
+    } catch (error) {
+      showMessage({ tone: "danger", title: "ใช้รูปเมนูไม่ได้", message: error.message });
+    }
+  };
   const addRecipe = () =>
     setForm((current) => ({
       ...current,
@@ -2060,6 +2170,8 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
       name: product.name || "",
       category: product.category || "",
       barcode: product.barcode || "",
+      image_url: product.image_url || "",
+      image_data: product.image_data || "",
       price_retail: product.price_retail || "",
       price_wholesale: product.price_wholesale || "",
       counts_as_loyalty_cup: product.counts_as_loyalty_cup === true,
@@ -2121,9 +2233,7 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
                     key={product.id}
                   >
                   <div className="flex items-start gap-2">
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-50 text-lg">
-                      {product.icon || "▦"}
-                    </span>
+                    <ProductVisual product={product} className="h-12 w-12" />
                     <div className="min-w-0 flex-1">
                       <h3 className="truncate text-sm font-bold text-slate-900">
                         {product.name}
@@ -2226,6 +2336,17 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
                     }
                     placeholder="สแกนหรือกรอกรหัสสินค้า"
                   />
+                </label>
+                <label className={`${labelClass} sm:col-span-2`}>
+                  รูปเมนู <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+                  <input
+                    className={inputClass}
+                    accept="image/jpeg,image/png,image/webp"
+                    type="file"
+                    onChange={selectMenuImage}
+                  />
+                  <span className="font-normal text-slate-500">ระบบย่อรูปเป็น WebP ขนาดไม่เกิน 640 px และเก็บไม่เกิน 120 KB ต่อรูป</span>
+                  {form.image_data || form.image_url ? <div className="mt-1 flex items-end gap-3"><img alt="ตัวอย่างรูปเมนู" className="h-28 w-28 rounded-xl border border-sky-100 object-cover" src={form.image_data || form.image_url} /><Button className="text-xs" type="button" variant="secondary" onClick={() => setForm((current) => ({ ...current, image_data: "", image_url: "" }))}>ลบรูป</Button></div> : null}
                 </label>
                 <label className={labelClass}>
                   ราคาขาย
