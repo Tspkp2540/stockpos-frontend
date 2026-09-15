@@ -1,21 +1,10 @@
 import { useMemo, useState } from "react";
 import customerOrderHistory from "../../assets/customer-order-history.webp";
 import { maskPhone } from "../../utils/phone";
+import { orderStatusClass, orderStatusLabel } from "../../utils/orderStatus";
 
 const money = (amount) =>
   `฿${Number(amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
-const statusLabel = (status) =>
-  status === "COMPLETED"
-    ? "เสร็จสิ้น"
-    : status === "CANCELLED"
-      ? "ยกเลิก"
-      : "กำลังดำเนินการ";
-const statusClass = (status) =>
-  status === "COMPLETED"
-    ? "bg-emerald-50 text-emerald-700"
-    : status === "CANCELLED"
-      ? "bg-rose-50 text-rose-700"
-      : "bg-amber-50 text-amber-700";
 const dateLabel = (value) =>
   value
     ? new Intl.DateTimeFormat("th-TH", {
@@ -158,9 +147,9 @@ export default function UserOrderStatus({ user, orders, loyalty, onRefreshLoyalt
                       </p>
                     </div>
                     <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusClass(order.status)}`}
+                      className={`rounded-full px-2.5 py-1 text-xs font-bold ${orderStatusClass(order.status)}`}
                     >
-                      {statusLabel(order.status)}
+                      {orderStatusLabel(order.status)}
                     </span>
                   </div>
                   <div className="mt-4 border-y border-sky-50 py-3">

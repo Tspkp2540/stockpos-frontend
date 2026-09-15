@@ -13,6 +13,7 @@ import { loadPrintSettings, savePrintSettings } from "../../utils/printSettings"
 import { printCashShiftSummary } from "../../utils/printCashShiftSummary";
 import { loadPosMenuFavorites, loadPosMenuUsage, recordPosMenuUsage, togglePosMenuFavorite } from "../../utils/posMenuUsage";
 import { productForChannel } from "../../utils/channelMenu";
+import { orderStatusClass, orderStatusLabel } from "../../utils/orderStatus";
 import { useActionDialog } from "./ActionDialog";
 
 // Keep the 3D workspace available for the next design phase without loading it in production now.
@@ -167,18 +168,28 @@ function Modal({ children, onClose, label = "หน้าต่างจัด�
   );
 }
 
+function FormSection({ title, description, children, className = "" }) {
+  return (
+    <section className={`rounded-2xl border border-sky-100 bg-sky-50/35 p-3.5 sm:p-4 ${className}`}>
+      <div className="mb-3">
+        <h3 className="text-sm font-bold text-slate-800">{title}</h3>
+        {description ? <p className="mt-0.5 text-xs leading-5 text-slate-500">{description}</p> : null}
+      </div>
+      <div className="grid gap-3">{children}</div>
+    </section>
+  );
+}
+
+function RequiredMark() {
+  return <span className="text-rose-600" aria-label="จำเป็น">*</span>;
+}
+
 function Status({ status }) {
-  const styles =
-    status === "COMPLETED"
-      ? "bg-emerald-50 text-emerald-700"
-      : status === "CANCELLED"
-        ? "bg-rose-50 text-rose-700"
-        : "bg-amber-50 text-amber-700";
   return (
     <span
-      className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${styles}`}
+      className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${orderStatusClass(status)}`}
     >
-      {status}
+      {orderStatusLabel(status)}
     </span>
   );
 }
@@ -383,7 +394,7 @@ function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
     });
   };
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-24 xl:pb-0">
       <Heading
         title={preview ? "คำสั่งซื้อล่าสุด" : "รายการคำสั่งซื้อทั้งหมด"}
         description={preview ? `แสดง 5 รายการล่าสุดจากทั้งหมด ${orders.length} รายการ` : "ติดตามสถานะออเดอร์ทั้งหมดจากจุดเดียว"}
@@ -521,14 +532,14 @@ function KitchenDisplayPage({ orders, onUpdate }) {
     const rawItems = Array.isArray(order.rawItems) ? order.rawItems : [];
     const isReady = order.status === "READY";
     return (
-      <article className={`rounded-2xl border bg-white p-4 shadow-sm ${isReady ? "border-emerald-200" : "border-amber-200"}`}>
+      <article className={`rounded-2xl border bg-white p-4 shadow-sm ${isReady ? "border-emerald-200" : "border-sky-200"}`}>
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xl font-black text-slate-900">คิว {order.queue_no || "-"}</p>
             <p className="mt-1 text-xs font-semibold text-slate-500">#{order.order_no} · {elapsed(order)}</p>
           </div>
-          <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${isReady ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-            {isReady ? "พร้อมรับ" : "กำลังทำ"}
+          <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${orderStatusClass(order.status)}`}>
+            {orderStatusLabel(order.status)}
           </span>
         </div>
         <div className="mt-4 rounded-xl bg-slate-50 p-3">
@@ -565,8 +576,8 @@ function KitchenDisplayPage({ orders, onUpdate }) {
         action={<span className="rounded-full bg-sky-100 px-3 py-2 text-sm font-bold text-sky-700">{activeOrders.length} คิวที่ต้องดูแล</span>}
       />
       <div className="grid gap-5 xl:grid-cols-2">
-        <section className="rounded-3xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">
-          <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-amber-950">กำลังทำ</h2><span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-amber-700">{cooking.length}</span></div>
+        <section className="rounded-3xl border border-sky-200 bg-sky-50/60 p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-sky-950">กำลังทำ</h2><span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-sky-700">{cooking.length}</span></div>
           <div className="grid gap-3">{cooking.length ? cooking.map((order) => <Ticket key={order.id} order={order} />) : <Empty>ไม่มีคิวกำลังทำ</Empty>}</div>
         </section>
         <section className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-4 sm:p-5">
@@ -1215,6 +1226,11 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
         </aside>
         </div>
       </div>
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-sky-100 bg-white/95 p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur xl:hidden">
+        <Button className="w-full !py-3" disabled={!cart.length} type="button" onClick={openCart}>
+          <span className="flex items-center justify-between gap-3"><span>🛒 ตะกร้า {cartItemCount} ชิ้น</span><strong>{money(subtotal)} · ตรวจสอบ</strong></span>
+        </Button>
+      </div>
       {cartOpen ? (
         <Modal label="ตะกร้าสินค้าและยืนยันออเดอร์" maxWidth="max-w-2xl" onClose={() => setCartOpen(false)}>
         <Card className="max-h-[calc(100vh-2rem)] overflow-y-auto bg-white">
@@ -1490,7 +1506,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
               <strong className="text-2xl text-sky-700">{money(total)}</strong>
             </div>
             {paymentMethod === "CASH" && total > 0 && receivedAmount < total ? <p className="mb-2 text-xs font-semibold text-amber-700">กรอกยอดเงินสดที่รับอย่างน้อย {money(total)} ก่อนยืนยัน</p> : null}
-            <div className="flex gap-2"><Button className="shrink-0" type="button" variant="secondary" disabled={isSubmitting} onClick={() => setCheckoutStep(2)}>← ย้อนกลับ</Button><Button className="flex-1" disabled={!cart.length || isSubmitting} onClick={submit}>{isSubmitting ? "กำลังบันทึกออเดอร์..." : "ยืนยันออเดอร์"}</Button></div>
+            <div className="sticky bottom-0 z-10 -mx-4 flex gap-2 border-t border-sky-100 bg-white/95 px-4 pb-1 pt-3 backdrop-blur sm:-mx-5 sm:px-5"><Button className="shrink-0" type="button" variant="secondary" disabled={isSubmitting} onClick={() => setCheckoutStep(2)}>← ย้อนกลับ</Button><Button className="flex-1" disabled={!cart.length || isSubmitting} onClick={submit}>{isSubmitting ? "กำลังบันทึกออเดอร์..." : "ยืนยันออเดอร์"}</Button></div>
           </div> : null}
         </Card>
         </Modal>
@@ -1782,6 +1798,11 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
       ? await onUpdate(editingId, form)
       : await onCreate(form);
     if (saved) {
+      showMessage({
+        tone: "success",
+        title: editingId ? "บันทึกวัตถุดิบแล้ว" : "เพิ่มวัตถุดิบแล้ว",
+        message: editingId ? "ยอดคงเหลือและจุดแจ้งเตือนถูกอัปเดตแล้ว" : "รายการนี้แสดงในคลังและใช้สร้างสูตรเมนูได้ทันที",
+      });
       setForm(initial);
       setEditingId(null);
       setIngredientModalOpen(false);
@@ -1961,9 +1982,11 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
             <p className="mt-1 text-sm text-slate-500">
               กรอกข้อมูลให้ครบเพื่อบันทึกเข้าคลัง
             </p>
+            <p className="mt-1 text-xs font-medium text-slate-500"><RequiredMark /> ช่องจำเป็นต้องกรอกก่อนบันทึก</p>
             <form className="mt-5 grid gap-4" onSubmit={save}>
+              <FormSection title="ข้อมูลวัตถุดิบ" description="ชื่อ หน่วยนับ และยอดเริ่มต้นสำหรับติดตามในคลัง">
               <label className={labelClass}>
-                ชื่อวัตถุดิบ
+                ชื่อวัตถุดิบ <RequiredMark />
                 <input
                   className={inputClass}
                   value={form.name}
@@ -1974,7 +1997,7 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
               </label>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
                 <label className={labelClass}>
-                  หน่วยนับ
+                  หน่วยนับ <RequiredMark />
                   <input
                     className={inputClass}
                     value={form.unit}
@@ -1984,7 +2007,7 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
                   />
                 </label>
                 <label className={labelClass}>
-                  จำนวนคงเหลือ
+                  จำนวนคงเหลือ <RequiredMark />
                   <input
                     className={inputClass}
                     type="number"
@@ -2025,6 +2048,7 @@ function IngredientsPage({ rows, suppliers, receipts, lots, onCreate, onUpdate, 
                   onChange={updateField("expiry_date")}
                 />
               </label>
+              </FormSection>
               <div className="flex gap-2">
                 <Button className="flex-1" type="submit">
                   {editingId ? "บันทึกการแก้ไข" : "เพิ่มวัตถุดิบ"}
@@ -2189,6 +2213,11 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
       ? await onUpdate(editingId, form)
       : await onCreate(form);
     if (saved) {
+      showMessage({
+        tone: "success",
+        title: editingId ? "บันทึกเมนูแล้ว" : "เพิ่มเมนูแล้ว",
+        message: editingId ? "การเปลี่ยนแปลงจะแสดงใน POS ทันที" : "เมนูนี้แสดงใน POS ทันทีตามช่องทางขายที่เปิดไว้",
+      });
       setForm(initial);
       setEditingId(null);
       setMenuModalOpen(false);
@@ -2325,9 +2354,11 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
             <h2 className="text-lg font-bold text-slate-900">
               {editingId ? "แก้ไขเมนู" : "เพิ่มเมนู"}
             </h2>
+            <p className="mt-1 text-xs font-medium text-slate-500"><RequiredMark /> ช่องจำเป็นต้องกรอกก่อนบันทึก</p>
             <form className="mt-5 grid gap-4" onSubmit={save}>
+              <FormSection title="ข้อมูลเมนู" description="ชื่อ ราคา และรูปสำหรับแสดงที่หน้าขาย">
               <label className={labelClass}>
-                ชื่อเมนู
+                ชื่อเมนู <RequiredMark />
                 <input
                   className={inputClass}
                   value={form.name}
@@ -2383,7 +2414,7 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
                   {form.image_data || form.image_url ? <div className="mt-1 flex items-end gap-3"><img alt="ตัวอย่างรูปเมนู" className="h-28 w-28 rounded-xl border border-sky-100 object-cover" src={form.image_data || form.image_url} /><Button className="text-xs" type="button" variant="secondary" onClick={() => setForm((current) => ({ ...current, image_data: "", image_url: "" }))}>ลบรูป</Button></div> : null}
                 </label>
                 <label className={labelClass}>
-                  ราคาขาย
+                  ราคาขาย <RequiredMark />
                   <input
                     className={inputClass}
                     type="number"
@@ -2416,6 +2447,8 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
                   />
                 </label>
               </div>
+              </FormSection>
+              <FormSection title="การขายและคะแนนสะสม" description="กำหนดช่องทางที่ขายได้ และตั้งเมนูที่นับเป็นแก้วสะสมแต้ม">
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-cyan-100 bg-cyan-50/60 p-3 text-sm text-slate-700">
                 <input
                   className="mt-0.5 h-4 w-4 accent-sky-600"
@@ -2465,7 +2498,9 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
                   {!channels.length ? <p className="text-sm text-slate-500">ยังไม่มีช่องทางขาย ให้เพิ่มจากเมนู “ช่องทางขาย” ก่อน</p> : null}
                 </div>
               </div>
-              <div className="rounded-xl border border-sky-100 bg-sky-50/60 p-3">
+              </FormSection>
+              <FormSection title={<>สูตรวัตถุดิบ <RequiredMark /></>} description="ต้องมีวัตถุดิบอย่างน้อย 1 รายการก่อนบันทึก" className="!border-sky-200 !bg-sky-50/60">
+              <div>
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-bold text-slate-700">
                     สูตรวัตถุดิบ
@@ -2543,7 +2578,9 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
                   )}
                 </div>
               </div>
-              <div className="rounded-xl border border-violet-100 bg-violet-50/60 p-3">
+              </FormSection>
+              <FormSection title="ตัวเลือกเมนู" description="เช่น ความหวาน ขนาดแก้ว หรือท็อปปิ้ง เลือกเพิ่มได้ภายหลัง" className="!border-violet-100 !bg-violet-50/60">
+              <div>
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-sm font-bold text-slate-700">ตัวเลือกเมนู</p>
@@ -2641,6 +2678,7 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
                   {!form.modifiers.length ? <p className="text-sm text-slate-500">ยังไม่มีตัวเลือก เมนูนี้จะถูกเพิ่มลงตะกร้าทันที</p> : null}
                 </div>
               </div>
+              </FormSection>
               <div className="flex gap-2">
                 <Button className="flex-1" type="submit">
                   {editingId ? "บันทึกการแก้ไข" : "เพิ่มเมนู"}

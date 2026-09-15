@@ -2,19 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import guestOrderLookup from "../../assets/guest-order-lookup.webp";
 import { maskPhone } from "../../utils/phone";
+import { orderStatusClass, orderStatusLabel } from "../../utils/orderStatus";
 
-const statusLabel = (status) =>
-  status === "COMPLETED"
-    ? "เสร็จสิ้น"
-    : status === "CANCELLED"
-      ? "ยกเลิก"
-      : "กำลังดำเนินการ";
-const statusClass = (status) =>
-  status === "COMPLETED"
-    ? "bg-emerald-50 text-emerald-700"
-    : status === "CANCELLED"
-      ? "bg-rose-50 text-rose-700"
-      : "bg-amber-50 text-amber-700";
 const todayInBangkok = () => {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Bangkok",
@@ -212,9 +201,9 @@ export default function AnonymousOrderStatus({ apiBase, onBack }) {
                       </p>
                     </div>
                     <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusClass(order.status)}`}
+                      className={`rounded-full px-2.5 py-1 text-xs font-bold ${orderStatusClass(order.status)}`}
                     >
-                      {statusLabel(order.status)}
+                      {orderStatusLabel(order.status)}
                     </span>
                   </div>
                   <div className="mt-4 border-y border-sky-50 py-3">

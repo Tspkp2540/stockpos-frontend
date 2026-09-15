@@ -6,6 +6,7 @@ import { menuAvailability, menuAvailabilityLabel } from "../../utils/menuAvailab
 import { printReceipt } from "../../utils/printReceipt";
 import { loadPosMenuFavorites, loadPosMenuUsage, recordPosMenuUsage, togglePosMenuFavorite } from "../../utils/posMenuUsage";
 import { productForChannel } from "../../utils/channelMenu";
+import { orderStatusClass, orderStatusLabel } from "../../utils/orderStatus";
 import { useActionDialog } from "./ActionDialog";
 
 const money = (amount) =>
@@ -21,12 +22,6 @@ const paymentOptions = [
   ["CARD", "บัตร"],
   ["OTHER", "อื่น ๆ"],
 ];
-const statusClass = (status) =>
-  status === "COMPLETED"
-    ? "bg-emerald-50 text-emerald-700"
-    : status === "CANCELLED"
-      ? "bg-rose-50 text-rose-700"
-      : "bg-amber-50 text-amber-700";
 const bangkokDate = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -514,8 +509,8 @@ export default function StaffWorkspace({
             {order.customer_nickname || "ไม่ระบุชื่อเล่น"} · {order.channel_name}
           </p>
         </div>
-        <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${statusClass(order.status)}`}>
-          {order.status}
+        <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${orderStatusClass(order.status)}`}>
+          {orderStatusLabel(order.status)}
         </span>
       </div>
       <div className="mt-3 line-clamp-2"><ItemList items={order.items} /></div>
@@ -631,7 +626,7 @@ export default function StaffWorkspace({
         </div>
       </header>
 
-      <main className="relative mx-auto w-full max-w-[1440px] space-y-5 p-4 pb-10 sm:p-6">
+      <main className="relative mx-auto w-full max-w-[1440px] space-y-5 p-4 pb-24 sm:p-6 xl:pb-10">
         <section className="relative overflow-hidden rounded-3xl border border-sky-200 bg-gradient-to-r from-sky-700 via-sky-600 to-cyan-500 p-5 text-white shadow-xl shadow-sky-200/60 sm:p-7">
           <div className="relative z-10 max-w-2xl sm:max-w-[64%] xl:max-w-2xl">
             <h1 className="text-2xl font-bold sm:text-3xl">การขายและคำสั่งซื้อ</h1>
@@ -882,6 +877,12 @@ export default function StaffWorkspace({
             </div>
           </div>
 
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-sky-100 bg-white/95 p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur xl:hidden">
+            <Button className="w-full !py-3" disabled={!cart.length} type="button" onClick={openCart}>
+              <span className="flex items-center justify-between gap-3"><span>🛒 ตะกร้า {cartItemCount} ชิ้น</span><strong>{money(subtotal)} · ตรวจสอบ</strong></span>
+            </Button>
+          </div>
+
           {cartOpen ? (
             <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-sm sm:p-6" onMouseDown={() => setCartOpen(false)}>
               <div className="flex min-h-full items-center justify-center">
@@ -1082,7 +1083,7 @@ export default function StaffWorkspace({
                   <strong className="text-2xl text-sky-700">{money(total)}</strong>
                 </div>
                 {paymentMethod === "CASH" && total > 0 && receivedAmount < total ? <p className="mb-2 text-xs font-semibold text-amber-700">กรอกยอดเงินสดที่รับอย่างน้อย {money(total)} ก่อนยืนยัน</p> : null}
-                <div className="flex gap-2"><Button className="shrink-0" type="button" variant="secondary" disabled={isSubmitting} onClick={() => setCheckoutStep(2)}>← ย้อนกลับ</Button><Button className="flex-1" disabled={!cart.length || isSubmitting} onClick={submit}>{isSubmitting ? "กำลังบันทึกออเดอร์..." : "ยืนยันคำสั่งซื้อ"}</Button></div>
+                <div className="sticky bottom-0 z-10 -mx-4 flex gap-2 border-t border-sky-100 bg-white/95 px-4 pb-1 pt-3 backdrop-blur sm:-mx-5 sm:px-5"><Button className="shrink-0" type="button" variant="secondary" disabled={isSubmitting} onClick={() => setCheckoutStep(2)}>← ย้อนกลับ</Button><Button className="flex-1" disabled={!cart.length || isSubmitting} onClick={submit}>{isSubmitting ? "กำลังบันทึกออเดอร์..." : "ยืนยันคำสั่งซื้อ"}</Button></div>
               </div> : null}
                   </div>
                 </section>
