@@ -568,9 +568,11 @@ function AppContent() {
     }
     return [];
   };
-  const loadAuditLogs = async (limit = 100) => {
+  const loadAuditLogs = async (limit = 100, filters = {}) => {
     try {
-      const response = await axios.get(`${API_BASE}/api/admin/audit-logs`, { params: { limit, scope: "important" } });
+      const response = await axios.get(`${API_BASE}/api/admin/audit-logs`, {
+        params: { limit, scope: "important", ...filters },
+      });
       return response.data?.success && Array.isArray(response.data.data) ? response.data.data : [];
     } catch (error) {
       showError(error, "ไม่สามารถโหลดประวัติการแก้ไขได้");

@@ -4309,16 +4309,34 @@ function RolePermissionsPage({ profiles, users, onRefresh, onSave, onCreate, onD
 function AuditLogPage({ onLoad }) {
   const [logs, setLogs] = useState([]);
   const [filter, setFilter] = useState("ALL");
+  const [search, setSearch] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [detailItem, setDetailItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const refresh = async () => {
     setLoading(true);
-    const nextLogs = await onLoad?.(100);
+    const nextLogs = await onLoad?.(200, {
+      scope: "all",
+      search: search.trim() || undefined,
+      from: from || undefined,
+      to: to || undefined,
+    });
     setLogs(Array.isArray(nextLogs) ? nextLogs : []);
     setLoading(false);
   };
   useEffect(() => { refresh(); }, [onLoad]);
   const eventFor = (item) => {
     const resource = String(item.resource || "");
+    if (item.action === "DELETE") {
+      if (resource === "admin/loyalty-members") return { key: "DELETE", label: "ลบสมาชิก" };
+      if (resource === "admin/role-permissions") return { key: "DELETE", label: "ลบบทบาท" };
+      if (resource.startsWith("products/")) return { key: "DELETE", label: "ลบเมนูสินค้า" };
+      if (resource.startsWith("inventory/")) return { key: "DELETE", label: "ลบวัตถุดิบ" };
+      if (resource.startsWith("expenses/")) return { key: "DELETE", label: "ลบค่าใช้จ่าย" };
+      if (resource.startsWith("orders/")) return { key: "DELETE", label: "ลบคำสั่งซื้อ" };
+      return { key: "DELETE", label: `ลบข้อมูล · ${resource}` };
+    }
     if (resource === "admin/loyalty-members") return { key: "LOYALTY", label: item.action === "DELETE" ? "ลบสมาชิก" : "แก้ไขข้อมูลหรือคะแนนสมาชิก" };
     if (resource === "admin/users") return { key: "ROLE", label: "เปลี่ยนบทบาทผู้ใช้งาน" };
     if (resource.startsWith("products/")) return { key: "PRICE", label: "แก้ไขราคาเมนู" };
@@ -4327,7 +4345,12 @@ function AuditLogPage({ onLoad }) {
   };
   const detailFor = (item) => {
     const details = item.request_summary && typeof item.request_summary === "object" ? item.request_summary : {};
+    const deleted = details.deleted && typeof details.deleted === "object" ? details.deleted : null;
     const resource = String(item.resource || "");
+    if (deleted) {
+      const title = deleted.name || deleted.display_name || deleted.customer_name || deleted.order_no || deleted.category || deleted.role || deleted.id;
+      return `ลบ ${title || "ข้อมูล"} · เก็บรายละเอียดเดิมแล้ว`;
+    }
     if (resource === "admin/loyalty-members") return [details.customer_name, details.customer_phone, details.points_balance !== undefined ? `คะแนน ${details.points_balance}` : ""].filter(Boolean).join(" · ") || "อัปเดตข้อมูลสมาชิก";
     if (resource === "admin/users") return details.role_key ? `กำหนดบทบาท ${details.role_key}` : "อัปเดตบทบาทบัญชี";
     if (resource.startsWith("products/")) return details.price_retail !== undefined ? `ราคาขาย ${money(details.price_retail)}` : "อัปเดตเมนูสินค้า";
@@ -4335,13 +4358,31 @@ function AuditLogPage({ onLoad }) {
     return "อัปเดตข้อมูล";
   };
   const visibleLogs = logs.filter((item) => filter === "ALL" || eventFor(item).key === filter);
+  const clearFilters = async () => {
+    setSearch("");
+    setFrom("");
+    setTo("");
+    setLoading(true);
+    const nextLogs = await onLoad?.(200, { scope: "all" });
+    setLogs(Array.isArray(nextLogs) ? nextLogs : []);
+    setLoading(false);
+  };
   return (
     <section className="space-y-5">
       <Heading title="ประวัติการแก้ไขข้อมูลสำคัญ" description="ติดตามการแก้คะแนนสมาชิก เปลี่ยนบทบาท ลบสมาชิก แก้ราคา และคำสั่งซื้อย้อนหลัง" action={<Button type="button" variant="secondary" onClick={refresh} disabled={loading}>{loading ? "กำลังโหลด..." : "รีเฟรช"}</Button>} />
       <Card>
-        <div className="flex flex-wrap gap-2">{[["ALL", "ทั้งหมด"], ["LOYALTY", "สมาชิกและคะแนน"], ["ROLE", "บทบาท"], ["PRICE", "ราคาเมนู"], ["ORDER", "คำสั่งซื้อ"]].map(([key, label]) => <Button key={key} type="button" className="text-xs" variant={filter === key ? "primary" : "secondary"} onClick={() => setFilter(key)}>{label}</Button>)}</div>
-        <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead><tr className="border-b border-sky-100 text-left text-xs text-slate-500"><th className="p-3">เหตุการณ์</th><th className="p-3">รายละเอียด</th><th className="p-3">ผู้ดำเนินการ</th><th className="p-3">เวลา</th></tr></thead><tbody>{visibleLogs.length ? visibleLogs.map((item) => { const event = eventFor(item); return <tr className="border-b border-slate-100" key={item.id}><td className="p-3 font-semibold text-slate-800">{event.label}</td><td className="p-3 text-slate-600">{detailFor(item)}</td><td className="p-3 text-slate-600">{item.actor_name || "ระบบ"}</td><td className="p-3 whitespace-nowrap text-slate-500">{dateTimeLabel(item.created_at)}</td></tr>; }) : <tr><td className="p-8 text-center text-slate-500" colSpan="4">{loading ? "กำลังโหลดประวัติ..." : "ยังไม่มีประวัติที่ตรงกับตัวกรอง"}</td></tr>}</tbody></table></div>
+        <form className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_170px_170px_auto_auto]" onSubmit={(event) => { event.preventDefault(); refresh(); }}>
+          <input aria-label="ค้นหาประวัติการแก้ไข" className={inputClass} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาผู้ใช้ รายการ เลขอ้างอิง หรือข้อมูลเดิม" />
+          <input aria-label="วันที่เริ่มต้น" className={inputClass} type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+          <input aria-label="วันที่สิ้นสุด" className={inputClass} type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+          <Button type="submit" disabled={loading}>ค้นหา</Button>
+          <Button type="button" variant="secondary" onClick={clearFilters}>ล้าง</Button>
+        </form>
+        <div className="mt-4 flex flex-wrap gap-2">{[["ALL", "ทั้งหมด"], ["DELETE", "รายการที่ลบ"], ["LOYALTY", "สมาชิกและคะแนน"], ["ROLE", "บทบาท"], ["PRICE", "ราคาเมนู"], ["ORDER", "คำสั่งซื้อ"]].map(([key, label]) => <Button key={key} type="button" className="text-xs" variant={filter === key ? "primary" : "secondary"} onClick={() => setFilter(key)}>{label}</Button>)}</div>
+        <p className="mt-3 text-xs text-slate-500">พบ {visibleLogs.length} รายการ · รายการที่ลบหลังจากอัปเดตระบบนี้จะแสดงข้อมูลก่อนลบให้ตรวจสอบได้</p>
+        <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[780px] text-sm"><thead><tr className="border-b border-sky-100 text-left text-xs text-slate-500"><th className="p-3">เหตุการณ์</th><th className="p-3">รายละเอียด</th><th className="p-3">ผู้ดำเนินการ</th><th className="p-3">เวลา</th><th className="p-3"></th></tr></thead><tbody>{visibleLogs.length ? visibleLogs.map((item) => { const event = eventFor(item); const hasSnapshot = Boolean(item.request_summary?.deleted); return <tr className="border-b border-slate-100" key={item.id}><td className="p-3 font-semibold text-slate-800">{event.label}</td><td className="max-w-xs p-3 text-slate-600">{detailFor(item)}</td><td className="p-3 text-slate-600">{item.actor_name || "ระบบ"}</td><td className="p-3 whitespace-nowrap text-slate-500">{dateTimeLabel(item.created_at)}</td><td className="p-3">{hasSnapshot ? <Button type="button" className="whitespace-nowrap text-xs" variant="secondary" onClick={() => setDetailItem(item)}>ดูข้อมูลเดิม</Button> : null}</td></tr>; }) : <tr><td className="p-8 text-center text-slate-500" colSpan="5">{loading ? "กำลังโหลดประวัติ..." : "ยังไม่มีประวัติที่ตรงกับตัวกรอง"}</td></tr>}</tbody></table></div>
       </Card>
+      {detailItem ? <Modal label="ข้อมูลก่อนลบ" maxWidth="max-w-3xl" onClose={() => setDetailItem(null)}><Card className="max-h-[calc(100vh-2rem)] overflow-y-auto bg-white"><h2 className="text-lg font-bold text-slate-900">ข้อมูลก่อนลบ</h2><p className="mt-1 text-sm text-slate-500">{eventFor(detailItem).label} · {dateTimeLabel(detailItem.created_at)}</p><pre className="mt-4 overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-100">{JSON.stringify(detailItem.request_summary?.deleted || {}, null, 2)}</pre></Card></Modal> : null}
     </section>
   );
 }
@@ -4650,6 +4691,7 @@ function ReportChange({ current, previous }) {
 function ManagementReportPanel({ onLoad }) {
   const [from, setFrom] = useState(() => firstDayOfMonth(todayInBangkok()));
   const [to, setTo] = useState(todayInBangkok);
+  const [reportSearch, setReportSearch] = useState("");
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -4689,6 +4731,16 @@ function ManagementReportPanel({ onLoad }) {
   const channelMetrics = Array.isArray(report?.channel_metrics) ? report.channel_metrics : [];
   const hourlySales = Array.isArray(report?.hourly_sales) ? report.hourly_sales : [];
   const inventoryUsage = Array.isArray(report?.inventory_usage) ? report.inventory_usage : [];
+  const reportQuery = reportSearch.trim().toLowerCase();
+  const matchesReportSearch = (item) => !reportQuery || Object.values(item || {})
+    .filter((value) => typeof value === "string" || typeof value === "number")
+    .join(" ")
+    .toLowerCase()
+    .includes(reportQuery);
+  const visibleTopProducts = topProducts.filter(matchesReportSearch);
+  const visibleProductMetrics = productMetrics.filter(matchesReportSearch);
+  const visibleChannelMetrics = channelMetrics.filter(matchesReportSearch);
+  const visibleInventoryUsage = inventoryUsage.filter(matchesReportSearch);
   const highestDailySales = Math.max(1, ...daily.map((item) => Number(item.net_revenue || 0)));
   const highestHourlySales = Math.max(1, ...hourlySales.map((item) => Number(item.net_revenue || 0)));
   const peakHour = hourlySales.reduce((best, item) => (
@@ -4725,6 +4777,10 @@ function ManagementReportPanel({ onLoad }) {
               <input className={inputClass} type="date" value={to} min={from} max={today} onChange={(event) => setTo(event.target.value || to)} />
             </label>
           </div>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <input aria-label="ค้นหารายงาน" className={inputClass} value={reportSearch} onChange={(event) => setReportSearch(event.target.value)} placeholder="ค้นหาเมนู ช่องทางขาย หรือวัตถุดิบในรายงาน" />
+          <Button type="button" variant="secondary" disabled={!reportSearch} onClick={() => setReportSearch("")}>ล้างคำค้น</Button>
         </div>
         <p className="mt-4 rounded-xl bg-white/75 px-3 py-2 text-xs font-semibold text-slate-600">
           ช่วงรายงาน: {dateLabel(from)} – {dateLabel(to)} · เปรียบเทียบกับ {report?.period ? `${dateLabel(report.period.previous_from)} – ${dateLabel(report.period.previous_to)}` : "ช่วงก่อนหน้าที่มีจำนวนวันเท่ากัน"}
@@ -4768,7 +4824,7 @@ function ManagementReportPanel({ onLoad }) {
                 <h3 className="text-lg font-bold text-slate-900">เมนูขายดี</h3>
               </div>
               <div className="mt-4 space-y-3">
-                {topProducts.length ? topProducts.map((item, index) => (
+                {visibleTopProducts.length ? visibleTopProducts.map((item, index) => (
                   <div className="flex items-center gap-3" key={item.product_id || item.product_name}>
                     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-amber-100 text-sm font-black text-amber-800">{index + 1}</span>
                     <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{item.product_name}</p><p className="text-xs text-slate-500">{Number(item.quantity_sold || 0).toLocaleString()} ชิ้น · {Number(item.order_count || 0)} ออเดอร์</p></div>
@@ -4788,7 +4844,7 @@ function ManagementReportPanel({ onLoad }) {
                 <strong className="text-sm text-sky-700">รับสุทธิ {money(summary.net_revenue)}</strong>
               </div>
               <div className="mt-4 space-y-3">
-                {channelMetrics.length ? channelMetrics.map((item) => {
+                {visibleChannelMetrics.length ? visibleChannelMetrics.map((item) => {
                   const share = Math.min(100, Math.max(0, Number(item.net_revenue || 0) / Math.max(1, Number(summary.net_revenue || 0)) * 100));
                   return (
                     <div className="rounded-xl border border-sky-100 bg-sky-50/40 p-3" key={item.channel_name}>
@@ -4828,13 +4884,13 @@ function ManagementReportPanel({ onLoad }) {
                 <h3 className="text-lg font-bold text-slate-900">กำไรตามเมนู</h3>
                 <p className="mt-1 text-xs text-slate-500">รายได้ถูกเฉลี่ยตามส่วนลดและ GP ของออเดอร์ ส่วนต้นทุนอ้างอิงล็อตวัตถุดิบที่ตัดจริง</p>
               </div>
-              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">{productMetrics.length} เมนู</span>
+              <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">{visibleProductMetrics.length} เมนู</span>
             </div>
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-[860px] w-full text-left text-sm">
                 <thead className="border-b border-slate-200 text-xs text-slate-500"><tr><th className="px-2 py-3">เมนู</th><th className="px-2 py-3 text-right">ขายได้</th><th className="px-2 py-3 text-right">ยอดก่อนลด</th><th className="px-2 py-3 text-right">ส่วนลด</th><th className="px-2 py-3 text-right">GP</th><th className="px-2 py-3 text-right">ต้นทุน</th><th className="px-2 py-3 text-right">กำไรหลัง GP/ส่วนลด</th></tr></thead>
                 <tbody>
-                  {productMetrics.length ? productMetrics.map((item) => (
+                  {visibleProductMetrics.length ? visibleProductMetrics.map((item) => (
                     <tr className="border-b border-slate-100 last:border-0" key={item.product_id || item.product_name}>
                       <td className="px-2 py-3 font-bold text-slate-800">{item.product_name}</td>
                       <td className="px-2 py-3 text-right text-slate-600">{Number(item.quantity_sold || 0).toLocaleString()}</td>
@@ -4857,7 +4913,7 @@ function ManagementReportPanel({ onLoad }) {
               <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">ใช้จริงจากล็อตสต็อก</span>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {inventoryUsage.length ? inventoryUsage.map((item) => (
+              {visibleInventoryUsage.length ? visibleInventoryUsage.map((item) => (
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50/45 p-3" key={item.ingredient_id}>
                   <p className="truncate text-sm font-bold text-slate-800">{item.ingredient_name}</p>
                   <p className="mt-1 text-base font-bold text-emerald-700">{Number(item.quantity_used || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} {item.unit || "หน่วย"}</p>
@@ -5111,6 +5167,7 @@ function FinancePage({
 }) {
   const { confirmAction, showMessage } = useActionDialog();
   const [selectedDate, setSelectedDate] = useState(todayInBangkok);
+  const [financeSearch, setFinanceSearch] = useState("");
   const [orderSearch, setOrderSearch] = useState("");
   const [orderNoFilter, setOrderNoFilter] = useState("ALL");
   const newSales = () => ({
@@ -5143,13 +5200,23 @@ function FinancePage({
     () => orders.filter((order) => rowMatchesDate(order, selectedDate)),
     [orders, selectedDate],
   );
+  const financeQuery = financeSearch.trim().toLowerCase();
+  const matchesFinanceSearch = (item) => !financeQuery || Object.values(item || {})
+    .filter((value) => typeof value === "string" || typeof value === "number")
+    .join(" ")
+    .toLowerCase()
+    .includes(financeQuery);
+  const searchedDateOrders = useMemo(
+    () => dateOrders.filter(matchesFinanceSearch),
+    [dateOrders, financeQuery],
+  );
   const orderNumbers = useMemo(
     () => [...new Set(dateOrders.map((order) => String(order.order_no || "").trim()).filter(Boolean))],
     [dateOrders],
   );
   const visibleOrders = useMemo(() => {
     const query = orderSearch.trim().toLowerCase();
-    return dateOrders.filter((order) => {
+    return searchedDateOrders.filter((order) => {
       const orderNo = String(order.order_no || "").toLowerCase();
       const searchable = [
         order.order_no,
@@ -5160,14 +5227,14 @@ function FinancePage({
       return (!query || searchable.includes(query))
         && (orderNoFilter === "ALL" || String(order.order_no) === orderNoFilter);
     });
-  }, [dateOrders, orderNoFilter, orderSearch]);
+  }, [orderNoFilter, orderSearch, searchedDateOrders]);
   const financialOrders = useMemo(
-    () => dateOrders.filter((order) => String(order.status).toUpperCase() !== "CANCELLED"),
-    [dateOrders],
+    () => searchedDateOrders.filter((order) => String(order.status).toUpperCase() !== "CANCELLED"),
+    [searchedDateOrders],
   );
   const filteredExpenses = useMemo(
-    () => expenseRows.filter((item) => rowMatchesDate(item, selectedDate)),
-    [expenseRows, selectedDate],
+    () => expenseRows.filter((item) => rowMatchesDate(item, selectedDate) && matchesFinanceSearch(item)),
+    [expenseRows, financeQuery, selectedDate],
   );
   const summary = useMemo(() => {
     const salesTotals = financialOrders.reduce(
@@ -5355,6 +5422,13 @@ function FinancePage({
           </div>
         }
       />
+      <Card className="!p-3 sm:!p-4">
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <input aria-label="ค้นหาข้อมูลการเงิน" className={inputClass} value={financeSearch} onChange={(event) => setFinanceSearch(event.target.value)} placeholder="ค้นหาเลขออเดอร์ ลูกค้า ช่องทาง เมนู หรือค่าใช้จ่าย" />
+          <Button type="button" variant="secondary" disabled={!financeSearch} onClick={() => setFinanceSearch("")}>ล้างคำค้น</Button>
+        </div>
+        {financeSearch ? <p className="mt-2 text-xs text-slate-500">กำลังแสดงข้อมูลที่ตรงกับ “{financeSearch}” ของวันที่เลือก</p> : null}
+      </Card>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((item) => (
           <Card className="!p-4" key={item.label}>
