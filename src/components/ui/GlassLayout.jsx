@@ -4306,6 +4306,87 @@ function RolePermissionsPage({ profiles, users, onRefresh, onSave, onCreate, onD
   );
 }
 
+function DeletedSnapshotModal({ item, onClose }) {
+  const snapshot = item?.request_summary?.deleted || {};
+  const resource = String(item?.resource || "");
+  const isOrder = resource.startsWith("orders/");
+  const isProduct = resource.startsWith("products/");
+  const isInventory = resource.startsWith("inventory/");
+  const isExpense = resource.startsWith("expenses/");
+  const isMember = resource === "admin/loyalty-members";
+  const isRole = resource === "admin/role-permissions";
+  const display = (value, fallback = "ไม่ระบุ") => value === null || value === undefined || value === "" ? fallback : String(value);
+  const field = (label, value, className = "") => <div className={`rounded-xl border border-sky-100 bg-sky-50/50 p-3 ${className}`} key={label}><p className="text-[11px] font-bold text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-slate-800">{display(value)}</p></div>;
+  const items = Array.isArray(snapshot.items) ? snapshot.items : [];
+  const title = isOrder ? `คำสั่งซื้อ ${display(snapshot.order_no, "")}` : isProduct ? `เมนู ${display(snapshot.name, "")}` : isInventory ? `วัตถุดิบ ${display(snapshot.name, "")}` : isExpense ? "รายการค่าใช้จ่าย" : isMember ? `สมาชิก ${display(snapshot.customer_name, "")}` : isRole ? `บทบาท ${display(snapshot.display_name || snapshot.role, "")}` : "ข้อมูลก่อนลบ";
+
+  return (
+    <Modal label="ข้อมูลก่อนลบ" maxWidth="max-w-3xl" onClose={onClose}>
+      <Card className="max-h-[calc(100vh-2rem)] overflow-y-auto bg-white">
+        <div className="pr-10">
+          <p className="text-xs font-bold text-rose-600">รายการที่ถูกลบ</p>
+          <h2 className="mt-1 text-lg font-bold text-slate-900">{title}</h2>
+          <p className="mt-1 text-sm text-slate-500">บันทึกเมื่อ {dateTimeLabel(item?.created_at)} · โดย {item?.actor_name || "ระบบ"}</p>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {isOrder ? <>
+            {field("เลขออเดอร์", snapshot.order_no)}
+            {field("คิว", snapshot.queue_no ? `คิว ${snapshot.queue_no}` : null)}
+            <div className="rounded-xl border border-sky-100 bg-sky-50/50 p-3"><p className="text-[11px] font-bold text-slate-500">สถานะก่อนลบ</p><div className="mt-2"><Status status={snapshot.status} /></div></div>
+            {field("ลูกค้า", snapshot.customer_name)}
+            {field("เบอร์โทร", snapshot.customer_phone)}
+            {field("ช่องทางขาย", snapshot.channel_name || (snapshot.channel_id ? `ช่องทาง #${snapshot.channel_id}` : null))}
+            {field("ยอดก่อนลด", money(snapshot.gross_amount))}
+            {field("ส่วนลด", money(snapshot.discount_amount))}
+            {field("ยอดสุทธิ", money(snapshot.net_amount))}
+          </> : null}
+          {isProduct ? <>
+            {field("ชื่อเมนู", snapshot.name)}
+            {field("หมวดหมู่", snapshot.category)}
+            {field("บาร์โค้ด", snapshot.barcode)}
+            {field("ราคาขายปลีก", money(snapshot.price_retail))}
+            {field("ราคาขายส่ง", money(snapshot.price_wholesale))}
+            {field("สถานะขาย", snapshot.is_sold_out ? "ปิดการขาย" : "พร้อมขาย")}
+            {field("นับเป็นแก้วสะสมแต้ม", snapshot.counts_as_loyalty_cup ? "นับ" : "ไม่นับ")}
+          </> : null}
+          {isInventory ? <>
+            {field("ชื่อวัตถุดิบ", snapshot.name)}
+            {field("หน่วย", snapshot.unit)}
+            {field("คงเหลือ", `${display(snapshot.stock_qty, "0")} ${snapshot.unit || ""}`)}
+            {field("ต้นทุนต่อหน่วย", money(snapshot.cost_per_unit))}
+            {field("แจ้งเตือนเมื่อเหลือ", `${display(snapshot.min_stock_alert, "0")} ${snapshot.unit || ""}`)}
+            {field("วันหมดอายุ", snapshot.expiry_date ? dateTimeLabel(snapshot.expiry_date) : null)}
+          </> : null}
+          {isExpense ? <>
+            {field("หมวดค่าใช้จ่าย", snapshot.category)}
+            {field("จำนวนเงิน", money(snapshot.amount))}
+            {field("รายละเอียด", snapshot.description, "sm:col-span-2")}
+            {field("วันที่บันทึก", snapshot.created_at ? dateTimeLabel(snapshot.created_at) : null)}
+          </> : null}
+          {isMember ? <>
+            {field("ชื่อลูกค้า", snapshot.customer_name)}
+            {field("เบอร์โทร", snapshot.customer_phone)}
+            {field("เลขสมาชิก", snapshot.member_code)}
+            {field("คะแนนคงเหลือ", snapshot.points_balance)}
+            {field("ยอดใช้จ่ายสะสม", money(snapshot.lifetime_spend))}
+            {field("จำนวนคำสั่งซื้อ", snapshot.order_count)}
+          </> : null}
+          {isRole ? <>
+            {field("ชื่อบทบาท", snapshot.display_name)}
+            {field("รหัสบทบาท", snapshot.role)}
+            {field("อ้างอิงสิทธิ์พื้นฐาน", snapshot.base_role)}
+            {field("สิทธิ์ที่กำหนด", Array.isArray(snapshot.permissions) ? `${snapshot.permissions.length} รายการ` : null)}
+          </> : null}
+          {!isOrder && !isProduct && !isInventory && !isExpense && !isMember && !isRole ? field("ข้อมูลอ้างอิง", snapshot.name || snapshot.id || "บันทึกข้อมูลเดิมแล้ว") : null}
+        </div>
+
+        {isOrder && items.length ? <section className="mt-5 rounded-2xl border border-sky-100 p-3 sm:p-4"><div className="flex items-center justify-between gap-3"><h3 className="font-bold text-slate-800">รายการสินค้า</h3><span className="text-xs text-slate-500">{items.length} รายการ</span></div><div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">{items.map((line, index) => { const modifiers = Array.isArray(line.modifiers) ? line.modifiers : []; return <div className="rounded-xl bg-slate-50 p-3" key={`${line.product_name || "item"}-${index}`}><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-slate-800">{line.product_name || "สินค้า"}</p>{modifiers.length ? <p className="mt-1 text-xs text-slate-500">{modifiers.map((modifier) => modifier.option_name || modifier.name).filter(Boolean).join(" · ")}</p> : null}</div><p className="shrink-0 text-sm font-bold text-sky-700">{display(line.quantity, "0")} × {money(line.unit_price)}</p></div></div>; })}</div></section> : null}
+      </Card>
+    </Modal>
+  );
+}
+
 function AuditLogPage({ onLoad }) {
   const [logs, setLogs] = useState([]);
   const [filter, setFilter] = useState("ALL");
@@ -4382,7 +4463,7 @@ function AuditLogPage({ onLoad }) {
         <p className="mt-3 text-xs text-slate-500">พบ {visibleLogs.length} รายการ · รายการที่ลบหลังจากอัปเดตระบบนี้จะแสดงข้อมูลก่อนลบให้ตรวจสอบได้</p>
         <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[780px] text-sm"><thead><tr className="border-b border-sky-100 text-left text-xs text-slate-500"><th className="p-3">เหตุการณ์</th><th className="p-3">รายละเอียด</th><th className="p-3">ผู้ดำเนินการ</th><th className="p-3">เวลา</th><th className="p-3"></th></tr></thead><tbody>{visibleLogs.length ? visibleLogs.map((item) => { const event = eventFor(item); const hasSnapshot = Boolean(item.request_summary?.deleted); return <tr className="border-b border-slate-100" key={item.id}><td className="p-3 font-semibold text-slate-800">{event.label}</td><td className="max-w-xs p-3 text-slate-600">{detailFor(item)}</td><td className="p-3 text-slate-600">{item.actor_name || "ระบบ"}</td><td className="p-3 whitespace-nowrap text-slate-500">{dateTimeLabel(item.created_at)}</td><td className="p-3">{hasSnapshot ? <Button type="button" className="whitespace-nowrap text-xs" variant="secondary" onClick={() => setDetailItem(item)}>ดูข้อมูลเดิม</Button> : null}</td></tr>; }) : <tr><td className="p-8 text-center text-slate-500" colSpan="5">{loading ? "กำลังโหลดประวัติ..." : "ยังไม่มีประวัติที่ตรงกับตัวกรอง"}</td></tr>}</tbody></table></div>
       </Card>
-      {detailItem ? <Modal label="ข้อมูลก่อนลบ" maxWidth="max-w-3xl" onClose={() => setDetailItem(null)}><Card className="max-h-[calc(100vh-2rem)] overflow-y-auto bg-white"><h2 className="text-lg font-bold text-slate-900">ข้อมูลก่อนลบ</h2><p className="mt-1 text-sm text-slate-500">{eventFor(detailItem).label} · {dateTimeLabel(detailItem.created_at)}</p><pre className="mt-4 overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-100">{JSON.stringify(detailItem.request_summary?.deleted || {}, null, 2)}</pre></Card></Modal> : null}
+      {detailItem ? <DeletedSnapshotModal item={detailItem} onClose={() => setDetailItem(null)} /> : null}
     </section>
   );
 }
