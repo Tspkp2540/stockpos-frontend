@@ -656,6 +656,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
   }, [activeChannels, channelId]);
   const [cart, setCart] = useState([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState(1);
   const [cashShiftDialog, setCashShiftDialog] = useState(null);
   const [pendingProduct, setPendingProduct] = useState(null);
   const [editingCartKey, setEditingCartKey] = useState(null);
@@ -706,6 +707,10 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
     [channelProducts, menuUsage],
   );
   const noteMenuUsed = (product) => setMenuUsage((current) => recordPosMenuUsage(current, product.id));
+  const openCart = () => {
+    setCheckoutStep(1);
+    setCartOpen(true);
+  };
   const selectChannel = (nextChannelId) => {
     if (String(nextChannelId) === String(channelId)) return;
     if (cart.length) {
@@ -1013,7 +1018,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
               className="group relative inline-flex min-h-12 items-center gap-2 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-700 px-3.5 py-2.5 text-sm font-bold text-white shadow-lg shadow-sky-300/70 transition hover:-translate-y-0.5 hover:from-sky-600 hover:to-blue-800 focus:outline-none focus:ring-4 focus:ring-sky-200 active:translate-y-0"
               title="เปิดตะกร้าสินค้า"
               type="button"
-              onClick={() => setCartOpen(true)}
+              onClick={openCart}
             >
               <span className="relative grid h-8 w-8 place-items-center rounded-xl bg-white/20 text-lg" aria-hidden="true">
                 🛒
@@ -1181,7 +1186,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
                 <span className="text-slate-500">ยอดสินค้า</span>
                 <strong className="text-lg text-sky-700">{money(subtotal)}</strong>
               </div>
-              <Button className="mt-3 w-full" disabled={!cart.length} type="button" onClick={() => setCartOpen(true)}>
+              <Button className="mt-3 w-full" disabled={!cart.length} type="button" onClick={openCart}>
                 ตรวจสอบและชำระเงิน
               </Button>
             </div>
@@ -1199,23 +1204,28 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
             </span>
           </div>
           <div className="mt-3 grid grid-cols-3 gap-1 rounded-xl bg-sky-50 p-1 text-center text-[11px] font-bold text-sky-700">
-            <span className="rounded-lg bg-white px-2 py-1.5 shadow-sm">1. รายการ</span>
-            <span className="px-2 py-1.5">2. ส่วนลด/ลูกค้า</span>
-            <span className="px-2 py-1.5">3. ชำระเงิน</span>
+            <span className={`rounded-lg px-2 py-1.5 ${checkoutStep === 1 ? "bg-white shadow-sm" : ""}`}>1. รายการ</span>
+            <span className={`rounded-lg px-2 py-1.5 ${checkoutStep === 2 ? "bg-white shadow-sm" : ""}`}>2. ส่วนลด/ลูกค้า</span>
+            <span className={`rounded-lg px-2 py-1.5 ${checkoutStep === 3 ? "bg-white shadow-sm" : ""}`}>3. ชำระเงิน</span>
           </div>
-          <div className="my-4 max-h-[32vh] space-y-2 overflow-y-auto pr-1 sm:max-h-64">
+          {checkoutStep === 1 ? <div className="my-4 max-h-[32vh] space-y-2 overflow-y-auto pr-1 sm:max-h-64">
             {cart.length ? (
               cart.map((item) => (
                 <div
                   className="rounded-xl border border-sky-100 bg-sky-50/30 p-2.5"
                   key={item.cart_key}
                 >
-                  <div className="flex items-start gap-2.5">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <p className="truncate font-semibold text-slate-800">{item.name}</p>
-                        <p className="shrink-0 text-sm font-bold text-sky-700">{money(item.price)}</p>
-                      </div>
+                  <div className="flex items-center gap-2">
+                    <p className="min-w-0 flex-1 truncate font-semibold text-slate-800">{item.name}</p>
+                    <div className="inline-flex shrink-0 items-center rounded-lg border border-sky-100 bg-white">
+                      <button aria-label={`ลดจำนวน ${item.name}`} className="h-7 w-7 font-bold text-sky-700 hover:bg-sky-50" type="button" onClick={() => item.qty <= 1 ? setCart((current) => current.filter((row) => row.cart_key !== item.cart_key)) : changeQty(item.cart_key, item.qty - 1)}>−</button>
+                      <span className="min-w-6 text-center text-xs font-bold text-slate-700">{item.qty}</span>
+                      <button aria-label={`เพิ่มจำนวน ${item.name}`} className="h-7 w-7 font-bold text-sky-700 hover:bg-sky-50" type="button" onClick={() => changeQty(item.cart_key, Number(item.qty) + 1)}>+</button>
+                    </div>
+                    <p className="shrink-0 text-sm font-bold text-sky-700">{money(Number(item.price) * Number(item.qty))}</p>
+                    <button aria-label={`ลบ ${item.name}`} className="shrink-0 text-sm font-bold text-rose-600 hover:text-rose-800" type="button" onClick={() => setCart((current) => current.filter((row) => row.cart_key !== item.cart_key))}>×</button>
+                  </div>
+                  <div className="min-w-0">
                       {item.modifiers?.length ? (
                         <p className="mt-0.5 truncate text-xs text-violet-700">
                           {item.modifiers.map((modifier) => modifier.name).join(" · ")}
@@ -1229,40 +1239,15 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
                           ปรับความหวาน / ท็อปปิ้ง
                         </button>
                       ) : null}
-                    </div>
-                    <Button
-                      className="shrink-0 px-2 py-1 text-xs"
-                      variant="danger"
-                      onClick={() =>
-                        setCart((current) =>
-                          current.filter(
-                            (row) => row.cart_key !== item.cart_key,
-                          ),
-                        )
-                      }
-                    >
-                      ลบ
-                    </Button>
                   </div>
-                  <label className="mt-2 flex items-center justify-between gap-3 text-xs font-medium text-slate-500">
-                    <span>จำนวน</span>
-                    <input
-                      className={`${inputClass} w-20 px-2 py-1.5 text-center`}
-                      type="number"
-                      min="1"
-                      value={item.qty}
-                      onChange={(event) =>
-                        changeQty(item.cart_key, event.target.value)
-                      }
-                    />
-                  </label>
                 </div>
               ))
             ) : (
               <Empty>เลือกเมนูจากรายการด้านซ้าย</Empty>
             )}
-          </div>
-          <div className="space-y-3 border-t border-sky-100 pt-4">
+          <div className="flex justify-end border-t border-sky-100 pt-3"><Button type="button" disabled={!cart.length} onClick={() => setCheckoutStep(2)}>ถัดไป: ส่วนลดและลูกค้า →</Button></div>
+          </div> : null}
+          {checkoutStep === 2 ? <div className="space-y-3 border-t border-sky-100 pt-4">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               <label className={labelClass}>
                 ชื่อลูกค้า <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
@@ -1403,6 +1388,9 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
               ) : null}
               {couponError ? <p className="mt-2 text-xs font-medium text-rose-600">{couponError}</p> : null}
             </div>
+            <div className="flex items-center justify-between gap-3 border-t border-sky-100 pt-3"><Button type="button" variant="secondary" onClick={() => setCheckoutStep(1)}>← รายการ</Button><Button type="button" onClick={() => setCheckoutStep(3)}>ถัดไป: ชำระเงิน →</Button></div>
+          </div> : null}
+          {checkoutStep === 3 ? <div className="space-y-3 border-t border-sky-100 pt-4">
             <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-bold text-slate-700">การชำระเงิน</p>
@@ -1483,10 +1471,8 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
               <strong className="text-2xl text-sky-700">{money(total)}</strong>
             </div>
             {paymentMethod === "CASH" && total > 0 && receivedAmount < total ? <p className="mb-2 text-xs font-semibold text-amber-700">กรอกยอดเงินสดที่รับอย่างน้อย {money(total)} ก่อนยืนยัน</p> : null}
-            <Button className="w-full" disabled={!cart.length || isSubmitting} onClick={submit}>
-              {isSubmitting ? "กำลังบันทึกออเดอร์..." : "ยืนยันออเดอร์"}
-            </Button>
-          </div>
+            <div className="flex gap-2"><Button className="shrink-0" type="button" variant="secondary" disabled={isSubmitting} onClick={() => setCheckoutStep(2)}>← ย้อนกลับ</Button><Button className="flex-1" disabled={!cart.length || isSubmitting} onClick={submit}>{isSubmitting ? "กำลังบันทึกออเดอร์..." : "ยืนยันออเดอร์"}</Button></div>
+          </div> : null}
         </Card>
         </Modal>
       ) : null}
