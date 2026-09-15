@@ -143,6 +143,7 @@ export default function StaffWorkspace({
   };
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [amountReceived, setAmountReceived] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAllOrders, setShowAllOrders] = useState(false);
   const [orderSearch, setOrderSearch] = useState("");
   const [orderStatusFilter, setOrderStatusFilter] = useState("ALL");
@@ -442,51 +443,56 @@ export default function StaffWorkspace({
     return opened;
   };
   const submit = async () => {
-    if (!cart.length) return;
-    if (paymentMethod === "CASH" && total > 0 && (!currentShift || receivedAmount < total)) {
+    if (!cart.length || isSubmitting) return;
+    if (paymentMethod === "CASH" && total > 0 && receivedAmount < total) {
       showMessage({
         tone: "danger",
         title: "ยังยืนยันออเดอร์ไม่ได้",
-        message: !currentShift ? "กรุณาเปิดกะเงินสดก่อนรับเงินสด" : "ยอดที่รับต้องไม่น้อยกว่ายอดสุทธิ",
+        message: "ยอดที่รับต้องไม่น้อยกว่ายอดสุทธิ",
       });
       return;
     }
     const channel = channels.find(
       (item) => String(item.id) === String(channelId),
     );
-    const saved = await onAdd({
-      channel_id: Number(channelId),
-      channel_name: channel?.name,
-      customer_phone: customerPhone.trim(),
-      customer_nickname: customerNickname.trim(),
-      manual_discount_amount: Number(manualDiscountAmount.toFixed(2)),
-      coupon_code: appliedCoupon?.code || undefined,
-      loyalty_points_redeemed: loyaltyPointsRedeemed,
-      payment_method: paymentMethod,
-      amount_received: paymentMethod === "CASH" ? receivedAmount : undefined,
-      items: cart.map(({ product_id, name, qty, price, base_price, modifiers }) => ({
-        product_id,
-        name,
-        qty,
-        price: Number(base_price ?? price),
-        modifiers: (modifiers || []).map((modifier) => ({ option_id: modifier.id })),
-      })),
-    });
-    if (saved) {
-      setCart([]);
-      setCustomerPhone("");
-      setCustomerNickname("");
-      setDiscountValue("");
-      setDiscountType("amount");
-      setCouponCode("");
-      setAppliedCoupon(null);
-      setCouponError("");
-      setPaymentMethod("CASH");
-      setAmountReceived("");
-      setLoyaltyData(null);
-      setLoyaltyPoints("");
-      setLoyaltyError("");
-      setCartOpen(false);
+    setIsSubmitting(true);
+    try {
+      const saved = await onAdd({
+        channel_id: Number(channelId),
+        channel_name: channel?.name,
+        customer_phone: customerPhone.trim(),
+        customer_nickname: customerNickname.trim(),
+        manual_discount_amount: Number(manualDiscountAmount.toFixed(2)),
+        coupon_code: appliedCoupon?.code || undefined,
+        loyalty_points_redeemed: loyaltyPointsRedeemed,
+        payment_method: paymentMethod,
+        amount_received: paymentMethod === "CASH" ? receivedAmount : undefined,
+        items: cart.map(({ product_id, name, qty, price, base_price, modifiers }) => ({
+          product_id,
+          name,
+          qty,
+          price: Number(base_price ?? price),
+          modifiers: (modifiers || []).map((modifier) => ({ option_id: modifier.id })),
+        })),
+      });
+      if (saved) {
+        setCart([]);
+        setCustomerPhone("");
+        setCustomerNickname("");
+        setDiscountValue("");
+        setDiscountType("amount");
+        setCouponCode("");
+        setAppliedCoupon(null);
+        setCouponError("");
+        setPaymentMethod("CASH");
+        setAmountReceived("");
+        setLoyaltyData(null);
+        setLoyaltyPoints("");
+        setLoyaltyError("");
+        setCartOpen(false);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
   const orderCards = (rows, horizontal = false) => rows.map((order) => (
@@ -879,6 +885,11 @@ export default function StaffWorkspace({
                   {cart.length} รายการ
                 </span>
               </div>
+              <div className="mt-3 grid grid-cols-3 gap-1 rounded-xl bg-sky-50 p-1 text-center text-[11px] font-bold text-sky-700">
+                <span className="rounded-lg bg-white px-2 py-1.5 shadow-sm">1. รายการ</span>
+                <span className="px-2 py-1.5">2. ส่วนลด/ลูกค้า</span>
+                <span className="px-2 py-1.5">3. ชำระเงิน</span>
+              </div>
               <div className="my-4 max-h-[32vh] space-y-2 overflow-y-auto pr-1 sm:max-h-64">
                 {cart.length ? (
                   cart.map((item) => (
@@ -1044,11 +1055,11 @@ export default function StaffWorkspace({
                       </div>
                     </div>
                   ) : null}
-                  <p className={`mt-2 text-xs ${paymentMethod === "CASH" && !currentShift ? "text-rose-600" : "text-slate-500"}`}>
+                  <p className="mt-2 text-xs text-slate-500">
                     {paymentMethod === "CASH"
                       ? currentShift
                         ? `กะเปิดอยู่ · เงินทอนเริ่มกะ ${money(currentShift.opening_cash)}`
-                        : "ต้องเปิดกะเงินสดก่อนรับชำระด้วยเงินสด"
+                        : "ยังไม่เปิดกะเงินสด · รับชำระและบันทึกออเดอร์ได้ตามปกติ"
                       : "การชำระเงินแบบนี้ไม่รวมในยอดเงินสดของกะ"}
                   </p>
                 </div>
@@ -1078,8 +1089,9 @@ export default function StaffWorkspace({
                   <span className="font-semibold text-slate-600">ยอดสุทธิ</span>
                   <strong className="text-2xl text-sky-700">{money(total)}</strong>
                 </div>
-                <Button className="w-full" disabled={!cart.length} onClick={submit}>
-                  ยืนยันคำสั่งซื้อ
+                {paymentMethod === "CASH" && total > 0 && receivedAmount < total ? <p className="mb-2 text-xs font-semibold text-amber-700">กรอกยอดเงินสดที่รับอย่างน้อย {money(total)} ก่อนยืนยัน</p> : null}
+                <Button className="w-full" disabled={!cart.length || isSubmitting} onClick={submit}>
+                  {isSubmitting ? "กำลังบันทึกออเดอร์..." : "ยืนยันคำสั่งซื้อ"}
                 </Button>
               </div>
                   </div>
