@@ -279,7 +279,9 @@ export default function StaffWorkspace({
     return Math.min(eligibleAmount, cappedDiscount);
   }, [appliedCoupon, manualDiscountAmount, subtotal]);
   const activeLoyaltyRules = loyaltyData?.rules || loyaltyRules || {};
-  const loyaltyEnabled = activeLoyaltyRules.is_enabled !== false;
+  const loyaltyEarnEnabled = activeLoyaltyRules.earn_enabled !== undefined ? activeLoyaltyRules.earn_enabled === true : activeLoyaltyRules.is_enabled !== false;
+  const loyaltyRedeemEnabled = activeLoyaltyRules.redeem_enabled !== undefined ? activeLoyaltyRules.redeem_enabled === true : activeLoyaltyRules.is_enabled !== false;
+  const loyaltyEnabled = loyaltyEarnEnabled || loyaltyRedeemEnabled;
   const loyaltyEarnMode = String(activeLoyaltyRules.earn_mode || "SPEND").toUpperCase() === "CUP" ? "CUP" : "SPEND";
   const loyaltySpendPerPoint = Math.max(0.01, Number(activeLoyaltyRules.spend_per_point || 25));
   const loyaltyCupsPerPoint = Math.max(1, Number(activeLoyaltyRules.cups_per_point || 1));
@@ -287,13 +289,13 @@ export default function StaffWorkspace({
   const loyaltyMaxRedeemPercent = Math.max(0, Math.min(100, Number(activeLoyaltyRules.max_redeem_percent ?? 50)));
   const loyaltyBaseAmount = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
   const loyaltyBalance = Math.max(0, Number(loyaltyData?.account?.points_balance || 0));
-  const loyaltyMaxPoints = loyaltyEnabled
+  const loyaltyMaxPoints = loyaltyRedeemEnabled
     ? Math.min(loyaltyBalance, Math.floor((loyaltyBaseAmount * (loyaltyMaxRedeemPercent / 100)) / loyaltyBahtPerPoint))
     : 0;
   const loyaltyPointsRedeemed = Math.min(loyaltyMaxPoints, Math.max(0, Math.floor(Number(loyaltyPoints) || 0)));
   const loyaltyDiscountAmount = Number((loyaltyPointsRedeemed * loyaltyBahtPerPoint).toFixed(2));
   const total = Math.max(0, loyaltyBaseAmount - loyaltyDiscountAmount);
-  const estimatedLoyaltyPoints = loyaltyEnabled && customerPhone.replace(/\D/g, '').length >= 9
+  const estimatedLoyaltyPoints = loyaltyEarnEnabled && customerPhone.replace(/\D/g, '').length >= 9
     ? Math.floor(loyaltyEarnMode === "CUP" ? loyaltyCupCount / loyaltyCupsPerPoint : total / loyaltySpendPerPoint)
     : 0;
   const receivedAmount = Number(amountReceived || 0);
@@ -730,7 +732,7 @@ export default function StaffWorkspace({
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="text-xs font-bold text-violet-800">คะแนนสะสม</p>
-                      <p className="mt-0.5 text-xs text-violet-700">{loyaltyEnabled ? `${loyaltyEarnMode === "CUP" ? `ทุก ${loyaltyCupsPerPoint} แก้ว รับ 1 คะแนน` : `ทุก ${money(loyaltySpendPerPoint)} รับ 1 คะแนน`} · 10 คะแนน ลดได้ ${money(loyaltyBahtPerPoint * 10)}` : "ระบบคะแนนสะสมปิดใช้งานอยู่"}</p>
+                      <p className="mt-0.5 text-xs text-violet-700">{loyaltyEnabled ? `${loyaltyEarnEnabled ? loyaltyEarnMode === "CUP" ? `ทุก ${loyaltyCupsPerPoint} แก้ว รับ 1 คะแนน` : `ทุก ${money(loyaltySpendPerPoint)} รับ 1 คะแนน` : "ไม่รับคะแนน"} · ${loyaltyRedeemEnabled ? `10 คะแนน ลดได้ ${money(loyaltyBahtPerPoint * 10)}` : "ไม่ใช้คะแนนเป็นส่วนลด"}` : "ระบบคะแนนสะสมปิดใช้งานอยู่"}</p>
                     </div>
                     {loyaltyEnabled ? <Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => lookupLoyalty()}>ตรวจสอบคะแนนสะสม</Button> : null}
                   </div>

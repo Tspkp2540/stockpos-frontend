@@ -171,6 +171,8 @@ function AppContent() {
   const [systemUsers, setSystemUsers] = useState([]);
   const [loyaltySettings, setLoyaltySettings] = useState({
     is_enabled: true,
+    earn_enabled: true,
+    redeem_enabled: true,
     earn_mode: "SPEND",
     spend_per_point: 25,
     cups_per_point: 1,

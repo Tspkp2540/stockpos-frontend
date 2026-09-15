@@ -835,7 +835,9 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
     return Math.min(eligibleAmount, cappedDiscount);
   }, [appliedCoupon, manualDiscountAmount, subtotal]);
   const activeLoyaltyRules = loyaltyData?.rules || loyaltySettings || {};
-  const loyaltyEnabled = activeLoyaltyRules.is_enabled !== false;
+  const loyaltyEarnEnabled = activeLoyaltyRules.earn_enabled !== undefined ? activeLoyaltyRules.earn_enabled === true : activeLoyaltyRules.is_enabled !== false;
+  const loyaltyRedeemEnabled = activeLoyaltyRules.redeem_enabled !== undefined ? activeLoyaltyRules.redeem_enabled === true : activeLoyaltyRules.is_enabled !== false;
+  const loyaltyEnabled = loyaltyEarnEnabled || loyaltyRedeemEnabled;
   const loyaltyEarnMode = String(activeLoyaltyRules.earn_mode || "SPEND").toUpperCase() === "CUP" ? "CUP" : "SPEND";
   const loyaltySpendPerPoint = Math.max(0.01, Number(activeLoyaltyRules.spend_per_point || 25));
   const loyaltyCupsPerPoint = Math.max(1, Number(activeLoyaltyRules.cups_per_point || 1));
@@ -843,13 +845,13 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
   const loyaltyMaxRedeemPercent = Math.max(0, Math.min(100, Number(activeLoyaltyRules.max_redeem_percent ?? 50)));
   const loyaltyBaseAmount = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
   const loyaltyBalance = Math.max(0, Number(loyaltyData?.account?.points_balance || 0));
-  const loyaltyMaxPoints = loyaltyEnabled
+  const loyaltyMaxPoints = loyaltyRedeemEnabled
     ? Math.min(loyaltyBalance, Math.floor((loyaltyBaseAmount * (loyaltyMaxRedeemPercent / 100)) / loyaltyBahtPerPoint))
     : 0;
   const loyaltyPointsRedeemed = Math.min(loyaltyMaxPoints, Math.max(0, Math.floor(Number(loyaltyPoints) || 0)));
   const loyaltyDiscountAmount = Number((loyaltyPointsRedeemed * loyaltyBahtPerPoint).toFixed(2));
   const total = Math.max(0, loyaltyBaseAmount - loyaltyDiscountAmount);
-  const estimatedLoyaltyPoints = loyaltyEnabled && customerPhone.replace(/\D/g, '').length >= 9
+  const estimatedLoyaltyPoints = loyaltyEarnEnabled && customerPhone.replace(/\D/g, '').length >= 9
     ? Math.floor(loyaltyEarnMode === "CUP" ? loyaltyCupCount / loyaltyCupsPerPoint : total / loyaltySpendPerPoint)
     : 0;
   const receivedAmount = Number(amountReceived || 0);
@@ -1377,7 +1379,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                     <p className="text-xs font-bold text-violet-800">คะแนนสะสม</p>
-                    <p className="mt-0.5 text-xs text-violet-700">{loyaltyEnabled ? `${loyaltyEarnMode === "CUP" ? `ทุก ${loyaltyCupsPerPoint} แก้ว รับ 1 คะแนน` : `ทุก ${money(loyaltySpendPerPoint)} รับ 1 คะแนน`} · 10 คะแนน ลดได้ ${money(loyaltyBahtPerPoint * 10)}` : "ระบบคะแนนสะสมปิดใช้งานอยู่"}</p>
+                    <p className="mt-0.5 text-xs text-violet-700">{loyaltyEnabled ? `${loyaltyEarnEnabled ? loyaltyEarnMode === "CUP" ? `ทุก ${loyaltyCupsPerPoint} แก้ว รับ 1 คะแนน` : `ทุก ${money(loyaltySpendPerPoint)} รับ 1 คะแนน` : "ไม่รับคะแนน"} · ${loyaltyRedeemEnabled ? `10 คะแนน ลดได้ ${money(loyaltyBahtPerPoint * 10)}` : "ไม่ใช้คะแนนเป็นส่วนลด"}` : "ระบบคะแนนสะสมปิดใช้งานอยู่"}</p>
                   </div>
                   {loyaltyEnabled ? <Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => lookupLoyalty()}>
                     ตรวจสอบคะแนนสะสม
@@ -4193,7 +4195,7 @@ function CouponPage({ coupons, onCreateCoupon, onUpdateCoupon }) {
 }
 
 function LoyaltySettingsPage({ settings, onSave }) {
-  const defaults = { is_enabled: true, earn_mode: "SPEND", spend_per_point: 25, cups_per_point: 1, baht_per_point: 0.1, max_redeem_percent: 50 };
+  const defaults = { is_enabled: true, earn_enabled: true, redeem_enabled: true, earn_mode: "SPEND", spend_per_point: 25, cups_per_point: 1, baht_per_point: 0.1, max_redeem_percent: 50 };
   const [form, setForm] = useState({ ...defaults, ...settings });
   const [saving, setSaving] = useState(false);
   useEffect(() => setForm({ ...defaults, ...settings }), [settings]);
@@ -4202,7 +4204,9 @@ function LoyaltySettingsPage({ settings, onSave }) {
     setSaving(true);
     try {
       await onSave?.({
-        is_enabled: Boolean(form.is_enabled),
+        is_enabled: Boolean(form.earn_enabled || form.redeem_enabled),
+        earn_enabled: Boolean(form.earn_enabled),
+        redeem_enabled: Boolean(form.redeem_enabled),
         earn_mode: form.earn_mode,
         spend_per_point: Number(form.spend_per_point),
         cups_per_point: Number(form.cups_per_point),
@@ -4225,19 +4229,30 @@ function LoyaltySettingsPage({ settings, onSave }) {
       />
       <form onSubmit={save}>
         <Card className="max-w-3xl border-violet-100 bg-white">
+          <div className="grid gap-3 sm:grid-cols-2">
           <label className="flex items-start gap-3 rounded-2xl bg-violet-50 p-4 text-sm text-slate-700">
             <input
               className="mt-0.5 h-4 w-4 accent-violet-600"
               type="checkbox"
-              checked={form.is_enabled !== false}
-              onChange={(event) => setForm((current) => ({ ...current, is_enabled: event.target.checked }))}
+              checked={form.earn_enabled !== false}
+              onChange={(event) => setForm((current) => ({ ...current, earn_enabled: event.target.checked }))}
             />
-            <span><strong className="block text-violet-900">เปิดใช้ระบบคะแนนสะสม</strong><span className="mt-1 block text-xs text-violet-700">เมื่อปิด ระบบจะไม่เพิ่มบัญชีคะแนนใหม่ ไม่ให้รับคะแนน และไม่ให้ใช้คะแนนกับคำสั่งซื้อใหม่</span></span>
+            <span><strong className="block text-violet-900">เปิดรับคะแนนสะสม</strong><span className="mt-1 block text-xs text-violet-700">เมื่อปิด คำสั่งซื้อใหม่จะไม่เพิ่มคะแนนให้ลูกค้า</span></span>
           </label>
+          <label className="flex items-start gap-3 rounded-2xl bg-violet-50 p-4 text-sm text-slate-700">
+            <input
+              className="mt-0.5 h-4 w-4 accent-violet-600"
+              type="checkbox"
+              checked={form.redeem_enabled !== false}
+              onChange={(event) => setForm((current) => ({ ...current, redeem_enabled: event.target.checked }))}
+            />
+            <span><strong className="block text-violet-900">เปิดใช้คะแนนเป็นส่วนลด</strong><span className="mt-1 block text-xs text-violet-700">เมื่อปิด ลูกค้ายังมีคะแนนเดิม แต่ใช้แลกส่วนลดไม่ได้</span></span>
+          </label>
+          </div>
           <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <label className={labelClass}>
               รูปแบบการได้รับคะแนน
-              <select className={inputClass} value={form.earn_mode} onChange={(event) => setForm((current) => ({ ...current, earn_mode: event.target.value }))} disabled={form.is_enabled === false}>
+              <select className={inputClass} value={form.earn_mode} onChange={(event) => setForm((current) => ({ ...current, earn_mode: event.target.value }))} disabled={form.earn_enabled === false}>
                 <option value="SPEND">สะสมตามยอดซื้อ</option>
                 <option value="CUP">สะสมตามจำนวนแก้ว</option>
               </select>
@@ -4245,25 +4260,25 @@ function LoyaltySettingsPage({ settings, onSave }) {
             {form.earn_mode === "CUP" ? (
               <label className={labelClass}>
                 จำนวนแก้วที่ได้รับ 1 คะแนน
-                <input className={inputClass} type="number" min="1" max="100000" step="1" inputMode="numeric" value={form.cups_per_point ?? ""} onChange={(event) => setForm((current) => ({ ...current, cups_per_point: event.target.value }))} required disabled={form.is_enabled === false} />
+                <input className={inputClass} type="number" min="1" max="100000" step="1" inputMode="numeric" value={form.cups_per_point ?? ""} onChange={(event) => setForm((current) => ({ ...current, cups_per_point: event.target.value }))} required disabled={form.earn_enabled === false} />
               </label>
             ) : (
             <label className={labelClass}>
               ยอดซื้อที่ได้รับ 1 คะแนน (บาท)
-              <input className={inputClass} type="number" min="0.01" max="1000000" step="0.01" inputMode="decimal" value={form.spend_per_point ?? ""} onChange={(event) => setForm((current) => ({ ...current, spend_per_point: event.target.value }))} required disabled={form.is_enabled === false} />
+              <input className={inputClass} type="number" min="0.01" max="1000000" step="0.01" inputMode="decimal" value={form.spend_per_point ?? ""} onChange={(event) => setForm((current) => ({ ...current, spend_per_point: event.target.value }))} required disabled={form.earn_enabled === false} />
             </label>
             )}
             <label className={labelClass}>
               มูลค่าส่วนลดต่อ 1 คะแนน (บาท)
-              <input className={inputClass} type="number" min="0.01" max="100000" step="0.01" inputMode="decimal" value={form.baht_per_point ?? ""} onChange={(event) => setForm((current) => ({ ...current, baht_per_point: event.target.value }))} required disabled={form.is_enabled === false} />
+              <input className={inputClass} type="number" min="0.01" max="100000" step="0.01" inputMode="decimal" value={form.baht_per_point ?? ""} onChange={(event) => setForm((current) => ({ ...current, baht_per_point: event.target.value }))} required disabled={form.redeem_enabled === false} />
             </label>
             <label className={labelClass}>
               ใช้คะแนนลดได้สูงสุดต่อคำสั่งซื้อ (%)
-              <input className={inputClass} type="number" min="0" max="100" step="0.01" inputMode="decimal" value={form.max_redeem_percent ?? ""} onChange={(event) => setForm((current) => ({ ...current, max_redeem_percent: event.target.value }))} required disabled={form.is_enabled === false} />
+              <input className={inputClass} type="number" min="0" max="100" step="0.01" inputMode="decimal" value={form.max_redeem_percent ?? ""} onChange={(event) => setForm((current) => ({ ...current, max_redeem_percent: event.target.value }))} required disabled={form.redeem_enabled === false} />
             </label>
           </div>
           <div className="mt-5 rounded-2xl border border-sky-100 bg-sky-50/70 p-4 text-sm text-sky-900">
-            {form.is_enabled === false ? "ระบบคะแนนสะสมถูกปิดอยู่" : `ตัวอย่าง: ${form.earn_mode === "CUP" ? `ซื้อ ${cupsPerPoint} แก้ว ได้ 1 คะแนน` : `ยอดซื้อ ${money(spendPerPoint)} ได้ 1 คะแนน`} · 10 คะแนนลดได้ ${money(bahtPerPoint * 10)} · ใช้ส่วนลดจากคะแนนได้ไม่เกิน ${maxRedeemPercent}% ของยอดที่เข้าเกณฑ์`}
+            {`${form.earn_enabled === false ? "ปิดรับคะแนน" : form.earn_mode === "CUP" ? `ซื้อ ${cupsPerPoint} แก้ว ได้ 1 คะแนน` : `ยอดซื้อ ${money(spendPerPoint)} ได้ 1 คะแนน`} · ${form.redeem_enabled === false ? "ปิดใช้คะแนนเป็นส่วนลด" : `10 คะแนนลดได้ ${money(bahtPerPoint * 10)} · ใช้ส่วนลดได้ไม่เกิน ${maxRedeemPercent}%`}`}
           </div>
           <div className="mt-5 flex justify-end"><Button type="submit" disabled={saving}>{saving ? "กำลังบันทึก..." : "บันทึกการตั้งค่า"}</Button></div>
         </Card>
