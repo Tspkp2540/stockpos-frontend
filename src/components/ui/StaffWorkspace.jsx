@@ -886,9 +886,7 @@ export default function StaffWorkspace({
                 <div>
                   <h2 className="text-lg font-bold text-slate-900">ตะกร้าสินค้า</h2>
                 </div>
-                <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700">
-                  {cart.length} รายการ
-                </span>
+                <div className="flex items-center gap-2"><span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700">{cart.length} รายการ</span>{cart.length ? <Button className="px-2.5 py-1.5 text-xs" type="button" variant="danger" onClick={() => { setCart([]); setCheckoutStep(1); }}>ล้างทั้งหมด</Button> : null}</div>
               </div>
               <div className="mt-3 grid grid-cols-3 gap-1 rounded-xl bg-sky-50 p-1 text-center text-[11px] font-bold text-sky-700">
                 <span className={`rounded-lg px-2 py-1.5 ${checkoutStep === 1 ? "bg-white shadow-sm" : ""}`}>1. รายการ</span>

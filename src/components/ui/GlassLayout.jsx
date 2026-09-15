@@ -1199,9 +1199,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
         <Card className="max-h-[calc(100vh-2rem)] overflow-y-auto bg-white">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900">ตะกร้าสินค้า</h2>
-            <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700">
-              {cart.length} รายการ
-            </span>
+            <div className="flex items-center gap-2"><span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700">{cart.length} รายการ</span>{cart.length ? <Button className="px-2.5 py-1.5 text-xs" type="button" variant="danger" onClick={() => { setCart([]); setCheckoutStep(1); }}>ล้างทั้งหมด</Button> : null}</div>
           </div>
           <div className="mt-3 grid grid-cols-3 gap-1 rounded-xl bg-sky-50 p-1 text-center text-[11px] font-bold text-sky-700">
             <span className={`rounded-lg px-2 py-1.5 ${checkoutStep === 1 ? "bg-white shadow-sm" : ""}`}>1. รายการ</span>
@@ -2052,6 +2050,19 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
   const [form, setForm] = useState(initial);
   const [editingId, setEditingId] = useState(null);
   const [menuModalOpen, setMenuModalOpen] = useState(false);
+  const [selectedMenuIds, setSelectedMenuIds] = useState([]);
+  const selectedMenus = products.filter((product) => selectedMenuIds.includes(String(product.id)));
+  const allMenusSelected = products.length > 0 && selectedMenus.length === products.length;
+  const toggleMenuSelection = (productId) => setSelectedMenuIds((current) => {
+    const id = String(productId);
+    return current.includes(id) ? current.filter((value) => value !== id) : [...current, id];
+  });
+  const setAllMenuSelection = (selected) => setSelectedMenuIds(selected ? products.map((product) => String(product.id)) : []);
+  const updateSelectedAvailability = async (isSoldOut) => {
+    if (!selectedMenus.length) return;
+    await Promise.all(selectedMenus.map((product) => onSetAvailability(product, isSoldOut)));
+    setSelectedMenuIds([]);
+  };
   const selectMenuImage = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -2215,11 +2226,12 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
       <LowStockMenuAlert products={products} className="mb-5" />
       <div className="grid gap-5">
         <Card>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-900">รายการเมนู</h2>
-            <span className="text-sm text-slate-500">
-              {products.length} รายการ
-            </span>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div><h2 className="text-lg font-bold text-slate-900">รายการเมนู</h2><p className="mt-0.5 text-xs text-slate-500">{selectedMenus.length ? `เลือกแล้ว ${selectedMenus.length} รายการ` : `${products.length} รายการ`}</p></div>
+            <div className="flex flex-wrap gap-2">
+              <Button className="text-xs" type="button" variant="secondary" disabled={!products.length} onClick={() => setAllMenuSelection(!allMenusSelected)}>{allMenusSelected ? "ยกเลิกเลือกทั้งหมด" : "เลือกทั้งหมด"}</Button>
+              {selectedMenus.length ? <><Button className="text-xs" type="button" variant="secondary" onClick={() => updateSelectedAvailability(false)}>เปิดขายที่เลือก</Button><Button className="text-xs" type="button" variant="secondary" onClick={() => updateSelectedAvailability(true)}>ปิดขายที่เลือก</Button><Button className="text-xs" type="button" variant="quiet" onClick={() => setAllMenuSelection(false)}>ล้างการเลือก</Button></> : null}
+            </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {products.length ? (
@@ -2227,7 +2239,7 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
                 const availability = menuAvailability(product);
                 return (
                   <article
-                    className="rounded-xl border border-sky-100 p-3"
+                    className={`rounded-xl border p-3 ${selectedMenuIds.includes(String(product.id)) ? "border-sky-500 bg-sky-50" : "border-sky-100"}`}
                     key={product.id}
                   >
                   <div className="flex items-start gap-2">
@@ -2241,6 +2253,9 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
                       </p>
                     </div>
                     <strong className="shrink-0 text-sm text-sky-700">{money(product.price_retail)}</strong>
+                    <label className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-lg border border-sky-200 bg-white" title={`เลือก ${product.name}`}>
+                      <input aria-label={`เลือก ${product.name}`} className="h-4 w-4 accent-sky-600" type="checkbox" checked={selectedMenuIds.includes(String(product.id))} onChange={() => toggleMenuSelection(product.id)} />
+                    </label>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
                     <span className="rounded-md bg-slate-100 px-1.5 py-1 text-slate-600">สูตร {product.recipe?.length || 0}</span>
