@@ -28,60 +28,6 @@ const loadSession = () => {
 };
 
 const initialOrders = [];
-
-const inventory = [
-  {
-    name: "Fresh milk",
-    code: "MLK-001",
-    stock: 18,
-    unit: "bottles",
-    expiry: "18 Aug 2026",
-    level: "healthy",
-  },
-  {
-    name: "Brown sugar syrup",
-    code: "SYR-004",
-    stock: 4,
-    unit: "bottles",
-    expiry: "06 Sep 2026",
-    level: "low",
-  },
-  {
-    name: "Tapioca pearls",
-    code: "TOP-018",
-    stock: 12,
-    unit: "bags",
-    expiry: "24 Aug 2026",
-    level: "healthy",
-  },
-  {
-    name: "Matcha powder",
-    code: "MAT-007",
-    stock: 2,
-    unit: "packs",
-    expiry: "02 Oct 2026",
-    level: "low",
-  },
-  {
-    name: "Ice cubes",
-    code: "ICE-011",
-    stock: 26,
-    unit: "bags",
-    expiry: "Today",
-    level: "healthy",
-  },
-];
-
-const fallbackChannels = [
-  { id: 1, name: "Front Store" },
-  { id: 2, name: "GrabFood" },
-  { id: 3, name: "LINE MAN" },
-];
-const fallbackProducts = [
-  { id: 1, name: "ชานมไข่มุก", price_retail: 55, icon: "🧋" },
-  { id: 2, name: "กาแฟเย็น", price_retail: 60, icon: "☕" },
-  { id: 3, name: "เค้กช็อกโกแลต", price_retail: 85, icon: "🍰" },
-];
 const money = (amount) =>
   `฿${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
 const formatItems = (items) =>
@@ -218,7 +164,7 @@ function AppContent() {
   const [activeView, setActiveView] = useState("home");
   const [orders, setOrders] = useState(initialOrders);
   const [restocked, setRestocked] = useState([]);
-  const [notice, setNotice] = useState("LIVE SYNC · 14:32:08");
+  const [notice, setNotice] = useState("กำลังตรวจสอบการเชื่อมต่อ...");
   const [loyalty, setLoyalty] = useState({ account: null, rules: null });
   const [loyaltyMembers, setLoyaltyMembers] = useState([]);
   const [rolePermissions, setRolePermissions] = useState([]);
@@ -231,9 +177,9 @@ function AppContent() {
     baht_per_point: 0.1,
     max_redeem_percent: 50,
   });
-  const [channels, setChannels] = useState(fallbackChannels);
-  const [products, setProducts] = useState(fallbackProducts);
-  const [inventoryRows, setInventoryRows] = useState(inventory);
+  const [channels, setChannels] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [inventoryRows, setInventoryRows] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [stockReceipts, setStockReceipts] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
