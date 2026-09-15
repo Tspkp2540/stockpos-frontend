@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { loadPosMenuUsage, recordPosMenuUsage } from "./posMenuUsage";
+import {
+  loadPosMenuFavorites,
+  loadPosMenuUsage,
+  recordPosMenuUsage,
+  togglePosMenuFavorite,
+} from "./posMenuUsage";
 
 const storage = new Map();
 
@@ -28,5 +33,19 @@ describe("POS menu usage", () => {
     vi.stubGlobal("window", { localStorage: { getItem: () => '{bad json', setItem: () => { throw new Error('blocked'); } } });
     expect(loadPosMenuUsage()).toEqual({});
     expect(recordPosMenuUsage({}, 3)).toEqual({ 3: 1 });
+  });
+
+  it("adds, removes, and reloads favorite menus", () => {
+    mockStorage();
+    expect(togglePosMenuFavorite([], 12)).toEqual(["12"]);
+    expect(loadPosMenuFavorites()).toEqual(["12"]);
+    expect(togglePosMenuFavorite(["12"], 12)).toEqual([]);
+    expect(loadPosMenuFavorites()).toEqual([]);
+  });
+
+  it("ignores malformed favorite data and remains usable without storage", () => {
+    vi.stubGlobal("window", { localStorage: { getItem: () => "{bad json", setItem: () => { throw new Error("blocked"); } } });
+    expect(loadPosMenuFavorites()).toEqual([]);
+    expect(togglePosMenuFavorite([], 7)).toEqual(["7"]);
   });
 });

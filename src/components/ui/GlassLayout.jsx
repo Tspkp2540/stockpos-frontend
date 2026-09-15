@@ -11,7 +11,7 @@ import { printReceipt } from "../../utils/printReceipt";
 import { printKitchenTicket } from "../../utils/printKitchenTicket";
 import { loadPrintSettings, savePrintSettings } from "../../utils/printSettings";
 import { printCashShiftSummary } from "../../utils/printCashShiftSummary";
-import { loadPosMenuUsage, recordPosMenuUsage } from "../../utils/posMenuUsage";
+import { loadPosMenuFavorites, loadPosMenuUsage, recordPosMenuUsage, togglePosMenuFavorite } from "../../utils/posMenuUsage";
 import { productForChannel } from "../../utils/channelMenu";
 import { useActionDialog } from "./ActionDialog";
 
@@ -263,13 +263,18 @@ function Empty({ children }) {
   );
 }
 
-function AdminHomePage({ groups, onNavigate }) {
+function AdminHomePage({ groups, summary, onNavigate }) {
   return (
     <div className="space-y-5">
       <Heading
         title="ศูนย์จัดการร้าน"
         description="เลือกหมวดงานเพื่อเข้าสู่เมนูที่เกี่ยวข้อง"
       />
+      <section className="grid gap-3 sm:grid-cols-3">
+        <button className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-left transition hover:border-amber-300" type="button" onClick={() => onNavigate("pos")}><p className="text-xs font-bold text-amber-800">คิวที่ต้องดูแล</p><strong className="mt-2 block text-3xl text-slate-900">{summary.pendingOrders}</strong><span className="mt-1 block text-xs text-slate-600">คำสั่งซื้อกำลังทำหรือพร้อมรับ</span></button>
+        <button className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-left transition hover:border-rose-300" type="button" onClick={() => onNavigate("inventory")}><p className="text-xs font-bold text-rose-700">วัตถุดิบใกล้หมด</p><strong className="mt-2 block text-3xl text-slate-900">{summary.lowStock}</strong><span className="mt-1 block text-xs text-slate-600">รายการที่ต้องตรวจสอบ</span></button>
+        <button className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-left transition hover:border-emerald-300" type="button" onClick={() => onNavigate("finance")}><p className="text-xs font-bold text-emerald-700">ยอดขายสุทธิ</p><strong className="mt-2 block text-2xl text-slate-900">{money(summary.netSales)}</strong><span className="mt-1 block text-xs text-slate-600">สรุปตามข้อมูลล่าสุด</span></button>
+      </section>
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {groups.map((group) => (
           <button
@@ -677,6 +682,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
   const [menuCategory, setMenuCategory] = useState("ALL");
   const [barcodeInput, setBarcodeInput] = useState("");
   const [menuUsage, setMenuUsage] = useState(loadPosMenuUsage);
+  const [favoriteMenuIds, setFavoriteMenuIds] = useState(loadPosMenuFavorites);
   const channelProducts = useMemo(
     () => products
       .map((product) => productForChannel(product, channelId))
@@ -706,7 +712,12 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
       .slice(0, 6),
     [channelProducts, menuUsage],
   );
+  const favoriteProducts = useMemo(
+    () => channelProducts.filter((product) => favoriteMenuIds.includes(String(product.id))).slice(0, 8),
+    [channelProducts, favoriteMenuIds],
+  );
   const noteMenuUsed = (product) => setMenuUsage((current) => recordPosMenuUsage(current, product.id));
+  const toggleFavorite = (productId) => setFavoriteMenuIds((current) => togglePosMenuFavorite(current, productId));
   const openCart = () => {
     setCheckoutStep(1);
     setCartOpen(true);
@@ -1125,14 +1136,22 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
               </div>
             </div>
           ) : null}
+          {favoriteProducts.length ? (
+            <div className="mb-4 rounded-xl border border-violet-100 bg-violet-50/60 p-2.5">
+              <p className="mb-2 text-xs font-bold text-violet-900">เมนูโปรด</p>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {favoriteProducts.map((product) => <button className="flex min-w-36 shrink-0 items-center gap-2 rounded-lg border border-violet-200 bg-white px-2.5 py-2 text-left text-xs font-bold text-slate-700 transition hover:border-violet-400 hover:bg-violet-50" key={product.id} type="button" onClick={() => addItem(product)}><ProductVisual product={product} className="h-8 w-8" /><span className="min-w-0"><span className="block truncate">{product.name}</span><span className="text-sky-700">{money(product.price_retail)}</span></span></button>)}
+              </div>
+            </div>
+          ) : null}
           <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {visibleProducts.map((product) => {
               const availability = menuAvailability(product);
               return (
+                <div className="relative" key={product.id}>
                 <button
-                  className={`min-w-0 rounded-xl border p-3 text-left transition focus:outline-none focus:ring-4 ${availability.isAvailable ? "border-sky-100 bg-sky-50/40 hover:border-sky-400 hover:bg-sky-50 focus:ring-sky-100" : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-65 focus:ring-slate-100"}`}
+                  className={`min-w-0 w-full rounded-xl border p-3 text-left transition focus:outline-none focus:ring-4 ${availability.isAvailable ? "border-sky-100 bg-sky-50/40 hover:border-sky-400 hover:bg-sky-50 focus:ring-sky-100" : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-65 focus:ring-slate-100"}`}
                   disabled={!availability.isAvailable}
-                  key={product.id}
                   onClick={() => addItem(product)}
                 >
                   <ProductVisual product={product} className="h-12 w-12 shadow-sm" />
@@ -1146,6 +1165,8 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
                     {menuAvailabilityLabel(product)}
                   </p>
                 </button>
+                <button aria-label={`${favoriteMenuIds.includes(String(product.id)) ? "ยกเลิกเมนูโปรด" : "เพิ่มเมนูโปรด"} ${product.name}`} className={`absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-lg border text-sm ${favoriteMenuIds.includes(String(product.id)) ? "border-violet-300 bg-violet-100 text-violet-700" : "border-sky-100 bg-white text-slate-400 hover:text-violet-600"}`} type="button" onClick={() => toggleFavorite(product.id)}>★</button>
+                </div>
               );
             })}
           </div>
@@ -6236,7 +6257,15 @@ export default function GlassLayout({
       : "home";
   const content =
     activeView === "home" ? (
-      <AdminHomePage groups={visibleNavigationGroups} onNavigate={setActiveView} />
+      <AdminHomePage
+        groups={visibleNavigationGroups}
+        summary={{
+          pendingOrders: orders.filter((order) => ["COOKING", "READY"].includes(order.status)).length,
+          lowStock: inventoryRows.filter((item) => Number(item.stock_qty || 0) <= Number(item.min_stock_alert || 0)).length,
+          netSales: metrics?.net || 0,
+        }}
+        onNavigate={setActiveView}
+      />
     ) : activeCategoryGroup ? (
       <CategoryHubPage
         group={activeCategoryGroup}

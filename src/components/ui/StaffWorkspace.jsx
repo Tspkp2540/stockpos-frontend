@@ -4,7 +4,7 @@ import MenuModifierPicker from "./MenuModifierPicker";
 import CashShiftDialog from "./CashShiftDialog";
 import { menuAvailability, menuAvailabilityLabel } from "../../utils/menuAvailability";
 import { printReceipt } from "../../utils/printReceipt";
-import { loadPosMenuUsage, recordPosMenuUsage } from "../../utils/posMenuUsage";
+import { loadPosMenuFavorites, loadPosMenuUsage, recordPosMenuUsage, togglePosMenuFavorite } from "../../utils/posMenuUsage";
 import { productForChannel } from "../../utils/channelMenu";
 import { useActionDialog } from "./ActionDialog";
 
@@ -134,6 +134,7 @@ export default function StaffWorkspace({
   const [menuCategory, setMenuCategory] = useState("ALL");
   const [barcodeInput, setBarcodeInput] = useState("");
   const [menuUsage, setMenuUsage] = useState(loadPosMenuUsage);
+  const [favoriteMenuIds, setFavoriteMenuIds] = useState(loadPosMenuFavorites);
   const handlePrint = (order) => {
     if (printReceipt(order)) return;
     showMessage({
@@ -184,7 +185,9 @@ export default function StaffWorkspace({
       .slice(0, 6),
     [channelProducts, menuUsage],
   );
+  const favoriteProducts = useMemo(() => channelProducts.filter((product) => favoriteMenuIds.includes(String(product.id))).slice(0, 8), [channelProducts, favoriteMenuIds]);
   const noteMenuUsed = (product) => setMenuUsage((current) => recordPosMenuUsage(current, product.id));
+  const toggleFavorite = (productId) => setFavoriteMenuIds((current) => togglePosMenuFavorite(current, productId));
   const openCart = () => {
     setCheckoutStep(1);
     setCartOpen(true);
@@ -832,14 +835,15 @@ export default function StaffWorkspace({
                   </div>
                 </div>
               ) : null}
+              {favoriteProducts.length ? <div className="mb-4 rounded-xl border border-violet-100 bg-violet-50/60 p-2.5"><p className="mb-2 text-xs font-bold text-violet-900">เมนูโปรด</p><div className="flex gap-2 overflow-x-auto pb-1">{favoriteProducts.map((product) => <button className="flex min-w-36 shrink-0 items-center gap-2 rounded-lg border border-violet-200 bg-white px-2.5 py-2 text-left text-xs font-bold text-slate-700 transition hover:border-violet-400 hover:bg-violet-50" key={product.id} type="button" onClick={() => addProduct(product)}><MenuThumbnail product={product} className="h-8 w-8" /><span className="min-w-0"><span className="block truncate">{product.name}</span><span className="text-sky-700">{money(product.price_retail)}</span></span></button>)}</div></div> : null}
               <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {visibleProducts.map((product) => {
                   const availability = menuAvailability(product);
                   return (
+                    <div className="relative" key={product.id}>
                     <button
-                      className={`rounded-xl border p-3 text-left transition ${availability.isAvailable ? "border-sky-100 bg-sky-50/60 hover:-translate-y-0.5 hover:border-sky-400 hover:bg-white hover:shadow-md" : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-65"}`}
+                      className={`w-full rounded-xl border p-3 text-left transition ${availability.isAvailable ? "border-sky-100 bg-sky-50/60 hover:-translate-y-0.5 hover:border-sky-400 hover:bg-white hover:shadow-md" : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-65"}`}
                       disabled={!availability.isAvailable}
-                      key={product.id}
                       onClick={() => addProduct(product)}
                     >
                       <MenuThumbnail product={product} className="h-12 w-12 shadow-sm" />
@@ -851,6 +855,8 @@ export default function StaffWorkspace({
                         {menuAvailabilityLabel(product)}
                       </p>
                     </button>
+                    <button aria-label={`${favoriteMenuIds.includes(String(product.id)) ? "ยกเลิกเมนูโปรด" : "เพิ่มเมนูโปรด"} ${product.name}`} className={`absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-lg border text-sm ${favoriteMenuIds.includes(String(product.id)) ? "border-violet-300 bg-violet-100 text-violet-700" : "border-sky-100 bg-white text-slate-400 hover:text-violet-600"}`} type="button" onClick={() => toggleFavorite(product.id)}>★</button>
+                    </div>
                   );
                 })}
               </div>
