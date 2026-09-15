@@ -92,6 +92,32 @@ function ItemList({ items }) {
   return <p className="text-sm text-slate-600">{items || "ไม่มีรายการสินค้า"}</p>;
 }
 
+function ReturnOrderDialog({ order, onClose, onSubmit }) {
+  const [quantities, setQuantities] = useState(() => Object.fromEntries((order?.rawItems || []).map((item) => [String(item.order_item_id), "0"])));
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const lines = (order?.rawItems || []).map((item) => {
+    const available = Math.max(0, Number(item.quantity || 0) - Number(item.returned_quantity || 0));
+    const selected = Math.min(available, Math.max(0, Number(quantities[String(item.order_item_id)] || 0)));
+    return { ...item, available, selected };
+  }).filter((item) => item.available > 0);
+  const selectedItems = lines.filter((item) => item.selected > 0).map((item) => ({ order_item_id: item.order_item_id, quantity: item.selected }));
+  const selectedSubtotal = lines.reduce((sum, item) => sum + item.selected * Number(item.unit_price || 0), 0);
+  const estimatedRefund = Number(order?.subtotal_amount || 0) > 0
+    ? Math.min(Math.max(0, Number(order.gross_amount || 0) - Number(order.refunded_amount || 0)), selectedSubtotal * Number(order.gross_amount || 0) / Number(order.subtotal_amount))
+    : 0;
+  const update = (item, value) => setQuantities((current) => ({ ...current, [String(item.order_item_id)]: String(Math.min(item.available, Math.max(0, Number(value || 0)))) }));
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!selectedItems.length || saving) return;
+    setSaving(true);
+    const saved = await onSubmit(order.id, { items: selectedItems, reason });
+    setSaving(false);
+    if (saved) onClose();
+  };
+  return <div className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-sm sm:p-6" onMouseDown={onClose}><div className="flex min-h-full items-center justify-center"><form className="shop-panel w-full max-w-2xl rounded-3xl border bg-white p-5 shadow-2xl sm:p-6" onMouseDown={(event) => event.stopPropagation()} onSubmit={submit}><div className="pr-9"><p className="text-xs font-bold text-violet-700">คืนสินค้าและคืนเงิน</p><h2 className="mt-1 text-lg font-bold text-slate-900">ออเดอร์ #{order.order_no}</h2><p className="mt-1 text-sm text-slate-500">เลือกจำนวนที่ต้องการคืน ระบบคืนเงินด้วยช่องทางเดิมและคืนสต็อกล็อตเดิม</p></div><div className="mt-5 max-h-64 space-y-2 overflow-y-auto pr-1">{lines.map((item) => <div className="grid grid-cols-[minmax(0,1fr)_104px] items-center gap-3 rounded-xl border border-sky-100 bg-sky-50/45 p-3" key={item.order_item_id}><div><p className="font-semibold text-slate-800">{item.name}</p><p className="mt-0.5 text-xs text-slate-500">คืนได้อีก {item.available} · {money(item.unit_price)} / ชิ้น</p></div><label className="grid gap-1 text-xs font-bold text-slate-600">จำนวนคืน<input className={inputClass} type="number" min="0" max={item.available} step="0.001" value={quantities[String(item.order_item_id)] || "0"} onChange={(event) => update(item, event.target.value)} /></label></div>)}</div><label className="mt-4 grid gap-1.5 text-xs font-semibold text-slate-600">เหตุผลการคืนสินค้า<textarea className={`${inputClass} min-h-20 resize-y`} maxLength="500" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="เช่น สินค้าผิดรายการ" /></label><div className="mt-4 rounded-2xl border border-violet-100 bg-violet-50 p-4"><p className="text-xs font-bold text-violet-700">ยอดคืนโดยประมาณ</p><p className="mt-1 text-2xl font-black text-violet-900">{money(estimatedRefund)}</p></div><div className="mt-5 flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>ยกเลิก</Button><Button type="submit" variant="danger" disabled={saving || !selectedItems.length}>{saving ? "กำลังคืนสินค้า..." : "ยืนยันคืนสินค้า"}</Button></div></form></div></div>;
+}
+
 export default function StaffWorkspace({
   user,
   orders,
@@ -105,6 +131,7 @@ export default function StaffWorkspace({
   onOpenCashShift,
   onCloseCashShift,
   onUpdate,
+  onReturnOrder,
   onLogout,
 }) {
   const { showMessage } = useActionDialog();
@@ -146,6 +173,7 @@ export default function StaffWorkspace({
   const [orderStatusFilter, setOrderStatusFilter] = useState("ALL");
   const [orderChannelFilter, setOrderChannelFilter] = useState("ALL");
   const [orderDateFilter, setOrderDateFilter] = useState("");
+  const [returnOrder, setReturnOrder] = useState(null);
   const canView = (menu) => user?.permissions?.[menu]?.view === true;
   const canUsePos = canView("pos");
   const canViewOrders = canView("orders");
@@ -529,18 +557,17 @@ export default function StaffWorkspace({
             </Button>
           </div>
         ) : canUpdateOrders && order.status === "READY" ? (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button className="text-xs" onClick={() => onUpdate(order.id, "COMPLETED")}>
               ส่งมอบแล้ว
             </Button>
+            {Number(order.gross_amount || 0) > Number(order.refunded_amount || 0) + 0.005 ? <Button className="text-xs" variant="danger" onClick={() => setReturnOrder(order)}>คืนสินค้า</Button> : null}
             <Button className="text-xs" variant="secondary" onClick={() => handlePrint(order)}>
               ใบเสร็จ
             </Button>
           </div>
         ) : (
-          <Button className="text-xs" variant="secondary" onClick={() => handlePrint(order)}>
-            ใบเสร็จ
-          </Button>
+          <div className="flex flex-wrap gap-2"><Button className="text-xs" variant="secondary" onClick={() => handlePrint(order)}>ใบเสร็จ</Button>{canUpdateOrders && order.status === "COMPLETED" && Number(order.gross_amount || 0) > Number(order.refunded_amount || 0) + 0.005 ? <Button className="text-xs" variant="danger" onClick={() => setReturnOrder(order)}>คืนสินค้า</Button> : null}</div>
         )}
       </div>
     </article>
@@ -572,7 +599,7 @@ export default function StaffWorkspace({
           </div>
           <section className="shop-panel mb-5 grid gap-2 rounded-2xl border p-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_145px_175px_160px_auto]">
             <input aria-label="ค้นหาคำสั่งซื้อ" className={inputClass} value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="ค้นหาเลขที่คำสั่งซื้อ คิว ชื่อลูกค้า หรือหมายเลขโทรศัพท์" />
-            <select aria-label="กรองสถานะคำสั่งซื้อ" className={inputClass} value={orderStatusFilter} onChange={(event) => setOrderStatusFilter(event.target.value)}><option value="ALL">ทุกสถานะ</option><option value="COOKING">กำลังจัดเตรียม</option><option value="READY">พร้อมรับสินค้า</option><option value="COMPLETED">ดำเนินการเสร็จสิ้น</option><option value="CANCELLED">ยกเลิก</option></select>
+            <select aria-label="กรองสถานะคำสั่งซื้อ" className={inputClass} value={orderStatusFilter} onChange={(event) => setOrderStatusFilter(event.target.value)}><option value="ALL">ทุกสถานะ</option><option value="COOKING">กำลังจัดเตรียม</option><option value="READY">พร้อมรับสินค้า</option><option value="COMPLETED">ดำเนินการเสร็จสิ้น</option><option value="RETURNED">คืนเงินแล้ว</option><option value="CANCELLED">ยกเลิก</option></select>
             <select aria-label="กรองช่องทางขาย" className={inputClass} value={orderChannelFilter} onChange={(event) => setOrderChannelFilter(event.target.value)}><option value="ALL">ทุกช่องทาง</option>{orderChannels.map((channel) => <option value={channel} key={channel}>{channel}</option>)}</select>
             <input aria-label="กรองวันที่ออเดอร์" className={inputClass} type="date" value={orderDateFilter} onChange={(event) => setOrderDateFilter(event.target.value)} />
             <Button type="button" variant="secondary" onClick={() => { setOrderSearch(""); setOrderStatusFilter("ALL"); setOrderChannelFilter("ALL"); setOrderDateFilter(""); }}>ล้างตัวกรอง</Button>
@@ -1107,6 +1134,7 @@ export default function StaffWorkspace({
           {orders.length > 5 ? <div className="mt-4 flex justify-center"><Button type="button" variant="secondary" onClick={() => setShowAllOrders(true)}>ดูรายการคำสั่งซื้อทั้งหมด ({orders.length}) →</Button></div> : null}
         </section> : null}
       </main>
+      {returnOrder ? <ReturnOrderDialog order={returnOrder} onClose={() => setReturnOrder(null)} onSubmit={onReturnOrder} /> : null}
       {pendingProduct ? (
         <MenuModifierPicker
           key={`${pendingProduct.id}-${editingCartKey || "new"}`}

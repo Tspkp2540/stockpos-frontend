@@ -82,6 +82,14 @@ const categoryViewId = (groupId) => `category-${groupId}`;
 
 const money = (amount) =>
   `฿${Number(amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+const orderNetAmounts = (order = {}) => {
+  const gross = Number(order.gross_amount ?? order.net_revenue ?? 0);
+  const refunded = Math.min(gross, Math.max(0, Number(order.refunded_amount || 0)));
+  const refundRatio = gross > 0 ? refunded / gross : 0;
+  const net = Math.max(0, Number(order.net_revenue || 0) * (1 - refundRatio));
+  const cogs = Math.max(0, Number(order.total_cogs || 0) - Number(order.restored_cogs || 0));
+  return { gross: Math.max(0, gross - refunded), net, cogs, profit: net - cogs, refunded };
+};
 const localDateTimeValue = () => {
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -352,12 +360,59 @@ function LowStockMenuAlert({ products, className = "" }) {
   );
 }
 
-function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
+function OrderReturnModal({ order, onClose, onSubmit }) {
+  const [quantities, setQuantities] = useState({});
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const items = Array.isArray(order?.rawItems) ? order.rawItems : [];
+  useEffect(() => {
+    setQuantities(Object.fromEntries(items.map((item) => [String(item.order_item_id), "0"])));
+    setReason("");
+  }, [order?.id]);
+  const lines = items.map((item) => {
+    const available = Math.max(0, Number(item.quantity || 0) - Number(item.returned_quantity || 0));
+    const selected = Math.min(available, Math.max(0, Number(quantities[String(item.order_item_id)] || 0)));
+    return { ...item, available, selected };
+  }).filter((item) => item.available > 0);
+  const selectedSubtotal = lines.reduce((sum, item) => sum + item.selected * Number(item.unit_price || 0), 0);
+  const remainingRefund = Math.max(0, Number(order?.gross_amount || 0) - Number(order?.refunded_amount || 0));
+  const estimatedRefund = Math.min(remainingRefund, Number(order?.subtotal_amount || 0) > 0 ? selectedSubtotal * Number(order?.gross_amount || 0) / Number(order.subtotal_amount) : 0);
+  const updateQuantity = (item, value) => {
+    const next = Math.min(item.available, Math.max(0, Number(value || 0)));
+    setQuantities((current) => ({ ...current, [String(item.order_item_id)]: String(next) }));
+  };
+  const submit = async (event) => {
+    event.preventDefault();
+    const selectedItems = lines.filter((item) => item.selected > 0).map((item) => ({ order_item_id: item.order_item_id, quantity: item.selected }));
+    if (!selectedItems.length || saving) return;
+    setSaving(true);
+    const success = await onSubmit(order.id, { items: selectedItems, reason });
+    setSaving(false);
+    if (success) onClose();
+  };
+  const paymentLabel = { CASH: "เงินสด", QR: "QR พร้อมเพย์", TRANSFER: "โอนเงิน", CARD: "บัตร", OTHER: "อื่น ๆ" }[order?.payment?.payment_method] || "ช่องทางเดิม";
+  return <Modal label={`คืนสินค้า ${order?.order_no || ""}`} maxWidth="max-w-2xl" onClose={onClose}>
+    <Card className="max-h-[calc(100vh-2rem)] overflow-y-auto bg-white">
+      <div className="pr-10"><p className="text-xs font-bold text-violet-700">คืนสินค้าและคืนเงิน</p><h2 className="mt-1 text-lg font-bold text-slate-900">ออเดอร์ #{order?.order_no}</h2><p className="mt-1 text-sm text-slate-500">คืนเงินผ่าน {paymentLabel} · เลือกรายการและจำนวนที่ลูกค้านำมาคืน</p></div>
+      {lines.length ? <form className="mt-5 space-y-4" onSubmit={submit}>
+        <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+          {lines.map((item) => <div className="grid grid-cols-[minmax(0,1fr)_104px] items-center gap-3 rounded-xl border border-sky-100 bg-sky-50/45 p-3" key={item.order_item_id}><div><p className="font-semibold text-slate-800">{item.name || "สินค้า"}</p><p className="mt-0.5 text-xs text-slate-500">ซื้อ {item.quantity} · คืนแล้ว {item.returned_quantity || 0} · คืนได้อีก {item.available} · {money(item.unit_price)} / ชิ้น</p>{Array.isArray(item.modifiers) && item.modifiers.length ? <p className="mt-1 text-xs text-violet-700">{item.modifiers.map((modifier) => modifier.name).join(" · ")}</p> : null}</div><label className="grid gap-1 text-xs font-bold text-slate-600">จำนวนคืน<input className={inputClass} type="number" inputMode="decimal" min="0" max={item.available} step="0.001" value={quantities[String(item.order_item_id)] || "0"} onChange={(event) => updateQuantity(item, event.target.value)} /></label></div>)}
+        </div>
+        <label className={labelClass}>เหตุผลการคืนสินค้า<textarea className={`${inputClass} min-h-20 resize-y`} maxLength="500" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="เช่น สินค้าผิดรายการ / ลูกค้าเปลี่ยนใจ" /></label>
+        <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4"><div className="flex flex-wrap items-end justify-between gap-2"><div><p className="text-xs font-bold text-violet-700">ยอดคืนโดยประมาณ</p><p className="mt-1 text-2xl font-black text-violet-900">{money(estimatedRefund)}</p></div><p className="text-xs text-violet-700">ระบบคำนวณส่วนลด คะแนน และคูปองตามสัดส่วน พร้อมคืนสต็อกล็อตเดิม</p></div></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>ยกเลิก</Button><Button type="submit" variant="danger" disabled={saving || selectedSubtotal <= 0}>{saving ? "กำลังคืนสินค้า..." : "ยืนยันคืนสินค้า"}</Button></div>
+      </form> : <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center text-sm text-slate-600">ไม่มีสินค้าเหลือให้คืนในออเดอร์นี้</div>}
+    </Card>
+  </Modal>;
+}
+
+function OrdersPage({ orders, onUpdate, onReturn, preview = false, onViewAll, onBack }) {
   const { showMessage } = useActionDialog();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [channelFilter, setChannelFilter] = useState("ALL");
   const [dateFilter, setDateFilter] = useState("");
+  const [returnOrder, setReturnOrder] = useState(null);
   const channelOptions = useMemo(
     () => [...new Set(orders.map((order) => order.channel_name).filter(Boolean))],
     [orders],
@@ -415,6 +470,7 @@ function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
               <option value="COOKING">กำลังทำ</option>
               <option value="READY">พร้อมรับ</option>
               <option value="COMPLETED">สำเร็จ</option>
+              <option value="RETURNED">คืนเงินแล้ว</option>
               <option value="CANCELLED">ยกเลิก</option>
             </select>
             <select aria-label="กรองช่องทางขาย" className={inputClass} value={channelFilter} onChange={(event) => setChannelFilter(event.target.value)}>
@@ -454,6 +510,7 @@ function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
               <p className="mt-3 line-clamp-2 text-sm text-slate-600">
                 {order.items || "ไม่มีรายการสินค้า"}
               </p>
+              {Number(order.refunded_amount || 0) > 0 ? <p className="mt-2 text-xs font-bold text-violet-700">คืนเงินแล้ว {money(order.refunded_amount)}</p> : null}
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <strong className="text-lg text-sky-700">
                   {money(order.net_revenue)}
@@ -478,19 +535,16 @@ function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
                     </Button>
                   </div>
                 ) : order.status === "READY" ? (
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button className="text-xs" onClick={() => onUpdate(order.id, "COMPLETED")}>
                       ส่งมอบแล้ว
                     </Button>
+                    {Number(order.gross_amount || 0) > Number(order.refunded_amount || 0) + 0.005 ? <Button className="text-xs" variant="danger" onClick={() => setReturnOrder(order)}>คืนสินค้า</Button> : null}
                     <Button className="text-xs" variant="secondary" onClick={() => handlePrint(order)}>
                       ใบเสร็จ
                     </Button>
                   </div>
-                ) : (
-                  <Button className="text-xs" variant="secondary" onClick={() => handlePrint(order)}>
-                    ใบเสร็จ
-                  </Button>
-                )}
+                ) : <div className="flex flex-wrap gap-2"><Button className="text-xs" variant="secondary" onClick={() => handlePrint(order)}>ใบเสร็จ</Button>{["COMPLETED", "READY"].includes(order.status) && Number(order.gross_amount || 0) > Number(order.refunded_amount || 0) + 0.005 ? <Button className="text-xs" variant="danger" onClick={() => setReturnOrder(order)}>คืนสินค้า</Button> : null}</div>}
               </div>
             </article>
           ))
@@ -503,6 +557,7 @@ function OrdersPage({ orders, onUpdate, preview = false, onViewAll, onBack }) {
           <Button type="button" variant="secondary" onClick={onViewAll}>ดูรายการออเดอร์ทั้งหมด ({orders.length}) →</Button>
         </div>
       ) : null}
+      {returnOrder ? <OrderReturnModal order={returnOrder} onClose={() => setReturnOrder(null)} onSubmit={onReturn} /> : null}
     </div>
   );
 }
@@ -514,7 +569,7 @@ function KitchenDisplayPage({ orders, onUpdate }) {
     const timer = window.setInterval(() => setNow(Date.now()), 30000);
     return () => window.clearInterval(timer);
   }, []);
-  const activeOrders = orders.filter((order) => !["COMPLETED", "CANCELLED"].includes(order.status));
+  const activeOrders = orders.filter((order) => !["COMPLETED", "RETURNED", "CANCELLED"].includes(order.status));
   const elapsed = (order) => {
     const createdAt = new Date(order.created_at || order.order_date || now).getTime();
     const minutes = Math.max(0, Math.floor((now - createdAt) / 60000));
@@ -3880,17 +3935,20 @@ const exportFinance = ({ selectedDate, orders, expenses, summary, salesBreakdown
           { key: "cogs", label: "ต้นทุนสินค้า" },
           { key: "profit", label: "กำไร" },
         ],
-        rows: orders.map((order) => ({
-          date: bangkokDate(order.created_at) || selectedDate,
-          orderNo: order.order_no || "",
-          channel: order.channel_name || "",
-          status: order.status || "",
-          items: order.items || "",
-          gross: Number(order.gross_amount ?? order.net_revenue ?? 0),
-          net: Number(order.net_revenue || 0),
-          cogs: Number(order.total_cogs || 0),
-          profit: Number(order.net_profit ?? order.net_revenue ?? 0),
-        })),
+        rows: orders.map((order) => {
+          const totals = orderNetAmounts(order);
+          return {
+            date: bangkokDate(order.created_at) || selectedDate,
+            orderNo: order.order_no || "",
+            channel: order.channel_name || "",
+            status: order.status || "",
+            items: order.items || "",
+            gross: totals.gross,
+            net: totals.net,
+            cogs: totals.cogs,
+            profit: totals.profit,
+          };
+        }),
       },
       {
         name: "ค่าใช้จ่าย",
@@ -5319,14 +5377,15 @@ function FinancePage({
   );
   const summary = useMemo(() => {
     const salesTotals = financialOrders.reduce(
-      (totals, order) => ({
-        gross:
-          totals.gross + Number(order.gross_amount ?? order.net_revenue ?? 0),
-        net: totals.net + Number(order.net_revenue || 0),
-        cogs: totals.cogs + Number(order.total_cogs || 0),
-        profit:
-          totals.profit + Number(order.net_profit ?? order.net_revenue ?? 0),
-      }),
+      (totals, order) => {
+        const current = orderNetAmounts(order);
+        return {
+          gross: totals.gross + current.gross,
+          net: totals.net + current.net,
+          cogs: totals.cogs + current.cogs,
+          profit: totals.profit + current.profit,
+        };
+      },
       { gross: 0, net: 0, cogs: 0, profit: 0 },
     );
     const expenseTotal = filteredExpenses.reduce(
@@ -5857,8 +5916,9 @@ function FinancePage({
           </div>
           <div className="mt-4 space-y-3">
             {visibleOrders.length ? (
-              visibleOrders.map((order) => (
-                <div
+              visibleOrders.map((order) => {
+                const totals = orderNetAmounts(order);
+                return <div
                   className="flex flex-col gap-3 rounded-xl border border-sky-100 p-3 sm:flex-row sm:items-center"
                   key={order.id}
                 >
@@ -5866,7 +5926,7 @@ function FinancePage({
                     <p className="font-bold text-slate-800">
                       #{order.order_no} ·{" "}
                       <span className="text-sky-700">
-                        {money(order.net_revenue)}
+                        {money(totals.net)}
                       </span>
                     </p>
                     <p className="mt-1 truncate text-sm text-slate-500">
@@ -5878,6 +5938,7 @@ function FinancePage({
                         {order.customer_phone ? ` · ${maskPhone(order.customer_phone)}` : ""}
                       </p>
                     ) : null}
+                    {totals.refunded > 0 ? <p className="mt-1 text-xs font-bold text-violet-700">คืนเงินแล้ว {money(totals.refunded)}</p> : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Status status={order.status} />
@@ -5890,7 +5951,7 @@ function FinancePage({
                         แก้ไข
                       </Button>
                     )}
-                    {String(order.status || "").toUpperCase() !== "CANCELLED" ? (
+                    {String(order.status || "").toUpperCase() !== "CANCELLED" && totals.refunded <= 0 ? (
                       <Button
                         className="text-xs"
                         variant="danger"
@@ -5907,8 +5968,8 @@ function FinancePage({
                       ลบ
                     </Button>
                   </div>
-                </div>
-              ))
+                </div>;
+              })
             ) : (
               <Empty>ไม่พบรายการขายที่ตรงกับเลขออเดอร์</Empty>
             )}
@@ -6395,6 +6456,7 @@ export default function GlassLayout({
   onOpenCashShift,
   onCloseCashShift,
   onUpdate,
+  onReturnOrder,
   onRestock,
   onAdjustInventory,
   onCreateSupplier,
@@ -6596,10 +6658,10 @@ export default function GlassLayout({
     ) : activeView === "kitchen" ? (
       <KitchenDisplayPage orders={orders} onUpdate={onUpdate} />
     ) : activeView === "orders" ? (
-      <OrdersPage orders={orders} onUpdate={onUpdate} onBack={() => setActiveView("pos")} />
+      <OrdersPage orders={orders} onUpdate={onUpdate} onReturn={onReturnOrder} onBack={() => setActiveView("pos")} />
     ) : (
       <div className="space-y-5">
-        <OrdersPage orders={orders} onUpdate={onUpdate} preview onViewAll={() => setActiveView("orders")} />
+        <OrdersPage orders={orders} onUpdate={onUpdate} onReturn={onReturnOrder} preview onViewAll={() => setActiveView("orders")} />
         <PosPage
           channels={channels}
           products={products}

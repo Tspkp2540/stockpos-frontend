@@ -1042,6 +1042,32 @@ function AppContent() {
     }
     return false;
   };
+  const returnOrder = async (id, payload) => {
+    try {
+      const response = await axios.post(`${API_BASE}/api/orders/${id}/returns`, payload);
+      if (response.data?.success) {
+        const refreshed = await axios.get(`${API_BASE}/api/orders`);
+        if (refreshed.data?.success && Array.isArray(refreshed.data.data)) {
+          setOrders(refreshed.data.data.map(normalizeOrder));
+        }
+        await refreshFinancialSummary();
+        if (session?.role === "admin") await refreshSalesBreakdown(todayInBangkok());
+        if (response.data.data?.return?.refund_method === "CASH") await refreshCurrentShift();
+        const returned = response.data.data?.return || {};
+        setNotice(`RETURN COMPLETED · ${returned.return_no || "ORDER UPDATED"}`);
+        showMessage({
+          tone: "success",
+          title: "คืนสินค้าและคืนเงินแล้ว",
+          message: `เลขที่คืน ${returned.return_no || "-"} · คืนเงิน ฿${Number(returned.refund_amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+        });
+        return true;
+      }
+    } catch (error) {
+      showError(error, "ไม่สามารถคืนสินค้าได้");
+      console.warn("Order return failed.", error);
+    }
+    return false;
+  };
   const refreshFinancialSummary = async () => {
     try {
       const response = await axios.get(`${API_BASE}/api/financial-summary`);
@@ -1611,6 +1637,7 @@ function AppContent() {
           onOpenCashShift={openCashShift}
           onCloseCashShift={closeCashShift}
           onUpdate={updateOrder}
+          onReturnOrder={returnOrder}
           onLogout={logout}
         />
       </>
@@ -1662,6 +1689,7 @@ function AppContent() {
         onOpenCashShift={openCashShift}
         onCloseCashShift={closeCashShift}
         onUpdate={updateOrder}
+        onReturnOrder={returnOrder}
         onRestock={handleRestock}
         onAdjustInventory={adjustInventory}
         onCreateSupplier={createSupplier}
