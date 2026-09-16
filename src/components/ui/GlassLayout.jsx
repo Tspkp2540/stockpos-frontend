@@ -518,12 +518,7 @@ function OrdersPage({ orders, onUpdate, onReturn, preview = false, onViewAll, on
                 </strong>
                 {order.status === "COOKING" ? (
                   <div className="flex flex-wrap gap-2">
-                    <Button
-                      className="text-xs"
-                      onClick={() => onUpdate(order.id, "READY")}
-                    >
-                      พร้อมรับ
-                    </Button>
+                    <span className="rounded-xl bg-sky-50 px-2.5 py-2 text-xs font-bold text-sky-700">รอครัวยืนยัน</span>
                     <Button
                       className="text-xs"
                       variant="danger"

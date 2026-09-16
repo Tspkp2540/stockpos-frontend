@@ -1730,6 +1730,7 @@ function AppContent() {
           onOpenCashShift={openCashShift}
           onCloseCashShift={closeCashShift}
           onUpdate={updateOrder}
+          onUpdateKitchenStation={updateKitchenStation}
           onReturnOrder={returnOrder}
           onLogout={logout}
         />

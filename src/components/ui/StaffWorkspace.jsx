@@ -118,6 +118,47 @@ function ReturnOrderDialog({ order, onClose, onSubmit }) {
   return <div className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-sm sm:p-6" onMouseDown={onClose}><div className="flex min-h-full items-center justify-center"><form className="shop-panel w-full max-w-2xl rounded-3xl border bg-white p-5 shadow-2xl sm:p-6" onMouseDown={(event) => event.stopPropagation()} onSubmit={submit}><div className="pr-9"><p className="text-xs font-bold text-violet-700">คืนสินค้าและคืนเงิน</p><h2 className="mt-1 text-lg font-bold text-slate-900">ออเดอร์ #{order.order_no}</h2><p className="mt-1 text-sm text-slate-500">เลือกจำนวนที่ต้องการคืน ระบบคืนเงินด้วยช่องทางเดิมและคืนสต็อกล็อตเดิม</p></div><div className="mt-5 max-h-64 space-y-2 overflow-y-auto pr-1">{lines.map((item) => <div className="grid grid-cols-[minmax(0,1fr)_104px] items-center gap-3 rounded-xl border border-sky-100 bg-sky-50/45 p-3" key={item.order_item_id}><div><p className="font-semibold text-slate-800">{item.name}</p><p className="mt-0.5 text-xs text-slate-500">คืนได้อีก {item.available} · {money(item.unit_price)} / ชิ้น</p></div><label className="grid gap-1 text-xs font-bold text-slate-600">จำนวนคืน<input className={inputClass} type="number" min="0" max={item.available} step="0.001" value={quantities[String(item.order_item_id)] || "0"} onChange={(event) => update(item, event.target.value)} /></label></div>)}</div><label className="mt-4 grid gap-1.5 text-xs font-semibold text-slate-600">เหตุผลการคืนสินค้า<textarea className={`${inputClass} min-h-20 resize-y`} maxLength="500" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="เช่น สินค้าผิดรายการ" /></label><div className="mt-4 rounded-2xl border border-violet-100 bg-violet-50 p-4"><p className="text-xs font-bold text-violet-700">ยอดคืนโดยประมาณ</p><p className="mt-1 text-2xl font-black text-violet-900">{money(estimatedRefund)}</p></div><div className="mt-5 flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>ยกเลิก</Button><Button type="submit" variant="danger" disabled={saving || !selectedItems.length}>{saving ? "กำลังคืนสินค้า..." : "ยืนยันคืนสินค้า"}</Button></div></form></div></div>;
 }
 
+function KitchenQueuePanel({ orders = [], canUpdate = false, onUpdateStation }) {
+  const stations = {
+    BAR: "บาร์เครื่องดื่ม",
+    KITCHEN: "ครัวอาหาร",
+    BAKERY: "ครัวขนม",
+    OTHER: "จุดผลิตอื่น",
+  };
+  const queue = useMemo(() => orders
+    .filter((order) => order.status === "COOKING")
+    .flatMap((order) => Object.keys(stations).map((station) => {
+      const items = (order.rawItems || []).filter((item) => String(item.production_station || "BAR").toUpperCase() === station);
+      const pendingItems = items.filter((item) => item.production_status !== "READY");
+      return { order, station, items, pendingItems };
+    }).filter((entry) => entry.items.length)), [orders]);
+
+  return <section className="shop-panel rounded-2xl border p-4 sm:p-5">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 className="text-xl font-bold text-slate-900">จอเตรียมสินค้า</h2>
+        <p className="mt-1 text-sm text-slate-500">ยืนยันงานแยกตามจุดผลิตก่อนส่งมอบออเดอร์</p>
+      </div>
+      <span className="rounded-full bg-sky-100 px-3 py-1.5 text-sm font-bold text-sky-700">{queue.filter((entry) => entry.pendingItems.length).length} งานคงค้าง</span>
+    </div>
+    <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      {queue.length ? queue.map(({ order, station, items, pendingItems }) => {
+        const complete = pendingItems.length === 0;
+        return <article className={`rounded-2xl border p-4 ${complete ? "border-emerald-200 bg-emerald-50/50" : "border-sky-200 bg-sky-50/50"}`} key={`${order.id}-${station}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div><p className="font-black text-slate-900">คิว {order.queue_no || "-"} · {stations[station]}</p><p className="mt-1 text-xs text-slate-500">#{order.order_no} · {order.customer_nickname || "ไม่ระบุชื่อลูกค้า"}</p></div>
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${complete ? "bg-emerald-100 text-emerald-700" : "bg-sky-100 text-sky-700"}`}>{complete ? "จุดนี้เสร็จแล้ว" : `รอทำ ${pendingItems.length} รายการ`}</span>
+          </div>
+          <ul className="mt-3 space-y-1.5 text-sm text-slate-700">
+            {items.map((item, index) => <li className="flex items-start justify-between gap-3" key={`${item.order_item_id || item.product_id || item.name}-${index}`}><span><b>{item.name}</b> × {item.quantity || item.qty}{(item.modifiers || []).length ? <small className="ml-1 text-violet-700">· {item.modifiers.map((modifier) => modifier.name).join(" · ")}</small> : null}</span><span className={item.production_status === "READY" ? "text-xs font-bold text-emerald-700" : "text-xs font-bold text-sky-700"}>{item.production_status === "READY" ? "เสร็จ" : "รอทำ"}</span></li>)}
+          </ul>
+          {canUpdate ? <Button className="mt-4 w-full text-xs" type="button" variant={complete ? "secondary" : "primary"} onClick={() => onUpdateStation?.(order.id, station, complete ? "PENDING" : "READY")}>{complete ? "เปิดงานจุดนี้อีกครั้ง" : `ยืนยัน ${stations[station]} เสร็จแล้ว`}</Button> : null}
+        </article>;
+      }) : <div className="rounded-2xl border border-dashed border-sky-200 p-5 text-center text-sm text-slate-500 lg:col-span-2">ยังไม่มีงานที่ต้องเตรียม</div>}
+    </div>
+  </section>;
+}
+
 export default function StaffWorkspace({
   user,
   orders,
@@ -133,6 +174,7 @@ export default function StaffWorkspace({
   onOpenCashShift,
   onCloseCashShift,
   onUpdate,
+  onUpdateKitchenStation,
   onReturnOrder,
   onLogout,
 }) {
@@ -183,8 +225,10 @@ export default function StaffWorkspace({
   const canView = (menu) => user?.permissions?.[menu]?.view === true;
   const canUsePos = canView("pos");
   const canViewOrders = canView("orders");
+  const canViewKitchen = canView("kitchen");
   const canManageCashShift = canView("cash-shifts");
   const canUpdateOrders = user?.permissions?.orders?.update === true;
+  const canUpdateKitchen = user?.permissions?.kitchen?.update === true;
   const channelProducts = useMemo(
     () => products
       .map((product) => productForChannel(product, channelId))
@@ -591,9 +635,7 @@ export default function StaffWorkspace({
         <strong className="text-lg text-sky-700">{money(order.net_revenue)}</strong>
         {canUpdateOrders && order.status === "COOKING" ? (
           <div className="flex flex-wrap gap-2">
-            <Button className="text-xs" onClick={() => onUpdate(order.id, "READY")}>
-              พร้อมรับ
-            </Button>
+            <span className="rounded-xl bg-sky-50 px-2.5 py-2 text-xs font-bold text-sky-700">รอครัวยืนยัน</span>
             <Button className="text-xs" variant="danger" onClick={() => onUpdate(order.id, "CANCELLED")}>
               ยกเลิก
             </Button>
@@ -767,13 +809,14 @@ export default function StaffWorkspace({
                   />
                 </label>
               </div>
-              {diningTables.length ? <label className="mt-4 grid gap-1.5 text-xs font-semibold text-slate-600">
+              <label className="mt-4 grid gap-1.5 text-xs font-semibold text-slate-600">
                 โต๊ะรับประทานที่ร้าน <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
-                <select className={inputClass} value={tableId} onChange={(event) => setTableId(event.target.value)}>
+                <select className={inputClass} value={tableId} disabled={!diningTables.length} onChange={(event) => setTableId(event.target.value)}>
                   <option value="">ซื้อกลับ / ไม่ระบุโต๊ะ</option>
                   {diningTables.filter((table) => table.is_active !== false && table.status !== "DISABLED").map((table) => <option value={table.id} key={table.id}>{table.display_name || table.table_code} · {table.status === "OCCUPIED" ? `มีบิลอยู่ ${table.order_count || 0} รายการ` : `ว่าง ${table.capacity} ที่นั่ง`}</option>)}
                 </select>
-              </label> : null}
+              </label>
+              {!diningTables.length ? <p className="mt-2 text-xs text-amber-700">ยังไม่มีโต๊ะเปิดใช้งาน โปรดให้ผู้ดูแลเพิ่มโต๊ะก่อนเริ่มรับออเดอร์กินที่ร้าน</p> : null}
               <p className="mt-3 rounded-xl bg-sky-50 p-3 text-xs leading-5 text-sky-800">
                 ไม่จำเป็นต้องมีบัญชีผู้ใช้ หากระบุเบอร์โทร ลูกค้าสามารถใช้เบอร์เดิมค้นหาสถานะออเดอร์ได้
               </p>
@@ -1183,6 +1226,8 @@ export default function StaffWorkspace({
             </div>
           ) : null}
         </section> : null}
+
+        {canViewKitchen ? <KitchenQueuePanel orders={orders} canUpdate={canUpdateKitchen} onUpdateStation={onUpdateKitchenStation} /> : null}
 
         {canViewOrders ? <section>
           <div className="mb-4 flex items-center justify-between">
