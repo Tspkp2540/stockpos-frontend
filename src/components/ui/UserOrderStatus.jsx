@@ -29,7 +29,7 @@ function ItemList({ items }) {
   );
 }
 
-export default function UserOrderStatus({ user, orders, loyalty, onRefreshLoyalty, onLogout }) {
+export default function UserOrderStatus({ user, orders, loyalty, onRefreshLoyalty, onLock, onLogout }) {
   const [query, setQuery] = useState("");
   const account = loyalty?.account;
   const rules = loyalty?.rules || { is_enabled: true, spend_per_point: 25, baht_per_point: 0.1 };
@@ -53,7 +53,10 @@ export default function UserOrderStatus({ user, orders, loyalty, onRefreshLoyalt
         <section className="shop-panel max-w-md rounded-3xl border p-7">
           <h1 className="text-xl font-bold text-slate-900">ไม่มีเมนูที่ได้รับสิทธิ์</h1>
           <p className="mt-2 text-sm text-slate-500">โปรดติดต่อผู้ดูแลระบบหากต้องการเข้าดูคำสั่งซื้อ</p>
-          <button className="mt-5 rounded-xl border border-sky-200 px-4 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-50" onClick={onLogout}>ออกจากระบบ</button>
+          <div className="mt-5 flex justify-center gap-2">
+            <button className="rounded-xl border border-sky-200 px-4 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-50" onClick={onLock}>🔒 ล็อกหน้าจอ</button>
+            <button className="rounded-xl border border-sky-200 px-4 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-50" onClick={onLogout}>ออกจากระบบ</button>
+          </div>
         </section>
       </main>
     );
@@ -74,6 +77,12 @@ export default function UserOrderStatus({ user, orders, loyalty, onRefreshLoyalt
             <span className="hidden text-sm font-semibold text-slate-600 sm:block">
               {user.name}
             </span>
+            <button
+              className="rounded-xl border border-sky-200 px-3 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-50"
+              onClick={onLock}
+            >
+              🔒 <span className="hidden sm:inline">ล็อก</span>
+            </button>
             <button
               className="rounded-xl border border-sky-200 px-3 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-50"
               onClick={onLogout}

@@ -6641,6 +6641,7 @@ function OperationsPage({ orders, inventoryRows, expenseRows, isAdmin }) {
 
 export default function GlassLayout({
   user,
+  onLock,
   onLogout,
   activeView,
   setActiveView,
@@ -6921,14 +6922,14 @@ export default function GlassLayout({
   return (
     <div className="app-viewport admin-viewport shop-scene text-slate-800">
       <header className="shop-topbar sticky top-0 z-20 border-b px-4 py-3 sm:px-5 lg:px-6">
-        <div className="flex items-center justify-between gap-3">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <span className="shop-orb grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-600 font-black text-white">
               S
             </span>
             <strong className="truncate text-slate-900">STOCKPOS</strong>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center justify-center gap-1 sm:gap-2">
             {activeView !== "home" ? (
               <button
                 aria-label="ย้อนกลับ"
@@ -6946,6 +6947,24 @@ export default function GlassLayout({
               onClick={() => setActiveView("home")}
             >
               <span aria-hidden="true">⌂</span><span className="ml-1">หน้าหลัก</span>
+            </button>
+            <button
+              aria-label="รีโหลดหน้า"
+              className="shrink-0 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-700 shadow-sm transition hover:bg-sky-50 focus:outline-none focus:ring-4 focus:ring-sky-100"
+              type="button"
+              onClick={() => window.location.reload()}
+            >
+              <span aria-hidden="true">↻</span><span className="ml-1 hidden sm:inline">รีโหลด</span>
+            </button>
+          </div>
+          <div className="flex shrink-0 items-center justify-self-end gap-1 sm:gap-2">
+            <button
+              aria-label="ล็อกหน้าจอ"
+              className="shrink-0 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-700 shadow-sm transition hover:bg-sky-50 focus:outline-none focus:ring-4 focus:ring-sky-100"
+              type="button"
+              onClick={onLock}
+            >
+              <span aria-hidden="true">🔒</span><span className="ml-1 hidden sm:inline">ล็อก</span>
             </button>
             <button
               aria-label="ออกจากระบบ"

@@ -188,6 +188,7 @@ export default function StaffWorkspace({
   onUpdate,
   onUpdateKitchenStation,
   onReturnOrder,
+  onLock,
   onLogout,
 }) {
   const { showMessage } = useActionDialog();
@@ -747,6 +748,9 @@ export default function StaffWorkspace({
             <span className="hidden text-sm font-semibold text-slate-600 sm:block">
               {user.name}
             </span>
+            <Button variant="secondary" onClick={onLock}>
+              🔒 <span className="hidden sm:inline">ล็อก</span>
+            </Button>
             <Button variant="secondary" onClick={onLogout}>
               ออกจากระบบ
             </Button>

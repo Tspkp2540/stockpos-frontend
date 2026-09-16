@@ -14,6 +14,7 @@ const API_BASE =
   import.meta.env.VITE_API_URL ||
   "https://stockpos-production-d146.up.railway.app";
 const SESSION_KEY = "stockpos-session";
+const SESSION_LOCK_KEY = "stockpos-session-locked";
 const PENDING_ORDER_SUBMISSIONS_KEY = "stockpos-pending-order-submissions";
 const roles = new Set(["admin", "staff", "user"]);
 const loadSession = () => {
@@ -24,6 +25,24 @@ const loadSession = () => {
     return saved?.token && roles.has(saved.role) ? saved : null;
   } catch (error) {
     return null;
+  }
+};
+const loadSessionLock = () => {
+  try {
+    return Boolean(loadSession() && window.sessionStorage.getItem(SESSION_LOCK_KEY) === "true");
+  } catch (error) {
+    return false;
+  }
+};
+
+const tokenExpiresAt = (token) => {
+  try {
+    const body = String(token || "").split(".")[0];
+    const payload = JSON.parse(atob(body.replace(/-/g, "+").replace(/_/g, "/")));
+    const expiresAt = Number(payload?.exp) * 1000;
+    return Number.isFinite(expiresAt) ? expiresAt : 0;
+  } catch (error) {
+    return 0;
   }
 };
 
@@ -128,6 +147,56 @@ function ConnectionBanner({ systemStatus, realtimeConnected }) {
   );
 }
 
+function SessionExpiredDialog({ onContinue }) {
+  return (
+    <div className="fixed inset-0 z-[220] grid place-items-center bg-slate-950/45 p-4 backdrop-blur-sm" role="alertdialog" aria-modal="true" aria-labelledby="session-expired-title">
+      <section className="w-full max-w-sm rounded-3xl border border-white/70 bg-white p-6 text-center shadow-2xl shadow-slate-950/20">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-amber-100 text-2xl text-amber-700" aria-hidden="true">⌛</div>
+        <h2 id="session-expired-title" className="mt-4 text-xl font-extrabold text-slate-900">เซสชันหมดอายุแล้ว</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600">เพื่อความปลอดภัย กรุณาเข้าสู่ระบบอีกครั้ง</p>
+        <button type="button" className="mt-6 w-full rounded-xl bg-sky-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-sky-600/20 transition hover:bg-sky-700 focus:outline-none focus:ring-4 focus:ring-sky-200" onClick={onContinue}>ไปหน้าเข้าสู่ระบบ</button>
+      </section>
+    </div>
+  );
+}
+
+function SessionLockDialog({ onUnlock, onLogout }) {
+  const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!password || isSubmitting) return;
+    setIsSubmitting(true);
+    setError("");
+    try {
+      const result = await onUnlock(password);
+      if (result !== true) setError(result || "ไม่สามารถปลดล็อกหน้าจอได้");
+      else setPassword("");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[210] grid place-items-center bg-slate-950/50 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="session-lock-title">
+      <form className="w-full max-w-sm rounded-3xl border border-white/70 bg-white p-6 shadow-2xl shadow-slate-950/20" onSubmit={handleSubmit}>
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-sky-100 text-2xl text-sky-700" aria-hidden="true">🔒</div>
+        <h2 id="session-lock-title" className="mt-4 text-center text-xl font-extrabold text-slate-900">ล็อกหน้าจอชั่วคราว</h2>
+        <p className="mt-2 text-center text-sm leading-6 text-slate-600">ไม่มีการใช้งานเกิน 10 นาที กรุณากรอกรหัสผ่านเพื่อใช้งานต่อ</p>
+        <label className="mt-5 block text-sm font-bold text-slate-700">
+          รหัสผ่าน
+          <input autoFocus autoComplete="current-password" className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-base text-slate-900 outline-none transition focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+        </label>
+        {error ? <p className="mt-2 text-sm font-semibold text-rose-600" role="alert">{error}</p> : null}
+        <button type="submit" disabled={!password || isSubmitting} className="mt-5 w-full rounded-xl bg-sky-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-sky-600/20 transition hover:bg-sky-700 focus:outline-none focus:ring-4 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-50">{isSubmitting ? "กำลังตรวจสอบ..." : "ปลดล็อก"}</button>
+        <button type="button" className="mt-3 w-full rounded-xl px-4 py-2 text-sm font-bold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700" onClick={onLogout}>ออกจากระบบ</button>
+      </form>
+    </div>
+  );
+}
+
 const apiErrorDetails = (error, fallback = "ไม่สามารถทำรายการกับระบบได้") => {
   const status = Number(error?.response?.status || 0);
   const apiMessage = error?.response?.data?.error || error?.response?.data?.message;
@@ -160,6 +229,8 @@ const apiErrorDetails = (error, fallback = "ไม่สามารถทำร
 function AppContent() {
   const { confirmAction, showMessage } = useActionDialog();
   const [session, setSession] = useState(loadSession);
+  const [sessionLocked, setSessionLocked] = useState(loadSessionLock);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [anonymousMode, setAnonymousMode] = useState(true);
   const [activeView, setActiveView] = useState("home");
   const [orders, setOrders] = useState(initialOrders);
@@ -214,14 +285,40 @@ function AppContent() {
       });
     };
 
+  const expireSession = useCallback(() => {
+    window.localStorage.removeItem(SESSION_KEY);
+    window.sessionStorage.removeItem(SESSION_LOCK_KEY);
+    delete axios.defaults.headers.common.Authorization;
+    setSessionLocked(false);
+    setAnonymousMode(false);
+    setSession(null);
+    setSessionExpired(true);
+  }, []);
+  const lockSession = useCallback(() => {
+    const expiresAt = tokenExpiresAt(session?.token);
+    if (!session?.token || !expiresAt || expiresAt <= Date.now()) {
+      expireSession();
+      return;
+    }
+    window.sessionStorage.setItem(SESSION_LOCK_KEY, "true");
+    setSessionLocked(true);
+  }, [expireSession, session?.token]);
+
   useEffect(() => {
     const interceptorId = axios.interceptors.response.use(
       (response) => response,
       (error) => {
         const method = String(error?.config?.method || "get").toLowerCase();
         const url = String(error?.config?.url || "");
+        const isPublicAuth = /\/api\/auth\/(login|register)$/.test(url);
+        const isUnlockRequest = /\/api\/auth\/verify-password$/.test(url);
+        if (Number(error?.response?.status) === 401 && !isPublicAuth) {
+          error.stockposErrorNotified = true;
+          expireSession();
+          return Promise.reject(error);
+        }
         const isOrderCreate = method === "post" && /\/api\/orders$/.test(url);
-        if (["post", "put", "patch", "delete"].includes(method) && !isOrderCreate && !error.stockposErrorNotified) {
+        if (["post", "put", "patch", "delete"].includes(method) && !isOrderCreate && !isUnlockRequest && !error.stockposErrorNotified) {
           const details = apiErrorDetails(error);
           error.stockposErrorNotified = true;
           showMessage({
@@ -234,7 +331,7 @@ function AppContent() {
       },
     );
     return () => axios.interceptors.response.eject(interceptorId);
-  }, [showMessage]);
+  }, [expireSession, showMessage]);
 
   const checkSystemHealth = useCallback(async () => {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -458,6 +555,10 @@ function AppContent() {
       role: String(data.user.role).toLowerCase(),
     };
     window.localStorage.setItem(SESSION_KEY, JSON.stringify(account));
+    window.sessionStorage.removeItem(SESSION_LOCK_KEY);
+    setSessionExpired(false);
+    setSessionLocked(false);
+    setAnonymousMode(false);
     setSession(account);
     setActiveView(account.role === "admin" ? "home" : "pos");
   };
@@ -493,13 +594,35 @@ function AppContent() {
   };
   const logout = () => {
     window.localStorage.removeItem(SESSION_KEY);
+    window.sessionStorage.removeItem(SESSION_LOCK_KEY);
     delete axios.defaults.headers.common.Authorization;
+    setSessionLocked(false);
+    setSessionExpired(false);
     setSession(null);
     setAnonymousMode(true);
     setActiveView("home");
     setCurrentShift(null);
     setCashShifts([]);
     setSalesBreakdown({ channels: [], payments: [] });
+  };
+  const unlockSession = async (password) => {
+    if (!session?.token || tokenExpiresAt(session.token) <= Date.now()) {
+      expireSession();
+      return "เซสชันหมดอายุแล้ว กรุณาเข้าสู่ระบบอีกครั้ง";
+    }
+    try {
+      const response = await axios.post(`${API_BASE}/api/auth/verify-password`, { password });
+      if (!response.data?.success) return response.data?.error || "รหัสผ่านไม่ถูกต้อง";
+      window.sessionStorage.removeItem(SESSION_LOCK_KEY);
+      setSessionLocked(false);
+      return true;
+    } catch (error) {
+      if (Number(error?.response?.status) === 401) {
+        expireSession();
+        return "เซสชันหมดอายุแล้ว กรุณาเข้าสู่ระบบอีกครั้ง";
+      }
+      return error?.response?.data?.error || "รหัสผ่านไม่ถูกต้อง";
+    }
   };
 
   const refreshCurrentShift = async () => {
@@ -694,6 +817,42 @@ function AppContent() {
 
   useEffect(() => {
     if (!session?.token) return undefined;
+    const expiresAt = tokenExpiresAt(session.token);
+    if (!expiresAt || expiresAt <= Date.now()) {
+      expireSession();
+      return undefined;
+    }
+    const timer = window.setTimeout(expireSession, expiresAt - Date.now());
+    return () => window.clearTimeout(timer);
+  }, [expireSession, session?.token]);
+
+  useEffect(() => {
+    if (!session?.token || sessionLocked) return undefined;
+    const idleTimeoutMs = 10 * 60 * 1000;
+    const events = ["pointerdown", "keydown", "touchstart", "scroll"];
+    let timer;
+    const scheduleLock = () => {
+      window.clearTimeout(timer);
+      const expiresAt = tokenExpiresAt(session.token);
+      if (!expiresAt || expiresAt <= Date.now()) {
+        expireSession();
+        return;
+      }
+      timer = window.setTimeout(() => {
+        if (tokenExpiresAt(session.token) <= Date.now()) expireSession();
+        else lockSession();
+      }, Math.min(idleTimeoutMs, expiresAt - Date.now()));
+    };
+    events.forEach((eventName) => window.addEventListener(eventName, scheduleLock, { passive: true }));
+    scheduleLock();
+    return () => {
+      window.clearTimeout(timer);
+      events.forEach((eventName) => window.removeEventListener(eventName, scheduleLock));
+    };
+  }, [expireSession, lockSession, session?.token, sessionLocked]);
+
+  useEffect(() => {
+    if (!session?.token) return undefined;
     let active = true;
     axios
       .get(`${API_BASE}/api/auth/me`)
@@ -713,9 +872,7 @@ function AppContent() {
       .catch((error) => {
         if (!active) return;
         if (Number(error?.response?.status) === 401) {
-          window.localStorage.removeItem(SESSION_KEY);
-          delete axios.defaults.headers.common.Authorization;
-          setSession(null);
+          expireSession();
           return;
         }
         // A temporary API/network failure must not sign staff out in the middle of a sale.
@@ -730,7 +887,7 @@ function AppContent() {
     return () => {
       active = false;
     };
-  }, [session?.token]);
+  }, [expireSession, session?.token]);
 
   useEffect(() => {
     refreshCurrentShift();
@@ -1706,6 +1863,7 @@ function AppContent() {
       console.warn("Expense delete API unavailable.", error);
     }
   };
+  const sessionLockOverlay = sessionLocked ? <SessionLockDialog onUnlock={unlockSession} onLogout={logout} /> : null;
   if (!session && anonymousMode)
     return (
       <>
@@ -1726,10 +1884,11 @@ function AppContent() {
           onAnonymous={() => setAnonymousMode(true)}
           onHome={() => setAnonymousMode(true)}
         />
+        {sessionExpired ? <SessionExpiredDialog onContinue={() => setSessionExpired(false)} /> : null}
       </>
     );
   if (session.role === "user")
-    return <><ConnectionBanner systemStatus={systemStatus} realtimeConnected={realtimeConnected} /><UserOrderStatus user={session} orders={orders} loyalty={loyalty} onRefreshLoyalty={refreshMyLoyalty} onLogout={logout} /></>;
+    return <><ConnectionBanner systemStatus={systemStatus} realtimeConnected={realtimeConnected} /><UserOrderStatus user={session} orders={orders} loyalty={loyalty} onRefreshLoyalty={refreshMyLoyalty} onLock={lockSession} onLogout={logout} />{sessionLockOverlay}</>;
   if (session.role === "staff")
     return (
       <>
@@ -1751,8 +1910,10 @@ function AppContent() {
           onUpdate={updateOrder}
           onUpdateKitchenStation={updateKitchenStation}
           onReturnOrder={returnOrder}
+          onLock={lockSession}
           onLogout={logout}
         />
+        {sessionLockOverlay}
       </>
     );
   return (
@@ -1760,6 +1921,7 @@ function AppContent() {
       <ConnectionBanner systemStatus={systemStatus} realtimeConnected={realtimeConnected} />
       <GlassLayout
         user={session}
+        onLock={lockSession}
         onLogout={logout}
         activeView={activeView}
         setActiveView={setActiveView}
@@ -1842,6 +2004,7 @@ function AppContent() {
         onUpdateSales={updateSalesRecord}
         onDeleteSales={deleteSalesRecord}
       />
+      {sessionLockOverlay}
     </>
   );
 }
