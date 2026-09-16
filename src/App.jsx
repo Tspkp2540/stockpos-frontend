@@ -906,7 +906,15 @@ function AppContent() {
       setOrders((current) =>
         current.map((order) =>
           order.id === event.orderId
-            ? { ...order, status: event.status }
+            ? {
+              ...order,
+              status: event.status,
+              rawItems: event.productionStation
+                ? (order.rawItems || []).map((item) => String(item.production_station || "BAR") === String(event.productionStation)
+                  ? { ...item, production_status: event.productionStatus }
+                  : item)
+                : order.rawItems,
+            }
             : order,
         ),
       );

@@ -8,6 +8,7 @@ import { loadPosMenuFavorites, loadPosMenuUsage, recordPosMenuUsage, togglePosMe
 import { productForChannel } from "../../utils/channelMenu";
 import { orderStatusClass, orderStatusLabel } from "../../utils/orderStatus";
 import { useActionDialog } from "./ActionDialog";
+import KitchenStatusStrip from "./KitchenStatusStrip";
 
 const money = (amount) =>
   `฿${Number(amount || 0).toLocaleString("en-US", {
@@ -776,6 +777,7 @@ export default function StaffWorkspace({
         </section>
 
         {canUsePos ? <LowStockMenuAlert products={products} /> : null}
+        {canUsePos && canViewKitchen ? <KitchenStatusStrip orders={orders} /> : null}
 
         {canUsePos ? <section className="space-y-5">
           <div className="space-y-5">

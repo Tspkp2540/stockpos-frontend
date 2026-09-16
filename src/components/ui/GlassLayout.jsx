@@ -15,6 +15,7 @@ import { loadPosMenuFavorites, loadPosMenuUsage, recordPosMenuUsage, togglePosMe
 import { productForChannel } from "../../utils/channelMenu";
 import { orderStatusClass, orderStatusLabel } from "../../utils/orderStatus";
 import { useActionDialog } from "./ActionDialog";
+import KitchenStatusStrip from "./KitchenStatusStrip";
 
 // Keep the 3D workspace available for the next design phase without loading it in production now.
 const ENABLE_OPERATIONS_ROOM_3D = false;
@@ -743,7 +744,7 @@ function PrintingSettingsPage() {
   );
 }
 
-function PosPage({ channels, diningTables = [], products, currentShift, loyaltySettings, onAdd, onLookupLoyalty, onValidateCoupon, onQuotePromotion, onOpenCashShift, onCloseCashShift }) {
+function PosPage({ channels, diningTables = [], products, orders = [], currentShift, loyaltySettings, onAdd, onLookupLoyalty, onValidateCoupon, onQuotePromotion, onOpenCashShift, onCloseCashShift }) {
   const { showMessage } = useActionDialog();
   const [channelId, setChannelId] = useState(channels[0]?.id || "");
   const [tableId, setTableId] = useState("");
@@ -1187,6 +1188,7 @@ function PosPage({ channels, diningTables = [], products, currentShift, loyaltyS
           }
         />
         <LowStockMenuAlert products={products} className="mb-5" />
+        <KitchenStatusStrip orders={orders} />
         <Card className="!p-3 sm:!p-4">
           <fieldset>
             <legend className="mb-2 text-xs font-bold text-slate-700">
@@ -6896,6 +6898,7 @@ export default function GlassLayout({
           channels={channels}
           diningTables={diningTables}
           products={products}
+          orders={orders}
           currentShift={currentShift}
           loyaltySettings={loyaltySettings}
           onAdd={onAdd}
