@@ -125,6 +125,15 @@ function KitchenQueuePanel({ orders = [], canUpdate = false, onUpdateStation }) 
     BAKERY: "ครัวขนม",
     OTHER: "จุดผลิตอื่น",
   };
+  const stageOrder = ["PENDING", "ACCEPTED", "IN_PROGRESS", "READY"];
+  const stageMeta = {
+    PENDING: { label: "รอรับงาน", className: "bg-slate-100 text-slate-700", next: "ACCEPTED", action: "รับออเดอร์" },
+    ACCEPTED: { label: "รับออเดอร์แล้ว", className: "bg-violet-100 text-violet-700", next: "IN_PROGRESS", action: "เริ่มทำ" },
+    IN_PROGRESS: { label: "กำลังทำ", className: "bg-sky-100 text-sky-700", next: "READY", action: "ยืนยันเสร็จสิ้น" },
+    READY: { label: "เสร็จสิ้น", className: "bg-emerald-100 text-emerald-700", next: "IN_PROGRESS", action: "เปิดทำงานอีกครั้ง" },
+  };
+  const stageFor = (items) => [...items]
+    .sort((left, right) => stageOrder.indexOf(String(left.production_status || "PENDING")) - stageOrder.indexOf(String(right.production_status || "PENDING")))[0]?.production_status || "PENDING";
   const queue = useMemo(() => orders
     .filter((order) => order.status === "COOKING")
     .flatMap((order) => Object.keys(stations).map((station) => {
@@ -144,15 +153,17 @@ function KitchenQueuePanel({ orders = [], canUpdate = false, onUpdateStation }) 
     <div className="mt-4 grid gap-3 lg:grid-cols-2">
       {queue.length ? queue.map(({ order, station, items, pendingItems }) => {
         const complete = pendingItems.length === 0;
+        const stage = stageFor(items);
+        const currentStage = stageMeta[stage] || stageMeta.PENDING;
         return <article className={`rounded-2xl border p-4 ${complete ? "border-emerald-200 bg-emerald-50/50" : "border-sky-200 bg-sky-50/50"}`} key={`${order.id}-${station}`}>
           <div className="flex items-start justify-between gap-3">
             <div><p className="font-black text-slate-900">คิว {order.queue_no || "-"} · {stations[station]}</p><p className="mt-1 text-xs text-slate-500">#{order.order_no} · {order.customer_nickname || "ไม่ระบุชื่อลูกค้า"}</p></div>
-            <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${complete ? "bg-emerald-100 text-emerald-700" : "bg-sky-100 text-sky-700"}`}>{complete ? "จุดนี้เสร็จแล้ว" : `รอทำ ${pendingItems.length} รายการ`}</span>
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${currentStage.className}`}>{currentStage.label}</span>
           </div>
           <ul className="mt-3 space-y-1.5 text-sm text-slate-700">
-            {items.map((item, index) => <li className="flex items-start justify-between gap-3" key={`${item.order_item_id || item.product_id || item.name}-${index}`}><span><b>{item.name}</b> × {item.quantity || item.qty}{(item.modifiers || []).length ? <small className="ml-1 text-violet-700">· {item.modifiers.map((modifier) => modifier.name).join(" · ")}</small> : null}</span><span className={item.production_status === "READY" ? "text-xs font-bold text-emerald-700" : "text-xs font-bold text-sky-700"}>{item.production_status === "READY" ? "เสร็จ" : "รอทำ"}</span></li>)}
+            {items.map((item, index) => { const itemStage = stageMeta[item.production_status] || stageMeta.PENDING; return <li className="flex items-start justify-between gap-3" key={`${item.order_item_id || item.product_id || item.name}-${index}`}><span><b>{item.name}</b> × {item.quantity || item.qty}{(item.modifiers || []).length ? <small className="ml-1 text-violet-700">· {item.modifiers.map((modifier) => modifier.name).join(" · ")}</small> : null}</span><span className="text-xs font-bold text-slate-700">{itemStage.label}</span></li>; })}
           </ul>
-          {canUpdate ? <Button className="mt-4 w-full text-xs" type="button" variant={complete ? "secondary" : "primary"} onClick={() => onUpdateStation?.(order.id, station, complete ? "PENDING" : "READY")}>{complete ? "เปิดงานจุดนี้อีกครั้ง" : `ยืนยัน ${stations[station]} เสร็จแล้ว`}</Button> : null}
+          {canUpdate ? <Button className="mt-4 w-full text-xs" type="button" variant={stage === "READY" ? "secondary" : "primary"} onClick={() => onUpdateStation?.(order.id, station, currentStage.next)}>{currentStage.action} · {stations[station]}</Button> : null}
         </article>;
       }) : <div className="rounded-2xl border border-dashed border-sky-200 p-5 text-center text-sm text-slate-500 lg:col-span-2">ยังไม่มีงานที่ต้องเตรียม</div>}
     </div>

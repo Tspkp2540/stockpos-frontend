@@ -577,6 +577,15 @@ function KitchenDisplayPage({ orders, onUpdate, onUpdateStation }) {
   };
   const stationLabel = { BAR: "บาร์เครื่องดื่ม", KITCHEN: "ครัวอาหาร", BAKERY: "ครัวขนม", OTHER: "จุดผลิตอื่น" };
   const stationOrder = ["BAR", "KITCHEN", "BAKERY", "OTHER"];
+  const productionStages = ["PENDING", "ACCEPTED", "IN_PROGRESS", "READY"];
+  const productionStageMeta = {
+    PENDING: { label: "รอรับงาน", className: "bg-slate-100 text-slate-700", next: "ACCEPTED", action: "รับออเดอร์" },
+    ACCEPTED: { label: "รับออเดอร์แล้ว", className: "bg-violet-100 text-violet-700", next: "IN_PROGRESS", action: "เริ่มทำ" },
+    IN_PROGRESS: { label: "กำลังทำ", className: "bg-sky-100 text-sky-700", next: "READY", action: "ยืนยันเสร็จสิ้น" },
+    READY: { label: "เสร็จสิ้น", className: "bg-emerald-100 text-emerald-700", next: "IN_PROGRESS", action: "เปิดทำงานอีกครั้ง" },
+  };
+  const stageFor = (items) => [...items]
+    .sort((left, right) => productionStages.indexOf(String(left.production_status || "PENDING")) - productionStages.indexOf(String(right.production_status || "PENDING")))[0]?.production_status || "PENDING";
   const stationSummary = useMemo(() => stationOrder.map((station) => ({
     station,
     label: stationLabel[station],
@@ -602,6 +611,8 @@ function KitchenDisplayPage({ orders, onUpdate, onUpdateStation }) {
     const pendingStationItems = stationItems.filter((item) => item.production_status !== "READY");
     const urgency = urgencyFor(order, stationItems);
     const stationComplete = stationItems.length > 0 && pendingStationItems.length === 0;
+    const stationStage = stageFor(stationItems);
+    const stageMeta = productionStageMeta[stationStage] || productionStageMeta.PENDING;
     return (
       <article className={`rounded-2xl border bg-white p-4 shadow-sm ${urgency.isLate ? "border-rose-300 ring-1 ring-rose-100" : urgency.isNear ? "border-amber-300" : isReady ? "border-emerald-200" : "border-sky-200"}`}>
         <div className="flex items-start justify-between gap-3">
@@ -623,13 +634,13 @@ function KitchenDisplayPage({ orders, onUpdate, onUpdateStation }) {
                 {(item.modifiers || []).length ? (
                   <span className="mt-0.5 block text-xs text-violet-700">{item.modifiers.map((modifier) => modifier.name).join(" · ")}</span>
                 ) : null}
-                </span><span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${item.production_status === "READY" ? "bg-emerald-100 text-emerald-700" : "bg-sky-100 text-sky-700"}`}>{item.production_status === "READY" ? "เสร็จ" : "รอทำ"}</span></li>
+                </span><span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${(productionStageMeta[item.production_status] || productionStageMeta.PENDING).className}`}>{(productionStageMeta[item.production_status] || productionStageMeta.PENDING).label}</span></li>
             )) : <li>{order.items || "ไม่มีรายละเอียดสินค้า"}</li>}
           </ul>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          {station ? <Button className="flex-1" disabled={!stationItems.length} onClick={() => onUpdateStation?.(order.id, station, stationComplete ? "PENDING" : "READY")}>
-            {stationComplete ? "เปิดงานจุดนี้อีกครั้ง" : `จุดนี้เสร็จ · ${stationLabel[station]}`}
+          {station ? <Button className="flex-1" disabled={!stationItems.length} variant={stationStage === "READY" ? "secondary" : "primary"} onClick={() => onUpdateStation?.(order.id, station, stageMeta.next)}>
+            {stageMeta.action} · {stationLabel[station]}
           </Button> : <Button className="flex-1" onClick={() => onUpdate(order.id, isReady ? "COMPLETED" : "READY")}>{isReady ? "ส่งมอบแล้ว" : "ทำเสร็จ / พร้อมรับ"}</Button>}
           <Button className="text-xs" variant="secondary" onClick={() => handleKitchenPrint(order)}>
             พิมพ์ใบครัว

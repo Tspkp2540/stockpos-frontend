@@ -1122,10 +1122,21 @@ function AppContent() {
           ...order,
           status: data.order_status,
           rawItems: (order.rawItems || []).map((item) => String(item.production_station || "BAR") === String(station)
-            ? { ...item, production_status: productionStatus }
+            ? {
+              ...item,
+              production_status: productionStatus,
+              production_accepted_at: data.production_accepted_at ?? item.production_accepted_at,
+              production_started_at: data.production_started_at ?? item.production_started_at,
+              production_completed_at: data.production_completed_at ?? item.production_completed_at,
+            }
             : item),
         }));
-        setNotice(productionStatus === "READY" ? "PRODUCTION STATION READY" : "PRODUCTION STATION REOPENED");
+        setNotice({
+          ACCEPTED: "KITCHEN ORDER ACCEPTED",
+          IN_PROGRESS: "KITCHEN PREPARATION STARTED",
+          READY: "PRODUCTION STATION READY",
+          PENDING: "PRODUCTION STATION REOPENED",
+        }[productionStatus] || "PRODUCTION STATUS UPDATED");
         return true;
       }
     } catch (error) {
