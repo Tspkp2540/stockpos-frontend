@@ -35,6 +35,20 @@ describe("order submission fingerprint", () => {
     const fingerprint = JSON.parse(createOrderSubmissionFingerprint({ ...baseOrder, amount_received: 0 }, "2026-09-09"));
     expect(fingerprint.amount_received).toBe(0);
   });
+
+  it("includes table and split-payment details so a retry cannot reuse a different bill", () => {
+    const split = {
+      ...baseOrder,
+      table_id: "7",
+      payments: [
+        { payment_method: "CASH", paid_amount: "40", amount_received: "50" },
+        { payment_method: "QR", paid_amount: "60" },
+      ],
+    };
+    const first = createOrderSubmissionFingerprint(split, "2026-09-09");
+    expect(createOrderSubmissionFingerprint({ ...split, table_id: "8" }, "2026-09-09")).not.toBe(first);
+    expect(createOrderSubmissionFingerprint({ ...split, payments: [{ ...split.payments[0], paid_amount: "41" }, split.payments[1]] }, "2026-09-09")).not.toBe(first);
+  });
 });
 
 describe("normalizePhone", () => {

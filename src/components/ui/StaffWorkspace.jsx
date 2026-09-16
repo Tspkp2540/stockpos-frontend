@@ -123,11 +123,13 @@ export default function StaffWorkspace({
   orders,
   channels,
   products,
+  diningTables = [],
   currentShift,
   loyaltyRules,
   onAdd,
   onLookupLoyalty,
   onValidateCoupon,
+  onQuotePromotion,
   onOpenCashShift,
   onCloseCashShift,
   onUpdate,
@@ -136,6 +138,7 @@ export default function StaffWorkspace({
 }) {
   const { showMessage } = useActionDialog();
   const [channelId, setChannelId] = useState(channels[0]?.id || "");
+  const [tableId, setTableId] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerNickname, setCustomerNickname] = useState("");
   const [loyaltyData, setLoyaltyData] = useState(null);
@@ -151,6 +154,7 @@ export default function StaffWorkspace({
   const [discountValue, setDiscountValue] = useState("");
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [promotionQuote, setPromotionQuote] = useState(null);
   const [couponError, setCouponError] = useState("");
   const [menuSearch, setMenuSearch] = useState("");
   const [menuCategory, setMenuCategory] = useState("ALL");
@@ -167,6 +171,8 @@ export default function StaffWorkspace({
   };
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [amountReceived, setAmountReceived] = useState("");
+  const [isSplitPayment, setIsSplitPayment] = useState(false);
+  const [paymentRows, setPaymentRows] = useState([{ payment_method: "CASH", paid_amount: "", amount_received: "" }]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAllOrders, setShowAllOrders] = useState(false);
   const [orderSearch, setOrderSearch] = useState("");
@@ -266,9 +272,10 @@ export default function StaffWorkspace({
       ? Math.min(subtotal, subtotal * Math.min(value, 100) / 100)
       : Math.min(subtotal, value);
   }, [discountType, discountValue, subtotal]);
+  const promotionDiscountAmount = Math.min(Math.max(0, Number(promotionQuote?.discount_amount || 0)), Math.max(0, subtotal - manualDiscountAmount));
   const couponDiscountAmount = useMemo(() => {
     if (!appliedCoupon) return 0;
-    const eligibleAmount = Math.max(0, subtotal - manualDiscountAmount);
+    const eligibleAmount = Math.max(0, subtotal - manualDiscountAmount - promotionDiscountAmount);
     if (eligibleAmount < Number(appliedCoupon.min_order_amount || 0)) return 0;
     const rawDiscount = appliedCoupon.discount_type === "PERCENT"
       ? eligibleAmount * Math.min(Number(appliedCoupon.discount_value || 0), 100) / 100
@@ -277,7 +284,7 @@ export default function StaffWorkspace({
       ? Math.min(rawDiscount, Number(appliedCoupon.max_discount_amount))
       : rawDiscount;
     return Math.min(eligibleAmount, cappedDiscount);
-  }, [appliedCoupon, manualDiscountAmount, subtotal]);
+  }, [appliedCoupon, manualDiscountAmount, promotionDiscountAmount, subtotal]);
   const activeLoyaltyRules = loyaltyData?.rules || loyaltyRules || {};
   const loyaltyEarnEnabled = activeLoyaltyRules.earn_enabled !== undefined ? activeLoyaltyRules.earn_enabled === true : activeLoyaltyRules.is_enabled !== false;
   const loyaltyRedeemEnabled = activeLoyaltyRules.redeem_enabled !== undefined ? activeLoyaltyRules.redeem_enabled === true : activeLoyaltyRules.is_enabled !== false;
@@ -287,7 +294,7 @@ export default function StaffWorkspace({
   const loyaltyCupsPerPoint = Math.max(1, Number(activeLoyaltyRules.cups_per_point || 1));
   const loyaltyBahtPerPoint = Math.max(0.01, Number(activeLoyaltyRules.baht_per_point || 0.1));
   const loyaltyMaxRedeemPercent = Math.max(0, Math.min(100, Number(activeLoyaltyRules.max_redeem_percent ?? 50)));
-  const loyaltyBaseAmount = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
+  const loyaltyBaseAmount = Math.max(0, subtotal - manualDiscountAmount - promotionDiscountAmount - couponDiscountAmount);
   const loyaltyBalance = Math.max(0, Number(loyaltyData?.account?.points_balance || 0));
   const loyaltyMaxPoints = loyaltyRedeemEnabled
     ? Math.min(loyaltyBalance, Math.floor((loyaltyBaseAmount * (loyaltyMaxRedeemPercent / 100)) / loyaltyBahtPerPoint))
@@ -295,6 +302,17 @@ export default function StaffWorkspace({
   const loyaltyPointsRedeemed = Math.min(loyaltyMaxPoints, Math.max(0, Math.floor(Number(loyaltyPoints) || 0)));
   const loyaltyDiscountAmount = Number((loyaltyPointsRedeemed * loyaltyBahtPerPoint).toFixed(2));
   const total = Math.max(0, loyaltyBaseAmount - loyaltyDiscountAmount);
+  useEffect(() => {
+    let active = true;
+    if (!onQuotePromotion || !channelId || subtotal <= 0) { setPromotionQuote(null); return undefined; }
+    const timer = window.setTimeout(async () => {
+      try {
+        const quote = await onQuotePromotion({ channel_id: Number(channelId), amount: Math.max(0, subtotal - manualDiscountAmount), customer_phone: customerPhone });
+        if (active) setPromotionQuote(quote?.promotion ? quote : null);
+      } catch { if (active) setPromotionQuote(null); }
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [channelId, customerPhone, manualDiscountAmount, onQuotePromotion, subtotal]);
   const estimatedLoyaltyPoints = loyaltyEarnEnabled && customerPhone.replace(/\D/g, '').length >= 9
     ? Math.floor(loyaltyEarnMode === "CUP" ? loyaltyCupCount / loyaltyCupsPerPoint : total / loyaltySpendPerPoint)
     : 0;
@@ -302,6 +320,16 @@ export default function StaffWorkspace({
   const changeAmount = paymentMethod === "CASH" && receivedAmount >= total
     ? receivedAmount - total
     : 0;
+  const splitPaidTotal = useMemo(() => paymentRows.reduce((sum, payment) => sum + Math.max(0, Number(payment.paid_amount) || 0), 0), [paymentRows]);
+  const splitRemaining = Number((total - splitPaidTotal).toFixed(2));
+  const splitCashInvalid = paymentRows.some((payment) => payment.payment_method === "CASH" && Number(payment.paid_amount || 0) > 0 && Number(payment.amount_received || payment.paid_amount || 0) < Number(payment.paid_amount || 0));
+  const updatePaymentRow = (index, field, value) => setPaymentRows((current) => current.map((payment, paymentIndex) => paymentIndex === index ? { ...payment, [field]: value } : payment));
+  const addPaymentRow = () => setPaymentRows((current) => current.length >= 5 ? current : [...current, { payment_method: "QR", paid_amount: "", amount_received: "" }]);
+  const removePaymentRow = (index) => setPaymentRows((current) => current.length <= 1 ? current : current.filter((_, paymentIndex) => paymentIndex !== index));
+  const enableSplitPayment = (enabled) => {
+    setIsSplitPayment(enabled);
+    if (enabled) setPaymentRows([{ payment_method: paymentMethod, paid_amount: total ? total.toFixed(2) : "", amount_received: paymentMethod === "CASH" ? amountReceived : "" }]);
+  };
   const cookingOrders = orders.filter((order) => order.status === "COOKING").length;
 
   const cartKeyFor = (product, modifiers = []) =>
@@ -477,12 +505,16 @@ export default function StaffWorkspace({
   };
   const submit = async () => {
     if (!cart.length || isSubmitting) return;
-    if (paymentMethod === "CASH" && total > 0 && receivedAmount < total) {
+    if (!isSplitPayment && paymentMethod === "CASH" && total > 0 && receivedAmount < total) {
       showMessage({
         tone: "danger",
         title: "ยังยืนยันออเดอร์ไม่ได้",
         message: "ยอดที่รับต้องไม่น้อยกว่ายอดสุทธิ",
       });
+      return;
+    }
+    if (isSplitPayment && (Math.abs(splitRemaining) > 0.005 || splitCashInvalid)) {
+      showMessage({ tone: "danger", title: "ยอดชำระยังไม่ครบ", message: splitCashInvalid ? "ตรวจสอบยอดเงินสดที่รับในแต่ละรายการ" : `ยอดชำระคงเหลือ ${money(Math.abs(splitRemaining))}` });
       return;
     }
     const channel = channels.find(
@@ -495,11 +527,18 @@ export default function StaffWorkspace({
         channel_name: channel?.name,
         customer_phone: customerPhone.trim(),
         customer_nickname: customerNickname.trim(),
+        table_id: tableId || undefined,
         manual_discount_amount: Number(manualDiscountAmount.toFixed(2)),
         coupon_code: appliedCoupon?.code || undefined,
+        promotion_id: promotionQuote?.promotion?.id || undefined,
         loyalty_points_redeemed: loyaltyPointsRedeemed,
         payment_method: paymentMethod,
         amount_received: paymentMethod === "CASH" ? receivedAmount : undefined,
+        payments: isSplitPayment ? paymentRows.map((payment) => ({
+          payment_method: payment.payment_method,
+          paid_amount: Number(payment.paid_amount) || 0,
+          amount_received: payment.payment_method === "CASH" && payment.amount_received !== "" ? Number(payment.amount_received) : undefined,
+        })) : undefined,
         items: cart.map(({ product_id, name, qty, price, base_price, modifiers }) => ({
           product_id,
           name,
@@ -516,9 +555,13 @@ export default function StaffWorkspace({
         setDiscountType("amount");
         setCouponCode("");
         setAppliedCoupon(null);
+        setPromotionQuote(null);
         setCouponError("");
         setPaymentMethod("CASH");
         setAmountReceived("");
+        setIsSplitPayment(false);
+        setPaymentRows([{ payment_method: "CASH", paid_amount: "", amount_received: "" }]);
+        setTableId("");
         setLoyaltyData(null);
         setLoyaltyPoints("");
         setLoyaltyError("");
@@ -724,6 +767,13 @@ export default function StaffWorkspace({
                   />
                 </label>
               </div>
+              {diningTables.length ? <label className="mt-4 grid gap-1.5 text-xs font-semibold text-slate-600">
+                โต๊ะรับประทานที่ร้าน <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+                <select className={inputClass} value={tableId} onChange={(event) => setTableId(event.target.value)}>
+                  <option value="">ซื้อกลับ / ไม่ระบุโต๊ะ</option>
+                  {diningTables.filter((table) => table.is_active !== false && table.status !== "DISABLED").map((table) => <option value={table.id} key={table.id}>{table.display_name || table.table_code} · {table.status === "OCCUPIED" ? `มีบิลอยู่ ${table.order_count || 0} รายการ` : `ว่าง ${table.capacity} ที่นั่ง`}</option>)}
+                </select>
+              </label> : null}
               <p className="mt-3 rounded-xl bg-sky-50 p-3 text-xs leading-5 text-sky-800">
                 ไม่จำเป็นต้องมีบัญชีผู้ใช้ หากระบุเบอร์โทร ลูกค้าสามารถใช้เบอร์เดิมค้นหาสถานะออเดอร์ได้
               </p>
@@ -1039,6 +1089,8 @@ export default function StaffWorkspace({
                       {currentShift ? "ปิดกะ" : "เปิดกะ"}
                     </button> : null}
                   </div>
+                  <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700"><input className="accent-sky-600" type="checkbox" checked={isSplitPayment} onChange={(event) => enableSplitPayment(event.target.checked)} />แยกชำระหลายช่องทาง / หลายคน</label>
+                  {!isSplitPayment ? <>
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     {paymentOptions.map(([value, label]) => (
                       <label
@@ -1084,6 +1136,15 @@ export default function StaffWorkspace({
                         : "ยังไม่เปิดกะเงินสด · รับชำระและบันทึกออเดอร์ได้ตามปกติ"
                       : "การชำระเงินแบบนี้ไม่รวมในยอดเงินสดของกะ"}
                   </p>
+                  </> : <div className="mt-3 space-y-2">
+                    {paymentRows.map((payment, index) => {
+                      const paid = Math.max(0, Number(payment.paid_amount) || 0);
+                      const received = Number(payment.amount_received || paid || 0);
+                      const rowChange = payment.payment_method === "CASH" && received >= paid ? received - paid : 0;
+                      return <div className="rounded-xl border border-amber-100 bg-white/80 p-2.5" key={index}><div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px_110px_30px]"><select aria-label={`ช่องทางชำระรายการ ${index + 1}`} className={inputClass} value={payment.payment_method} onChange={(event) => updatePaymentRow(index, "payment_method", event.target.value)}>{paymentOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select><input aria-label={`ยอดชำระรายการ ${index + 1}`} className={inputClass} type="number" min="0" step="0.01" inputMode="decimal" placeholder="ยอดชำระ" value={payment.paid_amount} onChange={(event) => updatePaymentRow(index, "paid_amount", event.target.value)} />{payment.payment_method === "CASH" ? <input aria-label={`รับเงินสดรายการ ${index + 1}`} className={inputClass} type="number" min={paid} step="0.01" inputMode="decimal" placeholder="รับเงินสด" value={payment.amount_received} onChange={(event) => updatePaymentRow(index, "amount_received", event.target.value)} /> : <span className="flex items-center justify-center rounded-xl bg-slate-50 px-2 text-xs text-slate-500">ชำระแล้ว</span>}<button aria-label={`ลบช่องทางชำระ ${index + 1}`} className="text-lg font-bold text-rose-600 disabled:text-slate-300" type="button" disabled={paymentRows.length === 1} onClick={() => removePaymentRow(index)}>×</button></div>{payment.payment_method === "CASH" && paid > 0 ? <p className={`mt-1 text-[11px] font-semibold ${received < paid ? "text-rose-600" : "text-emerald-700"}`}>{received < paid ? "รับเงินสดไม่ครบ" : `เงินทอน ${money(rowChange)}`}</p> : null}</div>;
+                    })}
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" disabled={paymentRows.length >= 5} onClick={addPaymentRow}>+ เพิ่มช่องทาง</Button><strong className={Math.abs(splitRemaining) <= 0.005 ? "text-emerald-700" : "text-amber-700"}>{Math.abs(splitRemaining) <= 0.005 ? "ยอดชำระครบแล้ว" : `${splitRemaining > 0 ? "เหลือ" : "เกิน"} ${money(Math.abs(splitRemaining))}`}</strong></div>
+                  </div>}
                 </div>
                 <div className="space-y-2 border-b border-sky-100 pb-4 text-sm">
                   <div className="flex items-center justify-between text-slate-500">
@@ -1094,6 +1155,7 @@ export default function StaffWorkspace({
                     <span>ส่วนลดหน้าร้าน</span>
                     <span>-{money(manualDiscountAmount)}</span>
                   </div>
+                  {promotionQuote?.promotion ? <div className="flex items-center justify-between text-fuchsia-700"><span>โปรโมชั่น {promotionQuote.promotion.name}</span><span>-{money(promotionDiscountAmount)}</span></div> : null}
                   {appliedCoupon ? (
                     <div className="flex items-center justify-between text-emerald-700">
                       <span>คูปอง {appliedCoupon.code}</span>
@@ -1111,7 +1173,8 @@ export default function StaffWorkspace({
                   <span className="font-semibold text-slate-600">ยอดสุทธิ</span>
                   <strong className="text-2xl text-sky-700">{money(total)}</strong>
                 </div>
-                {paymentMethod === "CASH" && total > 0 && receivedAmount < total ? <p className="mb-2 text-xs font-semibold text-amber-700">กรอกยอดเงินสดที่รับอย่างน้อย {money(total)} ก่อนยืนยัน</p> : null}
+                {!isSplitPayment && paymentMethod === "CASH" && total > 0 && receivedAmount < total ? <p className="mb-2 text-xs font-semibold text-amber-700">กรอกยอดเงินสดที่รับอย่างน้อย {money(total)} ก่อนยืนยัน</p> : null}
+                {isSplitPayment && Math.abs(splitRemaining) > 0.005 ? <p className="mb-2 text-xs font-semibold text-amber-700">ระบุยอดชำระรวมให้ครบ {money(total)}</p> : null}
                 <div className="sticky bottom-0 z-10 -mx-4 flex gap-2 border-t border-sky-100 bg-white/95 px-4 pb-1 pt-3 backdrop-blur sm:-mx-5 sm:px-5"><Button className="shrink-0" type="button" variant="secondary" disabled={isSubmitting} onClick={() => setCheckoutStep(2)}>← ย้อนกลับ</Button><Button className="flex-1" disabled={!cart.length || isSubmitting} onClick={submit}>{isSubmitting ? "กำลังบันทึกออเดอร์..." : "ยืนยันคำสั่งซื้อ"}</Button></div>
               </div> : null}
                   </div>

@@ -35,6 +35,7 @@ const navigationGroups = [
     description: "ขาย รับชำระ จัดคิว และเตรียมสินค้า",
     items: [
       { id: "pos", icon: "🛒", label: "การขายและคำสั่งซื้อ" },
+      { id: "tables", icon: "🪑", label: "จัดการโต๊ะและบิล", adminOnly: true },
       { id: "kitchen", icon: "👨‍🍳", label: "หน้าจอเตรียมสินค้า" },
       { id: "cash-shifts", icon: "💵", label: "จัดการกะเงินสด", adminOnly: true },
     ],
@@ -562,18 +563,34 @@ function OrdersPage({ orders, onUpdate, onReturn, preview = false, onViewAll, on
   );
 }
 
-function KitchenDisplayPage({ orders, onUpdate }) {
+function KitchenDisplayPage({ orders, onUpdate, onUpdateStation }) {
   const { showMessage } = useActionDialog();
   const [now, setNow] = useState(() => Date.now());
+  const [stationFilter, setStationFilter] = useState("ALL");
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30000);
     return () => window.clearInterval(timer);
   }, []);
   const activeOrders = orders.filter((order) => !["COMPLETED", "RETURNED", "CANCELLED"].includes(order.status));
-  const elapsed = (order) => {
+  const elapsedMinutes = (order) => {
     const createdAt = new Date(order.created_at || order.order_date || now).getTime();
-    const minutes = Math.max(0, Math.floor((now - createdAt) / 60000));
+    return Math.max(0, Math.floor((now - createdAt) / 60000));
+  };
+  const elapsed = (order) => {
+    const minutes = elapsedMinutes(order);
     return minutes ? `รอ ${minutes} นาที` : "เพิ่งเข้าคิว";
+  };
+  const stationLabel = { BAR: "บาร์เครื่องดื่ม", KITCHEN: "ครัวอาหาร", BAKERY: "ครัวขนม", OTHER: "จุดผลิตอื่น" };
+  const stationOrder = ["BAR", "KITCHEN", "BAKERY", "OTHER"];
+  const stationSummary = useMemo(() => stationOrder.map((station) => ({
+    station,
+    label: stationLabel[station],
+    count: activeOrders.filter((order) => (order.rawItems || []).some((item) => String(item.production_station || "BAR") === station && item.production_status !== "READY")).length,
+  })).filter((entry) => entry.count || stationFilter === entry.station), [activeOrders, stationFilter]);
+  const urgencyFor = (order, items) => {
+    const target = Math.max(1, ...items.map((item) => Number(item.target_prep_minutes || 5)));
+    const minutes = elapsedMinutes(order);
+    return { target, minutes, isLate: minutes > target + 5, isNear: minutes >= target };
   };
   const handleKitchenPrint = (order) => {
     if (printKitchenTicket(order)) return;
@@ -583,15 +600,19 @@ function KitchenDisplayPage({ orders, onUpdate }) {
       message: "กรุณาอนุญาตหน้าต่างป๊อปอัปเพื่อพิมพ์ใบครัว",
     });
   };
-  const Ticket = ({ order }) => {
+  const Ticket = ({ order, station }) => {
     const rawItems = Array.isArray(order.rawItems) ? order.rawItems : [];
+    const stationItems = station ? rawItems.filter((item) => String(item.production_station || "BAR") === station) : rawItems;
     const isReady = order.status === "READY";
+    const pendingStationItems = stationItems.filter((item) => item.production_status !== "READY");
+    const urgency = urgencyFor(order, stationItems);
+    const stationComplete = stationItems.length > 0 && pendingStationItems.length === 0;
     return (
-      <article className={`rounded-2xl border bg-white p-4 shadow-sm ${isReady ? "border-emerald-200" : "border-sky-200"}`}>
+      <article className={`rounded-2xl border bg-white p-4 shadow-sm ${urgency.isLate ? "border-rose-300 ring-1 ring-rose-100" : urgency.isNear ? "border-amber-300" : isReady ? "border-emerald-200" : "border-sky-200"}`}>
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xl font-black text-slate-900">คิว {order.queue_no || "-"}</p>
-            <p className="mt-1 text-xs font-semibold text-slate-500">#{order.order_no} · {elapsed(order)}</p>
+            <p className={`mt-1 text-xs font-bold ${urgency.isLate ? "text-rose-700" : urgency.isNear ? "text-amber-700" : "text-slate-500"}`}>#{order.order_no} · {elapsed(order)} · เป้าหมาย {urgency.target} นาที{urgency.isLate ? " · คิวช้า" : urgency.isNear ? " · ใกล้เกินเวลา" : ""}</p>
           </div>
           <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${orderStatusClass(order.status)}`}>
             {orderStatusLabel(order.status)}
@@ -600,20 +621,21 @@ function KitchenDisplayPage({ orders, onUpdate }) {
         <div className="mt-4 rounded-xl bg-slate-50 p-3">
           <p className="text-xs font-bold text-slate-500">{order.customer_nickname || order.customer_name || "ไม่ระบุชื่อลูกค้า"} · {order.channel_name || "หน้าร้าน"}</p>
           <ul className="mt-2 space-y-2 text-sm text-slate-700">
-            {rawItems.length ? rawItems.map((item, index) => (
-              <li key={`${item.product_id || item.name}-${index}`}>
+            {stationItems.length ? stationItems.map((item, index) => (
+              <li className="flex items-start justify-between gap-2" key={`${item.product_id || item.name}-${index}`}>
+                <span>
                 <span className="font-bold">{item.name} × {item.quantity ?? item.qty}</span>
                 {(item.modifiers || []).length ? (
                   <span className="mt-0.5 block text-xs text-violet-700">{item.modifiers.map((modifier) => modifier.name).join(" · ")}</span>
                 ) : null}
-              </li>
+                </span><span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${item.production_status === "READY" ? "bg-emerald-100 text-emerald-700" : "bg-sky-100 text-sky-700"}`}>{item.production_status === "READY" ? "เสร็จ" : "รอทำ"}</span></li>
             )) : <li>{order.items || "ไม่มีรายละเอียดสินค้า"}</li>}
           </ul>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button className="flex-1" onClick={() => onUpdate(order.id, isReady ? "COMPLETED" : "READY")}>
-            {isReady ? "ส่งมอบแล้ว" : "ทำเสร็จ / พร้อมรับ"}
-          </Button>
+          {station ? <Button className="flex-1" disabled={!stationItems.length} onClick={() => onUpdateStation?.(order.id, station, stationComplete ? "PENDING" : "READY")}>
+            {stationComplete ? "เปิดงานจุดนี้อีกครั้ง" : `จุดนี้เสร็จ · ${stationLabel[station]}`}
+          </Button> : <Button className="flex-1" onClick={() => onUpdate(order.id, isReady ? "COMPLETED" : "READY")}>{isReady ? "ส่งมอบแล้ว" : "ทำเสร็จ / พร้อมรับ"}</Button>}
           <Button className="text-xs" variant="secondary" onClick={() => handleKitchenPrint(order)}>
             พิมพ์ใบครัว
           </Button>
@@ -627,13 +649,14 @@ function KitchenDisplayPage({ orders, onUpdate }) {
     <div className="space-y-5">
       <Heading
         title="หน้าจอเตรียมสินค้า"
-        description="จัดการคิวแบบสองขั้น: กำลังทำ → พร้อมรับ → ส่งมอบแล้ว"
+        description="แยกจุดผลิต ติดตามเวลารอ และแจ้งคิวที่ช้ากว่าเป้าหมาย"
         action={<span className="rounded-full bg-sky-100 px-3 py-2 text-sm font-bold text-sky-700">{activeOrders.length} คิวที่ต้องดูแล</span>}
       />
+      <div className="flex flex-wrap gap-2"><Button type="button" className="text-xs" variant={stationFilter === "ALL" ? "primary" : "secondary"} onClick={() => setStationFilter("ALL")}>ทุกจุดผลิต</Button>{stationSummary.map((entry) => <Button key={entry.station} type="button" className="text-xs" variant={stationFilter === entry.station ? "primary" : "secondary"} onClick={() => setStationFilter(entry.station)}>{entry.label} · {entry.count}</Button>)}</div>
       <div className="grid gap-5 xl:grid-cols-2">
-        <section className="rounded-3xl border border-sky-200 bg-sky-50/60 p-4 sm:p-5">
-          <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-sky-950">กำลังทำ</h2><span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-sky-700">{cooking.length}</span></div>
-          <div className="grid gap-3">{cooking.length ? cooking.map((order) => <Ticket key={order.id} order={order} />) : <Empty>ไม่มีคิวกำลังทำ</Empty>}</div>
+        <section className="rounded-3xl border border-sky-200 bg-sky-50/60 p-4 sm:p-5 xl:col-span-2">
+          <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-sky-950">กำลังทำตามจุดผลิต</h2><span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-sky-700">{cooking.length} คิว</span></div>
+          <div className="grid gap-4 xl:grid-cols-2">{stationSummary.filter((entry) => stationFilter === "ALL" || stationFilter === entry.station).map((entry) => { const tickets = cooking.filter((order) => (order.rawItems || []).some((item) => String(item.production_station || "BAR") === entry.station)).sort((left, right) => urgencyFor(right, (right.rawItems || []).filter((item) => String(item.production_station || "BAR") === entry.station)).minutes - urgencyFor(left, (left.rawItems || []).filter((item) => String(item.production_station || "BAR") === entry.station)).minutes); return <section className="rounded-2xl border border-white bg-white/70 p-3" key={entry.station}><h3 className="mb-3 text-sm font-black text-slate-800">{entry.label} · {tickets.length} คิว</h3><div className="grid gap-3">{tickets.length ? tickets.map((order) => <Ticket key={`${entry.station}-${order.id}`} order={order} station={entry.station} />) : <Empty>ไม่มีงานในจุดนี้</Empty>}</div></section>; })}</div>
         </section>
         <section className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-4 sm:p-5">
           <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-emerald-950">พร้อมรับสินค้า</h2><span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-emerald-700">{ready.length}</span></div>
@@ -714,9 +737,10 @@ function PrintingSettingsPage() {
   );
 }
 
-function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onLookupLoyalty, onValidateCoupon, onOpenCashShift, onCloseCashShift }) {
+function PosPage({ channels, diningTables = [], products, currentShift, loyaltySettings, onAdd, onLookupLoyalty, onValidateCoupon, onQuotePromotion, onOpenCashShift, onCloseCashShift }) {
   const { showMessage } = useActionDialog();
   const [channelId, setChannelId] = useState(channels[0]?.id || "");
+  const [tableId, setTableId] = useState("");
   const activeChannels = useMemo(
     () => channels.filter((channel) => channel.is_active !== false),
     [channels],
@@ -740,9 +764,12 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
   const [discountValue, setDiscountValue] = useState("");
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [promotionQuote, setPromotionQuote] = useState(null);
   const [couponError, setCouponError] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [amountReceived, setAmountReceived] = useState("");
+  const [isSplitPayment, setIsSplitPayment] = useState(false);
+  const [paymentRows, setPaymentRows] = useState([{ payment_method: "CASH", paid_amount: "", amount_received: "" }]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [menuSearch, setMenuSearch] = useState("");
   const [menuCategory, setMenuCategory] = useState("ALL");
@@ -822,9 +849,10 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
       ? Math.min(subtotal, subtotal * Math.min(value, 100) / 100)
       : Math.min(subtotal, value);
   }, [discountType, discountValue, subtotal]);
+  const promotionDiscountAmount = Math.min(Math.max(0, Number(promotionQuote?.discount_amount || 0)), Math.max(0, subtotal - manualDiscountAmount));
   const couponDiscountAmount = useMemo(() => {
     if (!appliedCoupon) return 0;
-    const eligibleAmount = Math.max(0, subtotal - manualDiscountAmount);
+    const eligibleAmount = Math.max(0, subtotal - manualDiscountAmount - promotionDiscountAmount);
     if (eligibleAmount < Number(appliedCoupon.min_order_amount || 0)) return 0;
     const rawDiscount = appliedCoupon.discount_type === "PERCENT"
       ? eligibleAmount * Math.min(Number(appliedCoupon.discount_value || 0), 100) / 100
@@ -833,7 +861,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
       ? Math.min(rawDiscount, Number(appliedCoupon.max_discount_amount))
       : rawDiscount;
     return Math.min(eligibleAmount, cappedDiscount);
-  }, [appliedCoupon, manualDiscountAmount, subtotal]);
+  }, [appliedCoupon, manualDiscountAmount, promotionDiscountAmount, subtotal]);
   const activeLoyaltyRules = loyaltyData?.rules || loyaltySettings || {};
   const loyaltyEarnEnabled = activeLoyaltyRules.earn_enabled !== undefined ? activeLoyaltyRules.earn_enabled === true : activeLoyaltyRules.is_enabled !== false;
   const loyaltyRedeemEnabled = activeLoyaltyRules.redeem_enabled !== undefined ? activeLoyaltyRules.redeem_enabled === true : activeLoyaltyRules.is_enabled !== false;
@@ -843,7 +871,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
   const loyaltyCupsPerPoint = Math.max(1, Number(activeLoyaltyRules.cups_per_point || 1));
   const loyaltyBahtPerPoint = Math.max(0.01, Number(activeLoyaltyRules.baht_per_point || 0.1));
   const loyaltyMaxRedeemPercent = Math.max(0, Math.min(100, Number(activeLoyaltyRules.max_redeem_percent ?? 50)));
-  const loyaltyBaseAmount = Math.max(0, subtotal - manualDiscountAmount - couponDiscountAmount);
+  const loyaltyBaseAmount = Math.max(0, subtotal - manualDiscountAmount - promotionDiscountAmount - couponDiscountAmount);
   const loyaltyBalance = Math.max(0, Number(loyaltyData?.account?.points_balance || 0));
   const loyaltyMaxPoints = loyaltyRedeemEnabled
     ? Math.min(loyaltyBalance, Math.floor((loyaltyBaseAmount * (loyaltyMaxRedeemPercent / 100)) / loyaltyBahtPerPoint))
@@ -851,6 +879,17 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
   const loyaltyPointsRedeemed = Math.min(loyaltyMaxPoints, Math.max(0, Math.floor(Number(loyaltyPoints) || 0)));
   const loyaltyDiscountAmount = Number((loyaltyPointsRedeemed * loyaltyBahtPerPoint).toFixed(2));
   const total = Math.max(0, loyaltyBaseAmount - loyaltyDiscountAmount);
+  useEffect(() => {
+    let active = true;
+    if (!onQuotePromotion || !channelId || subtotal <= 0) { setPromotionQuote(null); return undefined; }
+    const timer = window.setTimeout(async () => {
+      try {
+        const quote = await onQuotePromotion({ channel_id: Number(channelId), amount: Math.max(0, subtotal - manualDiscountAmount), customer_phone: customerPhone });
+        if (active) setPromotionQuote(quote?.promotion ? quote : null);
+      } catch { if (active) setPromotionQuote(null); }
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [channelId, customerPhone, manualDiscountAmount, onQuotePromotion, subtotal]);
   const estimatedLoyaltyPoints = loyaltyEarnEnabled && customerPhone.replace(/\D/g, '').length >= 9
     ? Math.floor(loyaltyEarnMode === "CUP" ? loyaltyCupCount / loyaltyCupsPerPoint : total / loyaltySpendPerPoint)
     : 0;
@@ -858,6 +897,23 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
   const changeAmount = paymentMethod === "CASH" && receivedAmount >= total
     ? receivedAmount - total
     : 0;
+  const splitPaidTotal = useMemo(
+    () => paymentRows.reduce((sum, payment) => sum + Math.max(0, Number(payment.paid_amount) || 0), 0),
+    [paymentRows],
+  );
+  const splitRemaining = Number((total - splitPaidTotal).toFixed(2));
+  const splitCashInvalid = paymentRows.some((payment) => payment.payment_method === "CASH"
+    && Number(payment.paid_amount || 0) > 0
+    && Number(payment.amount_received || payment.paid_amount || 0) < Number(payment.paid_amount || 0));
+  const updatePaymentRow = (index, field, value) => setPaymentRows((current) => current.map((payment, paymentIndex) => paymentIndex === index ? { ...payment, [field]: value } : payment));
+  const addPaymentRow = () => setPaymentRows((current) => current.length >= 5 ? current : [...current, { payment_method: "QR", paid_amount: "", amount_received: "" }]);
+  const removePaymentRow = (index) => setPaymentRows((current) => current.length <= 1 ? current : current.filter((_, paymentIndex) => paymentIndex !== index));
+  const enableSplitPayment = (enabled) => {
+    setIsSplitPayment(enabled);
+    if (enabled) {
+      setPaymentRows([{ payment_method: paymentMethod, paid_amount: total ? total.toFixed(2) : "", amount_received: paymentMethod === "CASH" ? amountReceived : "" }]);
+    }
+  };
   const cartKeyFor = (product, modifiers = []) =>
     `${product.id}:${modifiers
       .map((modifier) => modifier.id)
@@ -1030,12 +1086,16 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
   };
   const submit = async () => {
     if (!cart.length || isSubmitting) return;
-    if (paymentMethod === "CASH" && total > 0 && receivedAmount < total) {
+    if (!isSplitPayment && paymentMethod === "CASH" && total > 0 && receivedAmount < total) {
       showMessage({
         tone: "danger",
         title: "ยังยืนยันออเดอร์ไม่ได้",
         message: "ยอดที่รับต้องไม่น้อยกว่ายอดสุทธิ",
       });
+      return;
+    }
+    if (isSplitPayment && (Math.abs(splitRemaining) > 0.005 || splitCashInvalid)) {
+      showMessage({ tone: "danger", title: "ยอดชำระยังไม่ครบ", message: splitCashInvalid ? "ตรวจสอบยอดเงินสดที่รับในแต่ละรายการ" : `ยอดชำระคงเหลือ ${money(Math.abs(splitRemaining))}` });
       return;
     }
     const channel = activeChannels.find(
@@ -1056,9 +1116,16 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
         customer_phone: customerPhone.trim(),
         manual_discount_amount: Number(manualDiscountAmount.toFixed(2)),
         coupon_code: appliedCoupon?.code || undefined,
+        promotion_id: promotionQuote?.promotion?.id || undefined,
         loyalty_points_redeemed: loyaltyPointsRedeemed,
+        table_id: tableId || undefined,
         payment_method: paymentMethod,
         amount_received: paymentMethod === "CASH" ? receivedAmount : undefined,
+        payments: isSplitPayment ? paymentRows.map((payment) => ({
+          payment_method: payment.payment_method,
+          paid_amount: Number(payment.paid_amount) || 0,
+          amount_received: payment.payment_method === "CASH" && payment.amount_received !== "" ? Number(payment.amount_received) : undefined,
+        })) : undefined,
         items: cart.map(({ product_id, qty, price, base_price, modifiers }) => ({
           product_id,
           qty,
@@ -1074,9 +1141,13 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
         setDiscountType("amount");
         setCouponCode("");
         setAppliedCoupon(null);
+        setPromotionQuote(null);
         setCouponError("");
         setPaymentMethod("CASH");
         setAmountReceived("");
+        setIsSplitPayment(false);
+        setPaymentRows([{ payment_method: "CASH", paid_amount: "", amount_received: "" }]);
+        setTableId("");
         setLoyaltyPoints("");
         setLoyaltyData(null);
         setCartOpen(false);
@@ -1374,6 +1445,19 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
                 />
               </label>
             </div>
+            {diningTables.length ? (
+              <label className={labelClass}>
+                โต๊ะรับประทานที่ร้าน <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+                <select className={inputClass} value={tableId} onChange={(event) => setTableId(event.target.value)}>
+                  <option value="">ซื้อกลับ / ไม่ระบุโต๊ะ</option>
+                  {diningTables.filter((table) => table.is_active !== false && table.status !== "DISABLED").map((table) => (
+                    <option value={table.id} key={table.id}>
+                      {table.display_name || table.table_code} · {table.status === "OCCUPIED" ? `มีบิลอยู่ ${table.order_count || 0} รายการ` : `ว่าง ${table.capacity} ที่นั่ง`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             {customerPhone ? (
               <div className="rounded-xl border border-violet-100 bg-violet-50/70 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1490,6 +1574,11 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
                   {currentShift ? "ปิดกะเงินสด" : "เปิดกะเงินสด"}
                 </button>
               </div>
+              <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
+                <input className="accent-sky-600" type="checkbox" checked={isSplitPayment} onChange={(event) => enableSplitPayment(event.target.checked)} />
+                แยกชำระหลายช่องทาง / หลายคน
+              </label>
+              {!isSplitPayment ? <>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 {paymentOptions.map(([value, label]) => (
                   <label
@@ -1535,6 +1624,28 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
                     : "ยังไม่เปิดกะเงินสด · รับชำระและบันทึกออเดอร์ได้ตามปกติ"
                   : "การชำระเงินแบบนี้ไม่รวมในยอดเงินสดของกะ"}
               </p>
+              </> : <div className="mt-3 space-y-2">
+                {paymentRows.map((payment, index) => {
+                  const paid = Math.max(0, Number(payment.paid_amount) || 0);
+                  const received = Number(payment.amount_received || paid || 0);
+                  const rowChange = payment.payment_method === "CASH" && received >= paid ? received - paid : 0;
+                  return <div className="rounded-xl border border-amber-100 bg-white/80 p-2.5" key={index}>
+                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px_110px_30px]">
+                      <select aria-label={`ช่องทางชำระรายการ ${index + 1}`} className={inputClass} value={payment.payment_method} onChange={(event) => updatePaymentRow(index, "payment_method", event.target.value)}>
+                        {paymentOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+                      </select>
+                      <input aria-label={`ยอดชำระรายการ ${index + 1}`} className={inputClass} type="number" min="0" step="0.01" inputMode="decimal" placeholder="ยอดชำระ" value={payment.paid_amount} onChange={(event) => updatePaymentRow(index, "paid_amount", event.target.value)} />
+                      {payment.payment_method === "CASH" ? <input aria-label={`รับเงินสดรายการ ${index + 1}`} className={inputClass} type="number" min={paid} step="0.01" inputMode="decimal" placeholder="รับเงินสด" value={payment.amount_received} onChange={(event) => updatePaymentRow(index, "amount_received", event.target.value)} /> : <span className="flex items-center justify-center rounded-xl bg-slate-50 px-2 text-xs text-slate-500">ชำระแล้ว</span>}
+                      <button aria-label={`ลบช่องทางชำระ ${index + 1}`} className="text-lg font-bold text-rose-600 disabled:text-slate-300" type="button" disabled={paymentRows.length === 1} onClick={() => removePaymentRow(index)}>×</button>
+                    </div>
+                    {payment.payment_method === "CASH" && paid > 0 ? <p className={`mt-1 text-[11px] font-semibold ${received < paid ? "text-rose-600" : "text-emerald-700"}`}>{received < paid ? "รับเงินสดไม่ครบ" : `เงินทอน ${money(rowChange)}`}</p> : null}
+                  </div>;
+                })}
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" disabled={paymentRows.length >= 5} onClick={addPaymentRow}>+ เพิ่มช่องทาง</Button>
+                  <strong className={Math.abs(splitRemaining) <= 0.005 ? "text-emerald-700" : "text-amber-700"}>{Math.abs(splitRemaining) <= 0.005 ? "ยอดชำระครบแล้ว" : `${splitRemaining > 0 ? "เหลือ" : "เกิน"} ${money(Math.abs(splitRemaining))}`}</strong>
+                </div>
+              </div>}
             </div>
             <div className="space-y-2 border-b border-sky-100 pb-4 text-sm">
               <div className="flex items-center justify-between text-slate-500">
@@ -1545,6 +1656,7 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
                 <span>ส่วนลดหน้าร้าน</span>
                 <span>-{money(manualDiscountAmount)}</span>
               </div>
+              {promotionQuote?.promotion ? <div className="flex items-center justify-between text-fuchsia-700"><span>โปรโมชั่น {promotionQuote.promotion.name}</span><span>-{money(promotionDiscountAmount)}</span></div> : null}
               {appliedCoupon ? (
                 <div className="flex items-center justify-between text-emerald-700">
                   <span>คูปอง {appliedCoupon.code}</span>
@@ -1562,7 +1674,8 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
               <span className="font-semibold text-slate-600">ยอดสุทธิ</span>
               <strong className="text-2xl text-sky-700">{money(total)}</strong>
             </div>
-            {paymentMethod === "CASH" && total > 0 && receivedAmount < total ? <p className="mb-2 text-xs font-semibold text-amber-700">กรอกยอดเงินสดที่รับอย่างน้อย {money(total)} ก่อนยืนยัน</p> : null}
+            {!isSplitPayment && paymentMethod === "CASH" && total > 0 && receivedAmount < total ? <p className="mb-2 text-xs font-semibold text-amber-700">กรอกยอดเงินสดที่รับอย่างน้อย {money(total)} ก่อนยืนยัน</p> : null}
+            {isSplitPayment && Math.abs(splitRemaining) > 0.005 ? <p className="mb-2 text-xs font-semibold text-amber-700">ระบุยอดชำระรวมให้ครบ {money(total)}</p> : null}
             <div className="sticky bottom-0 z-10 -mx-4 flex gap-2 border-t border-sky-100 bg-white/95 px-4 pb-1 pt-3 backdrop-blur sm:-mx-5 sm:px-5"><Button className="shrink-0" type="button" variant="secondary" disabled={isSubmitting} onClick={() => setCheckoutStep(2)}>← ย้อนกลับ</Button><Button className="flex-1" disabled={!cart.length || isSubmitting} onClick={submit}>{isSubmitting ? "กำลังบันทึกออเดอร์..." : "ยืนยันออเดอร์"}</Button></div>
           </div> : null}
         </Card>
@@ -1589,6 +1702,68 @@ function PosPage({ channels, products, currentShift, loyaltySettings, onAdd, onL
       {cashShiftDialog ? <CashShiftDialog mode={cashShiftDialog.mode} shift={cashShiftDialog.shift} onClose={() => setCashShiftDialog(null)} onSubmit={saveCashShift} /> : null}
     </div>
   );
+}
+
+function TableManagementPage({ tables = [], orders = [], onCreate, onUpdate, onRefresh, onSessionAction }) {
+  const { showMessage } = useActionDialog();
+  const [editor, setEditor] = useState(null);
+  const [form, setForm] = useState({ table_code: "", display_name: "", capacity: "2", is_active: true });
+  const [sessionAction, setSessionAction] = useState(null);
+  const [targetTableId, setTargetTableId] = useState("");
+  const [selectedOrderIds, setSelectedOrderIds] = useState([]);
+  const openEditor = (table = null) => {
+    setEditor(table || {});
+    setForm(table ? { table_code: table.table_code, display_name: table.display_name || "", capacity: String(table.capacity || 2), is_active: table.is_active !== false } : { table_code: "", display_name: "", capacity: "2", is_active: true });
+  };
+  const saveTable = async (event) => {
+    event.preventDefault();
+    const saved = editor?.id ? await onUpdate?.(editor.id, form) : await onCreate?.(form);
+    if (saved) {
+      showMessage({ tone: "success", title: editor?.id ? "แก้ไขโต๊ะแล้ว" : "เพิ่มโต๊ะแล้ว", message: "โต๊ะพร้อมเลือกจากหน้า POS ทันที" });
+      setEditor(null);
+    }
+  };
+  const openAction = (table, action) => {
+    setSessionAction({ table, action });
+    setTargetTableId("");
+    setSelectedOrderIds([]);
+  };
+  const executeAction = async () => {
+    if (!sessionAction) return;
+    const { table, action } = sessionAction;
+    if (action === "release") {
+      const saved = await onSessionAction?.(table.id, "release");
+      if (saved) setSessionAction(null);
+      return;
+    }
+    if (!targetTableId) {
+      showMessage({ tone: "danger", title: "เลือกโต๊ะปลายทาง", message: "กรุณาเลือกโต๊ะที่จะรับบิลก่อนดำเนินการ" });
+      return;
+    }
+    if (action === "split" && !selectedOrderIds.length) {
+      showMessage({ tone: "danger", title: "ยังไม่ได้เลือกออเดอร์", message: "เลือกอย่างน้อยหนึ่งออเดอร์ที่ต้องการแยกไปโต๊ะใหม่" });
+      return;
+    }
+    const saved = await onSessionAction?.(table.id, action, { target_table_id: Number(targetTableId), order_ids: selectedOrderIds });
+    if (saved) setSessionAction(null);
+  };
+  const sourceOrders = useMemo(() => sessionAction?.table?.session_id
+    ? orders.filter((order) => String(order.dining_session_id) === String(sessionAction.table.session_id))
+    : [], [orders, sessionAction]);
+  const actionLabel = { release: "ปิดโต๊ะ", move: "ย้ายโต๊ะ", merge: "รวมโต๊ะ", split: "แยกโต๊ะ" };
+  return <div className="mx-auto max-w-6xl space-y-5">
+    <Heading title="จัดการโต๊ะและบิลกินที่ร้าน" description="เปิดบิลตามโต๊ะ ย้าย รวม หรือแยกออเดอร์ก่อนส่งชำระเงิน" action={<Button type="button" onClick={() => openEditor()}>+ เพิ่มโต๊ะ</Button>} />
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {tables.map((table) => {
+        const status = table.status === "OCCUPIED" ? "ใช้งาน" : table.status === "DISABLED" ? "ปิดใช้" : "ว่าง";
+        const statusClass = table.status === "OCCUPIED" ? "bg-amber-100 text-amber-800" : table.status === "DISABLED" ? "bg-slate-100 text-slate-600" : "bg-emerald-100 text-emerald-800";
+        return <Card className="!p-4" key={table.id}><div className="flex items-start justify-between gap-2"><div><p className="text-lg font-black text-slate-900">{table.display_name || table.table_code}</p><p className="text-xs text-slate-500">รหัส {table.table_code} · {table.capacity} ที่นั่ง</p></div><span className={`rounded-full px-2 py-1 text-[11px] font-bold ${statusClass}`}>{status}</span></div>{table.status === "OCCUPIED" ? <p className="mt-3 text-sm font-semibold text-sky-700">บิลเปิดอยู่ {table.order_count || 0} รายการ</p> : <p className="mt-3 text-sm text-slate-500">พร้อมรับบิลใหม่</p>}<div className="mt-4 flex flex-wrap gap-2"><Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => openEditor(table)}>แก้ไข</Button>{table.status === "OCCUPIED" ? <><Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => openAction(table, "move")}>ย้าย</Button><Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => openAction(table, "merge")}>รวม</Button><Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => openAction(table, "split")}>แยก</Button><Button className="px-2.5 py-1.5 text-xs" type="button" variant="danger" onClick={() => openAction(table, "release")}>ปิดโต๊ะ</Button></> : null}</div></Card>;
+      })}
+    </div>
+    {!tables.length ? <Empty>ยังไม่มีโต๊ะ กรุณาเพิ่มหมายเลขโต๊ะก่อนเปิดบิลกินที่ร้าน</Empty> : null}
+    {editor ? <Modal label={editor.id ? "แก้ไขโต๊ะ" : "เพิ่มโต๊ะ"} maxWidth="max-w-lg" onClose={() => setEditor(null)}><form className="space-y-4" onSubmit={saveTable}><label className={labelClass}>รหัสโต๊ะ<input className={inputClass} value={form.table_code} maxLength="32" required onChange={(event) => setForm((current) => ({ ...current, table_code: event.target.value.toUpperCase() }))} placeholder="เช่น T01" /></label><label className={labelClass}>ชื่อแสดง<input className={inputClass} value={form.display_name} maxLength="100" onChange={(event) => setForm((current) => ({ ...current, display_name: event.target.value }))} placeholder="เช่น โต๊ะริมหน้าต่าง" /></label><label className={labelClass}>จำนวนที่นั่ง<input className={inputClass} type="number" min="1" max="100" value={form.capacity} required onChange={(event) => setForm((current) => ({ ...current, capacity: event.target.value }))} /></label><label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input className="accent-sky-600" type="checkbox" checked={form.is_active} onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.checked }))} />เปิดใช้งานโต๊ะนี้</label><div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setEditor(null)}>ยกเลิก</Button><Button type="submit">บันทึก</Button></div></form></Modal> : null}
+    {sessionAction ? <Modal label={actionLabel[sessionAction.action]} maxWidth="max-w-lg" onClose={() => setSessionAction(null)}><div className="space-y-4"><p className="text-sm text-slate-600">โต๊ะต้นทาง: <strong>{sessionAction.table.display_name || sessionAction.table.table_code}</strong></p>{sessionAction.action !== "release" ? <label className={labelClass}>โต๊ะปลายทาง<select className={inputClass} value={targetTableId} onChange={(event) => setTargetTableId(event.target.value)}><option value="">เลือกโต๊ะ</option>{tables.filter((table) => String(table.id) !== String(sessionAction.table.id) && table.is_active !== false && table.status !== "DISABLED").map((table) => <option value={table.id} key={table.id}>{table.display_name || table.table_code} · {table.status === "OCCUPIED" ? "มีบิลอยู่" : "ว่าง"}</option>)}</select></label> : <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ปิดโต๊ะได้เมื่อไม่มีออเดอร์กำลังทำหรือพร้อมรับ</p>}{sessionAction.action === "split" ? <div className="rounded-xl border border-sky-100 p-3"><p className="mb-2 text-xs font-bold text-slate-700">เลือกออเดอร์ที่จะย้าย</p><div className="max-h-48 space-y-2 overflow-y-auto">{sourceOrders.map((order) => <label className="flex items-center gap-2 text-sm text-slate-700" key={order.id}><input className="accent-sky-600" type="checkbox" checked={selectedOrderIds.includes(order.id)} onChange={(event) => setSelectedOrderIds((current) => event.target.checked ? [...current, order.id] : current.filter((id) => id !== order.id))} />#{order.order_no} · คิว {order.queue_no || "-"}</label>)}{!sourceOrders.length ? <p className="text-sm text-slate-500">ยังไม่พบออเดอร์ในบิลนี้</p> : null}</div></div> : null}<div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setSessionAction(null)}>ยกเลิก</Button><Button type="button" variant={sessionAction.action === "release" ? "danger" : "primary"} onClick={executeAction}>{actionLabel[sessionAction.action]}</Button></div></div></Modal> : null}
+  </div>;
 }
 
 function StockReceivingPanel({ rows, suppliers, receipts, onCreateSupplier, onCreateReceipt, onClose }) {
@@ -2144,6 +2319,8 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
     image_data: "",
     price_retail: "",
     price_wholesale: "",
+    production_station: "BAR",
+    prep_minutes: "5",
     counts_as_loyalty_cup: false,
     recipe: [],
     modifiers: [],
@@ -2290,6 +2467,8 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
       image_data: product.image_data || "",
       price_retail: product.price_retail || "",
       price_wholesale: product.price_wholesale || "",
+      production_station: product.production_station || "BAR",
+      prep_minutes: String(product.prep_minutes || 5),
       counts_as_loyalty_cup: product.counts_as_loyalty_cup === true,
       recipe: (product.recipe || []).map((item) => ({
         ingredient_id: item.ingredient_id,
@@ -2502,6 +2681,19 @@ function MenusPage({ products, ingredients, channels, onCreate, onUpdate, onDele
                       }))
                     }
                   />
+                </label>
+                <label className={labelClass}>
+                  จุดผลิต
+                  <select className={inputClass} value={form.production_station} onChange={(event) => setForm((current) => ({ ...current, production_station: event.target.value }))}>
+                    <option value="BAR">บาร์เครื่องดื่ม</option>
+                    <option value="KITCHEN">ครัวอาหาร</option>
+                    <option value="BAKERY">ครัวขนม</option>
+                    <option value="OTHER">จุดผลิตอื่น</option>
+                  </select>
+                </label>
+                <label className={labelClass}>
+                  เวลาเตรียมมาตรฐาน (นาที)
+                  <input className={inputClass} type="number" min="1" max="180" step="1" inputMode="numeric" value={form.prep_minutes} onChange={(event) => setForm((current) => ({ ...current, prep_minutes: event.target.value }))} required />
                 </label>
               </div>
               </FormSection>
@@ -2771,6 +2963,7 @@ function LegacyFinancePage({
   orders,
   channels,
   products,
+  diningTables,
   onCreateExpense,
   onUpdateExpense,
   onDeleteExpense,
@@ -6468,9 +6661,11 @@ export default function GlassLayout({
   onAssignUserRole,
   onLoadAuditLogs,
   onValidateCoupon,
+  onQuotePromotion,
   onOpenCashShift,
   onCloseCashShift,
   onUpdate,
+  onUpdateKitchenStation,
   onReturnOrder,
   onRestock,
   onAdjustInventory,
@@ -6485,6 +6680,10 @@ export default function GlassLayout({
   onUpdateCoupon,
   onCreateChannel,
   onUpdateChannel,
+  onCreateDiningTable,
+  onUpdateDiningTable,
+  onRefreshDiningTables,
+  onTableSessionAction,
   onRefreshCashShifts,
   onRefreshSalesBreakdown,
   onRefreshSalesReport,
@@ -6548,6 +6747,15 @@ export default function GlassLayout({
         onOpenCashShift={onOpenCashShift}
         onCloseCashShift={onCloseCashShift}
         onRefresh={onRefreshCashShifts}
+      />
+    ) : activeView === "tables" && user?.role === "admin" ? (
+      <TableManagementPage
+        tables={diningTables}
+        orders={orders}
+        onCreate={onCreateDiningTable}
+        onUpdate={onUpdateDiningTable}
+        onRefresh={onRefreshDiningTables}
+        onSessionAction={onTableSessionAction}
       />
     ) : activeView === "alerts" ? (
       <AlertsPage
@@ -6671,7 +6879,7 @@ export default function GlassLayout({
         isAdmin={user?.role === "admin"}
       />
     ) : activeView === "kitchen" ? (
-      <KitchenDisplayPage orders={orders} onUpdate={onUpdate} />
+      <KitchenDisplayPage orders={orders} onUpdate={onUpdate} onUpdateStation={onUpdateKitchenStation} />
     ) : activeView === "orders" ? (
       <OrdersPage orders={orders} onUpdate={onUpdate} onReturn={onReturnOrder} onBack={() => setActiveView("pos")} />
     ) : (
@@ -6679,12 +6887,14 @@ export default function GlassLayout({
         <OrdersPage orders={orders} onUpdate={onUpdate} onReturn={onReturnOrder} preview onViewAll={() => setActiveView("orders")} />
         <PosPage
           channels={channels}
+          diningTables={diningTables}
           products={products}
           currentShift={currentShift}
           loyaltySettings={loyaltySettings}
           onAdd={onAdd}
           onLookupLoyalty={onLookupLoyalty}
           onValidateCoupon={onValidateCoupon}
+          onQuotePromotion={onQuotePromotion}
           onOpenCashShift={onOpenCashShift}
           onCloseCashShift={onCloseCashShift}
         />

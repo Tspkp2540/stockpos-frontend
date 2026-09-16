@@ -180,6 +180,7 @@ function AppContent() {
     max_redeem_percent: 50,
   });
   const [channels, setChannels] = useState([]);
+  const [diningTables, setDiningTables] = useState([]);
   const [products, setProducts] = useState([]);
   const [inventoryRows, setInventoryRows] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -373,6 +374,50 @@ function AppContent() {
       showError(error, "ไม่สามารถปิดยอดประจำวันได้");
       console.warn("Daily closing failed.", error);
     }
+    return null;
+  };
+  const refreshDiningTables = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/tables`);
+      if (response.data?.success) {
+        setDiningTables(response.data.data || []);
+        return response.data.data || [];
+      }
+    } catch (error) {
+      showError(error, "ไม่สามารถโหลดข้อมูลโต๊ะได้");
+    }
+    return null;
+  };
+  const createDiningTable = async (table) => {
+    try {
+      const response = await axios.post(`${API_BASE}/api/tables`, table);
+      if (response.data?.success) {
+        setDiningTables((current) => [...current, response.data.data].sort((a, b) => String(a.table_code).localeCompare(String(b.table_code))));
+        setNotice("TABLE CREATED · READY FOR DINE IN");
+        return response.data.data;
+      }
+    } catch (error) { showError(error, "ไม่สามารถเพิ่มโต๊ะได้"); }
+    return null;
+  };
+  const updateDiningTable = async (id, table) => {
+    try {
+      const response = await axios.put(`${API_BASE}/api/tables/${id}`, table);
+      if (response.data?.success) {
+        setDiningTables((current) => current.map((item) => String(item.id) === String(id) ? response.data.data : item));
+        return response.data.data;
+      }
+    } catch (error) { showError(error, "ไม่สามารถแก้ไขโต๊ะได้"); }
+    return null;
+  };
+  const tableSessionAction = async (id, action, payload = {}) => {
+    try {
+      const response = await axios.post(`${API_BASE}/api/tables/${id}/${action}`, payload);
+      if (response.data?.success) {
+        await refreshDiningTables();
+        setNotice("TABLE STATUS UPDATED");
+        return response.data.data || true;
+      }
+    } catch (error) { showError(error, "ไม่สามารถจัดการบิลโต๊ะได้"); }
     return null;
   };
   const createChannel = async (channel) => {
@@ -723,6 +768,7 @@ function AppContent() {
     const fetchDashboardData = async () => {
       const responses = await Promise.allSettled([
         axios.get(`${API_BASE}/api/channels`),
+        axios.get(`${API_BASE}/api/tables`),
         axios.get(`${API_BASE}/api/products`),
         axios.get(`${API_BASE}/api/inventory`),
         axios.get(`${API_BASE}/api/inventory/lots?active=true&limit=1000`),
@@ -735,6 +781,7 @@ function AppContent() {
       if (!mounted) return;
       const [
         channelResult,
+        tablesResult,
         productResult,
         inventoryResult,
         inventoryLotsResult,
@@ -746,6 +793,8 @@ function AppContent() {
       ] = responses;
       const channelResponse =
         channelResult.status === "fulfilled" ? channelResult.value : null;
+      const tablesResponse =
+        tablesResult.status === "fulfilled" ? tablesResult.value : null;
       const productResponse =
         productResult.status === "fulfilled" ? productResult.value : null;
       const inventoryResponse =
@@ -767,6 +816,9 @@ function AppContent() {
         Array.isArray(channelResponse.data.data)
       )
         setChannels(channelResponse.data.data);
+      if (tablesResponse?.data?.success && Array.isArray(tablesResponse.data.data)) {
+        setDiningTables(tablesResponse.data.data);
+      }
       if (
         productResponse?.data?.success &&
         Array.isArray(productResponse.data.data)
@@ -926,7 +978,17 @@ function AppContent() {
         manual_discount_amount: Number(payload.manual_discount_amount) || 0,
         coupon_code: payload.coupon_code || undefined,
         loyalty_points_redeemed: Number(payload.loyalty_points_redeemed) || 0,
+        table_id: payload.table_id || undefined,
         payment_method: payload.payment_method || "OTHER",
+        payments: Array.isArray(payload.payments) && payload.payments.length
+          ? payload.payments.map((payment) => ({
+              payment_method: payment.payment_method,
+              paid_amount: Number(payment.paid_amount) || 0,
+              amount_received: payment.amount_received === undefined || payment.amount_received === ""
+                ? undefined
+                : Number(payment.amount_received),
+            }))
+          : undefined,
         amount_received:
           payload.amount_received === undefined || payload.amount_received === ""
             ? undefined
@@ -945,9 +1007,9 @@ function AppContent() {
         ]);
         clearPendingSubmission();
         setNotice("NEW ORDER RECEIVED · ACCOUNTANT PRINTING");
-        if (payload.payment_method === "CASH") refreshCurrentShift();
+        if (payload.payment_method === "CASH" || payload.payments?.some((payment) => payment.payment_method === "CASH")) refreshCurrentShift();
         if (session?.role === "admin") await refreshSalesBreakdown(payload.record_date || todayInBangkok());
-        await refreshProducts();
+        await Promise.all([refreshProducts(), refreshDiningTables()]);
         return true;
       }
     } catch (error) {
@@ -1014,6 +1076,11 @@ function AppContent() {
     }
     return response.data.data;
   };
+  const quotePromotion = async ({ channel_id, amount, customer_phone }) => {
+    const response = await axios.post(`${API_BASE}/api/promotions/quote`, { channel_id, amount, customer_phone });
+    if (!response.data?.success) throw new Error(response.data?.error || "ไม่สามารถคำนวณโปรโมชั่นได้");
+    return response.data.data;
+  };
   const updateOrder = async (id, status) => {
     try {
       const response =
@@ -1041,6 +1108,28 @@ function AppContent() {
     } catch (error) {
       showError(error, "ไม่สามารถอัปเดตออเดอร์ได้");
       console.warn("Order update failed.", error);
+    }
+    return false;
+  };
+  const updateKitchenStation = async (orderId, station, productionStatus) => {
+    try {
+      const response = await axios.put(`${API_BASE}/api/orders/${orderId}/kitchen-stations/${station}`, {
+        production_status: productionStatus,
+      });
+      if (response.data?.success) {
+        const data = response.data.data;
+        setOrders((current) => current.map((order) => String(order.id) !== String(orderId) ? order : {
+          ...order,
+          status: data.order_status,
+          rawItems: (order.rawItems || []).map((item) => String(item.production_station || "BAR") === String(station)
+            ? { ...item, production_status: productionStatus }
+            : item),
+        }));
+        setNotice(productionStatus === "READY" ? "PRODUCTION STATION READY" : "PRODUCTION STATION REOPENED");
+        return true;
+      }
+    } catch (error) {
+      showError(error, "ไม่สามารถอัปเดตจุดผลิตได้");
     }
     return false;
   };
@@ -1631,11 +1720,13 @@ function AppContent() {
           orders={orders}
           channels={channels}
           products={products}
+          diningTables={diningTables}
           currentShift={currentShift}
           loyaltyRules={loyaltySettings}
           onAdd={addOrder}
           onLookupLoyalty={lookupLoyalty}
           onValidateCoupon={validateCoupon}
+          onQuotePromotion={quotePromotion}
           onOpenCashShift={openCashShift}
           onCloseCashShift={closeCashShift}
           onUpdate={updateOrder}
@@ -1655,6 +1746,7 @@ function AppContent() {
         orders={orders}
         channels={channels}
         products={products}
+        diningTables={diningTables}
         inventoryRows={inventoryRows}
         inventoryLots={inventoryLots}
         suppliers={suppliers}
@@ -1688,9 +1780,11 @@ function AppContent() {
         onAssignUserRole={assignUserRole}
         onLoadAuditLogs={loadAuditLogs}
         onValidateCoupon={validateCoupon}
+        onQuotePromotion={quotePromotion}
         onOpenCashShift={openCashShift}
         onCloseCashShift={closeCashShift}
         onUpdate={updateOrder}
+        onUpdateKitchenStation={updateKitchenStation}
         onReturnOrder={returnOrder}
         onRestock={handleRestock}
         onAdjustInventory={adjustInventory}
@@ -1705,6 +1799,10 @@ function AppContent() {
         onUpdateCoupon={updateCoupon}
         onCreateChannel={createChannel}
         onUpdateChannel={updateChannel}
+        onCreateDiningTable={createDiningTable}
+        onUpdateDiningTable={updateDiningTable}
+        onRefreshDiningTables={refreshDiningTables}
+        onTableSessionAction={tableSessionAction}
         onRefreshCashShifts={refreshCashShifts}
         onRefreshSalesBreakdown={refreshSalesBreakdown}
         onRefreshSalesReport={refreshSalesReport}

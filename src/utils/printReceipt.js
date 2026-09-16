@@ -26,7 +26,9 @@ export const printReceipt = (order) => {
   const settings = loadPrintSettings();
   const paperWidth = settings.receipt_paper_width === "58" ? "58mm" : "80mm";
   const items = Array.isArray(order.rawItems) ? order.rawItems : [];
-  const payment = order.payment && typeof order.payment === "object" ? order.payment : {};
+  const payments = Array.isArray(order.payments) && order.payments.length
+    ? order.payments
+    : order.payment && typeof order.payment === "object" ? [order.payment] : [];
   const subtotal = Number(order.subtotal_amount ?? items.reduce(
     (sum, item) => sum + Number(item.unit_price ?? item.price ?? 0) * Number(item.quantity ?? item.qty ?? 0),
     0,
@@ -53,7 +55,7 @@ export const printReceipt = (order) => {
   <hr class="rule"><section class="meta"><div>เลขที่: <strong>#${escapeHtml(order.order_no || "-")}</strong>${order.queue_no ? ` · คิว ${escapeHtml(order.queue_no)}` : ""}</div><div>วันที่: ${escapeHtml(createdAt.toLocaleString("th-TH"))}</div><div>ช่องทาง: ${escapeHtml(order.channel_name || "หน้าร้าน")}</div>${order.customer_nickname || order.customer_name ? `<div>ลูกค้า: ${escapeHtml(order.customer_nickname || order.customer_name)}</div>` : ""}</section>
   <hr class="rule"><table><tbody>${itemRows}</tbody></table>
   <hr class="rule"><section class="summary"><p><span>ยอดก่อนลด</span><span>฿${money(subtotal)}</span></p>${manualDiscount ? `<p><span>ส่วนลดหน้าร้าน</span><span>-฿${money(manualDiscount)}</span></p>` : ""}${couponDiscount ? `<p><span>คูปอง ${escapeHtml(order.coupon_code || "")}</span><span>-฿${money(couponDiscount)}</span></p>` : ""}<p class="total"><span>ยอดสุทธิ</span><span>฿${money(total)}</span></p></section>
-  <hr class="rule"><section class="summary"><p><span>ชำระโดย</span><span>${escapeHtml(paymentLabel(payment.payment_method))}</span></p>${payment.payment_method === "CASH" ? `<p><span>รับเงิน</span><span>฿${money(payment.amount_received)}</span></p><p><span>เงินทอน</span><span>฿${money(payment.change_amount)}</span></p>` : ""}</section>
+  <hr class="rule"><section class="summary">${payments.length > 1 ? `<p><span>ชำระโดย</span><span>แยกชำระ ${payments.length} รายการ</span></p>` : ""}${payments.length ? payments.map((payment) => `<p><span>${escapeHtml(paymentLabel(payment.payment_method))}</span><span>฿${money(payment.paid_amount)}</span></p>${payment.payment_method === "CASH" ? `<p><span>รับเงินสด</span><span>฿${money(payment.amount_received)}</span></p><p><span>เงินทอน</span><span>฿${money(payment.change_amount)}</span></p>` : ""}`).join("") : `<p><span>ชำระโดย</span><span>ไม่ระบุ</span></p>`}</section>
   ${settings.receipt_printer_label ? `<p class="target">จุดพิมพ์: ${escapeHtml(settings.receipt_printer_label)}</p>` : ""}
   <p class="center thanks">ขอบคุณที่อุดหนุนครับ</p>
   <script>window.addEventListener('load', () => window.print());</script>
