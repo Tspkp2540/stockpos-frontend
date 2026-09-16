@@ -6643,6 +6643,7 @@ export default function GlassLayout({
   user,
   onLock,
   onLogout,
+  onReload,
   activeView,
   setActiveView,
   orders,
@@ -6722,6 +6723,16 @@ export default function GlassLayout({
   onUpdateSales,
   onDeleteSales,
 }) {
+  const [isReloading, setIsReloading] = useState(false);
+  const handleReload = async () => {
+    if (isReloading) return;
+    setIsReloading(true);
+    try {
+      await onReload?.();
+    } finally {
+      setIsReloading(false);
+    }
+  };
   const visibleNavigationGroups = navigationGroups
     .map((group) => ({
       ...group,
@@ -6952,9 +6963,10 @@ export default function GlassLayout({
               aria-label="รีโหลดหน้า"
               className="shrink-0 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-700 shadow-sm transition hover:bg-sky-50 focus:outline-none focus:ring-4 focus:ring-sky-100"
               type="button"
-              onClick={() => window.location.reload()}
+              disabled={isReloading}
+              onClick={handleReload}
             >
-              <span aria-hidden="true">↻</span><span className="ml-1 hidden sm:inline">รีโหลด</span>
+              <span aria-hidden="true">↻</span><span className="ml-1 hidden sm:inline">{isReloading ? "กำลังโหลด" : "รีโหลด"}</span>
             </button>
           </div>
           <div className="flex shrink-0 items-center justify-self-end gap-1 sm:gap-2">

@@ -1863,6 +1863,53 @@ function AppContent() {
       console.warn("Expense delete API unavailable.", error);
     }
   };
+  const reloadCurrentPage = async () => {
+    const reloadOrders = async () => {
+      const response = await axios.get(`${API_BASE}/api/orders`);
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        setOrders(response.data.data.map(normalizeOrder));
+      }
+    };
+    const reloadInventory = async () => {
+      const [inventory, lots] = await Promise.all([
+        axios.get(`${API_BASE}/api/inventory`),
+        axios.get(`${API_BASE}/api/inventory/lots?active=true&limit=1000`),
+      ]);
+      if (inventory.data?.success && Array.isArray(inventory.data.data)) setInventoryRows(inventory.data.data);
+      if (lots.data?.success && Array.isArray(lots.data.data)) setInventoryLots(lots.data.data);
+    };
+    const reloadExpenses = async () => {
+      const response = await axios.get(`${API_BASE}/api/expenses`);
+      if (response.data?.success && Array.isArray(response.data.data)) setExpenseRows(response.data.data);
+    };
+    const pageLoaders = {
+      home: [reloadOrders, refreshFinancialSummary, refreshProducts, refreshDiningTables],
+      pos: [reloadOrders, refreshProducts, refreshDiningTables, refreshCurrentShift],
+      orders: [reloadOrders],
+      kitchen: [reloadOrders],
+      tables: [reloadOrders, refreshDiningTables],
+      inventory: [reloadInventory],
+      alerts: [reloadInventory, refreshProducts, refreshPurchaseOrders],
+      procurement: [refreshPurchaseOrders],
+      menu: [refreshProducts],
+      coupons: [refreshCoupons],
+      finance: [reloadOrders, refreshFinancialSummary, reloadExpenses, refreshSalesBreakdown],
+      "cash-shifts": [refreshCurrentShift, refreshCashShifts],
+      "loyalty-settings": [refreshLoyaltySettings],
+      "loyalty-members": [refreshLoyaltyMembers],
+      "role-permissions": [refreshRolePermissions, refreshSystemUsers],
+      "sales-channels": [refreshSalesBreakdown],
+      "business-reports": [refreshSalesBreakdown, refreshFinancialSummary],
+    };
+    try {
+      const results = await Promise.allSettled([checkSystemHealth(), ...(pageLoaders[activeView] || [reloadOrders])].map((loader) => typeof loader === "function" ? loader() : loader));
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed?.status === "rejected") throw failed.reason;
+      setNotice("รีโหลดข้อมูลของหน้านี้แล้ว");
+    } catch (error) {
+      showError(error, "ไม่สามารถรีโหลดข้อมูลของหน้านี้ได้");
+    }
+  };
   const sessionLockOverlay = sessionLocked ? <SessionLockDialog onUnlock={unlockSession} onLogout={logout} /> : null;
   if (!session && anonymousMode)
     return (
@@ -1923,6 +1970,7 @@ function AppContent() {
         user={session}
         onLock={lockSession}
         onLogout={logout}
+        onReload={reloadCurrentPage}
         activeView={activeView}
         setActiveView={setActiveView}
         orders={orders}
