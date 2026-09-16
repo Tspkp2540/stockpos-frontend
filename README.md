@@ -112,9 +112,13 @@ Admin มีหน้า **ศูนย์แจ้งเตือน** ที�
 
 ```env
 VITE_API_URL=https://your-backend.example.com
+# เปิดเฉพาะ production และต้องเปิด API_PAYLOAD_ENCRYPTION_ENABLED=true ใน Backend คู่กัน
+VITE_API_PAYLOAD_ENCRYPTION_ENABLED=true
 ```
 
 หากไม่กำหนด ระบบจะใช้ URL production ที่ตั้งไว้ใน `src/App.jsx` โดยอัตโนมัติ
+
+เมื่อเปิด `VITE_API_PAYLOAD_ENCRYPTION_ENABLED=true` ใน production Axios จะเข้ารหัส payload และถอดรหัส JSON response ของ API ที่มี session ด้วย AES-GCM โดยผูกกับ token และ endpoint เดียวกัน โหมดพัฒนาไม่เปิดความสามารถนี้ เพื่อให้ตรวจสอบ API ในเครื่องได้สะดวก Login, register, health check, public lookup และ Socket.IO ยังคงใช้ HTTPS/TLS ปกติ
 
 Frontend เรียก API เพื่อดึงออเดอร์ สินค้า สต็อก การเงิน และใช้ Socket.IO เพื่ออัปเดตสถานะออเดอร์แบบ real-time
 

@@ -3,12 +3,15 @@ import axios from "axios";
 import { io } from "socket.io-client";
 import { ActionDialogProvider, useActionDialog } from "./components/ui/ActionDialog";
 import { createOrderSubmissionFingerprint } from "./utils/orderSubmission";
+import { installApiEnvelope } from "./utils/apiEnvelope";
 
 const GlassLayout = lazy(() => import("./components/ui/GlassLayout"));
 const LoginScreen = lazy(() => import("./components/ui/LoginScreen"));
 const StaffWorkspace = lazy(() => import("./components/ui/StaffWorkspace"));
 const UserOrderStatus = lazy(() => import("./components/ui/UserOrderStatus"));
 const AnonymousOrderStatus = lazy(() => import("./components/ui/AnonymousOrderStatus"));
+
+installApiEnvelope(axios);
 
 const API_BASE =
   import.meta.env.VITE_API_URL ||
