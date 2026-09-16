@@ -14,8 +14,8 @@ import { printCashShiftSummary } from "../../utils/printCashShiftSummary";
 import { loadPosMenuFavorites, loadPosMenuUsage, recordPosMenuUsage, togglePosMenuFavorite } from "../../utils/posMenuUsage";
 import { productForChannel } from "../../utils/channelMenu";
 import { orderStatusClass, orderStatusLabel } from "../../utils/orderStatus";
+import { kitchenProgressForOrder, kitchenStageMeta } from "../../utils/kitchenProgress";
 import { useActionDialog } from "./ActionDialog";
-import KitchenStatusStrip from "./KitchenStatusStrip";
 
 // Keep the 3D workspace available for the next design phase without loading it in production now.
 const ENABLE_OPERATIONS_ROOM_3D = false;
@@ -408,6 +408,15 @@ function OrderReturnModal({ order, onClose, onSubmit }) {
   </Modal>;
 }
 
+function KitchenProgressBadges({ order }) {
+  const { stations } = kitchenProgressForOrder(order);
+  if (!stations.length) return null;
+  return <div className="mt-3 flex flex-wrap gap-1.5">{stations.map((entry) => {
+    const meta = kitchenStageMeta[entry.stage];
+    return <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${meta.className}`} key={entry.station}>{entry.label} · {meta.label}</span>;
+  })}</div>;
+}
+
 function OrdersPage({ orders, onUpdate, onReturn, preview = false, onViewAll, onBack }) {
   const { showMessage } = useActionDialog();
   const [search, setSearch] = useState("");
@@ -512,6 +521,7 @@ function OrdersPage({ orders, onUpdate, onReturn, preview = false, onViewAll, on
               <p className="mt-3 line-clamp-2 text-sm text-slate-600">
                 {order.items || "ไม่มีรายการสินค้า"}
               </p>
+              <KitchenProgressBadges order={order} />
               {Number(order.refunded_amount || 0) > 0 ? <p className="mt-2 text-xs font-bold text-violet-700">คืนเงินแล้ว {money(order.refunded_amount)}</p> : null}
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <strong className="text-lg text-sky-700">
@@ -519,7 +529,7 @@ function OrdersPage({ orders, onUpdate, onReturn, preview = false, onViewAll, on
                 </strong>
                 {order.status === "COOKING" ? (
                   <div className="flex flex-wrap gap-2">
-                    <span className="rounded-xl bg-sky-50 px-2.5 py-2 text-xs font-bold text-sky-700">รอครัวยืนยัน</span>
+                    <Button className="text-xs" disabled>ส่งมอบแล้ว</Button>
                     <Button
                       className="text-xs"
                       variant="danger"
@@ -533,7 +543,7 @@ function OrdersPage({ orders, onUpdate, onReturn, preview = false, onViewAll, on
                   </div>
                 ) : order.status === "READY" ? (
                   <div className="flex flex-wrap gap-2">
-                    <Button className="text-xs" onClick={() => onUpdate(order.id, "COMPLETED")}>
+                    <Button className="text-xs" disabled={!kitchenProgressForOrder(order).allReady} onClick={() => onUpdate(order.id, "COMPLETED")}>
                       ส่งมอบแล้ว
                     </Button>
                     {Number(order.gross_amount || 0) > Number(order.refunded_amount || 0) + 0.005 ? <Button className="text-xs" variant="danger" onClick={() => setReturnOrder(order)}>คืนสินค้า</Button> : null}
@@ -744,7 +754,7 @@ function PrintingSettingsPage() {
   );
 }
 
-function PosPage({ channels, diningTables = [], products, orders = [], currentShift, loyaltySettings, onAdd, onLookupLoyalty, onValidateCoupon, onQuotePromotion, onOpenCashShift, onCloseCashShift }) {
+function PosPage({ channels, diningTables = [], products, currentShift, loyaltySettings, onAdd, onLookupLoyalty, onValidateCoupon, onQuotePromotion, onOpenCashShift, onCloseCashShift }) {
   const { showMessage } = useActionDialog();
   const [channelId, setChannelId] = useState(channels[0]?.id || "");
   const [tableId, setTableId] = useState("");
@@ -1188,7 +1198,6 @@ function PosPage({ channels, diningTables = [], products, orders = [], currentSh
           }
         />
         <LowStockMenuAlert products={products} className="mb-5" />
-        <KitchenStatusStrip orders={orders} />
         <Card className="!p-3 sm:!p-4">
           <fieldset>
             <legend className="mb-2 text-xs font-bold text-slate-700">
@@ -6898,7 +6907,6 @@ export default function GlassLayout({
           channels={channels}
           diningTables={diningTables}
           products={products}
-          orders={orders}
           currentShift={currentShift}
           loyaltySettings={loyaltySettings}
           onAdd={onAdd}
