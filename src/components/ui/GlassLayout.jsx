@@ -6630,6 +6630,7 @@ export default function GlassLayout({
   orders,
   channels,
   products,
+  diningTables = [],
   inventoryRows,
   inventoryLots,
   suppliers,
