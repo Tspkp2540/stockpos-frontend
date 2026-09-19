@@ -10,6 +10,7 @@ const LoginScreen = lazy(() => import("./components/ui/LoginScreen"));
 const StaffWorkspace = lazy(() => import("./components/ui/StaffWorkspace"));
 const UserOrderStatus = lazy(() => import("./components/ui/UserOrderStatus"));
 const AnonymousOrderStatus = lazy(() => import("./components/ui/AnonymousOrderStatus"));
+const SystemAssistant = lazy(() => import("./components/ui/SystemAssistant"));
 
 installApiEnvelope(axios);
 
@@ -1922,6 +1923,7 @@ function AppContent() {
           apiBase={API_BASE}
           onBack={() => setAnonymousMode(false)}
         />
+        <SystemAssistant role="guest" view="orders" apiBase={API_BASE} />
       </>
     );
   if (!session)
@@ -1938,7 +1940,7 @@ function AppContent() {
       </>
     );
   if (session.role === "user")
-    return <><ConnectionBanner systemStatus={systemStatus} realtimeConnected={realtimeConnected} /><UserOrderStatus user={session} orders={orders} loyalty={loyalty} onRefreshLoyalty={refreshMyLoyalty} onLock={lockSession} onLogout={logout} />{sessionLockOverlay}</>;
+    return <><ConnectionBanner systemStatus={systemStatus} realtimeConnected={realtimeConnected} /><UserOrderStatus user={session} orders={orders} loyalty={loyalty} onRefreshLoyalty={refreshMyLoyalty} onLock={lockSession} onLogout={logout} /><SystemAssistant role="user" view="orders" apiBase={API_BASE} />{sessionLockOverlay}</>;
   if (session.role === "staff")
     return (
       <>
@@ -1963,6 +1965,7 @@ function AppContent() {
           onLock={lockSession}
           onLogout={logout}
         />
+        <SystemAssistant role="staff" view="pos" apiBase={API_BASE} />
         {sessionLockOverlay}
       </>
     );
@@ -2055,6 +2058,7 @@ function AppContent() {
         onUpdateSales={updateSalesRecord}
         onDeleteSales={deleteSalesRecord}
       />
+      <SystemAssistant role="admin" view={activeView} apiBase={API_BASE} onNavigate={setActiveView} />
       {sessionLockOverlay}
     </>
   );
