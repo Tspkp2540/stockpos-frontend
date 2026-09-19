@@ -136,6 +136,8 @@ function Button({ children, className = "", variant = "primary", ...props }) {
       "border border-sky-200 bg-white text-sky-700 hover:bg-sky-50 focus:ring-sky-100",
     danger:
       "border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 focus:ring-rose-100",
+    close:
+      "border border-rose-400 bg-rose-500 text-white hover:bg-rose-600 focus:ring-rose-200",
     quiet: "text-slate-600 hover:bg-slate-100 focus:ring-slate-100",
   };
   return (
@@ -164,14 +166,16 @@ function Modal({ children, onClose, label = "หน้าต่างจัด�
         >
           <Button
             aria-label="ปิดหน้าต่าง"
-            className="absolute right-3 top-3 z-10 h-9 w-9 px-0 text-lg"
+            className="modal-close absolute right-5 top-5 z-10 h-11 w-11 rounded-full px-0"
             type="button"
-            variant="secondary"
+            variant="close"
             onClick={onClose}
           >
-            ×
+            <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.8">
+              <path d="m6 6 12 12M18 6 6 18" strokeLinecap="round" />
+            </svg>
           </Button>
-          {children}
+          <div className="modal-content-safe">{children}</div>
         </section>
       </div>
     </div>
@@ -1779,11 +1783,12 @@ function TableManagementPage({ tables = [], orders = [], onCreate, onUpdate, onR
   const actionLabel = { release: "ปิดโต๊ะ", move: "ย้ายโต๊ะ", merge: "รวมโต๊ะ", split: "แยกโต๊ะ" };
   return <div className="mx-auto max-w-6xl space-y-5">
     <Heading title="จัดการโต๊ะและบิลกินที่ร้าน" description="เปิดบิลตามโต๊ะ ย้าย รวม หรือแยกออเดอร์ก่อนส่งชำระเงิน" action={<Button type="button" onClick={() => openEditor()}>+ เพิ่มโต๊ะ</Button>} />
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="table-floor-plan grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {tables.map((table) => {
         const status = table.status === "OCCUPIED" ? "ใช้งาน" : table.status === "DISABLED" ? "ปิดใช้" : "ว่าง";
-        const statusClass = table.status === "OCCUPIED" ? "bg-amber-100 text-amber-800" : table.status === "DISABLED" ? "bg-slate-100 text-slate-600" : "bg-emerald-100 text-emerald-800";
-        return <Card className="!p-4" key={table.id}><div className="flex items-start justify-between gap-2"><div><p className="text-lg font-black text-slate-900">{table.display_name || table.table_code}</p><p className="text-xs text-slate-500">รหัส {table.table_code} · {table.capacity} ที่นั่ง</p></div><span className={`rounded-full px-2 py-1 text-[11px] font-bold ${statusClass}`}>{status}</span></div>{table.status === "OCCUPIED" ? <p className="mt-3 text-sm font-semibold text-sky-700">บิลเปิดอยู่ {table.order_count || 0} รายการ</p> : <p className="mt-3 text-sm text-slate-500">พร้อมรับบิลใหม่</p>}<div className="mt-4 flex flex-wrap gap-2"><Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => openEditor(table)}>แก้ไข</Button>{table.status === "OCCUPIED" ? <><Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => openAction(table, "move")}>ย้าย</Button><Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => openAction(table, "merge")}>รวม</Button><Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => openAction(table, "split")}>แยก</Button><Button className="px-2.5 py-1.5 text-xs" type="button" variant="danger" onClick={() => openAction(table, "release")}>ปิดโต๊ะ</Button></> : null}</div></Card>;
+        const statusClass = table.status === "OCCUPIED" ? "bg-sky-100 text-sky-800" : table.status === "DISABLED" ? "bg-slate-100 text-slate-600" : "bg-emerald-100 text-emerald-800";
+        const tableState = table.status === "OCCUPIED" ? "OCCUPIED" : table.status === "DISABLED" ? "DISABLED" : "AVAILABLE";
+        return <Card className="table-floor-card !p-4" data-table-state={tableState} key={table.id}><div className="flex items-start justify-between gap-2"><div><p className="text-lg font-black text-slate-900">{table.display_name || table.table_code}</p><p className="text-xs text-slate-500">รหัส {table.table_code} · {table.capacity} ที่นั่ง</p></div><span className={`rounded-full px-2 py-1 text-[11px] font-bold ${statusClass}`}>{status}</span></div><div className="mt-3 flex min-h-11 items-center rounded-xl border border-sky-100 bg-sky-50/45 px-3">{table.status === "OCCUPIED" ? <p className="text-sm font-semibold text-sky-700">บิลเปิดอยู่ {table.order_count || 0} รายการ</p> : <p className="text-sm text-slate-500">พร้อมรับบิลใหม่</p>}</div><div className="mt-4 flex flex-wrap gap-2"><Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => openEditor(table)}>แก้ไข</Button>{table.status === "OCCUPIED" ? <><Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => openAction(table, "move")}>ย้าย</Button><Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => openAction(table, "merge")}>รวม</Button><Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" onClick={() => openAction(table, "split")}>แยก</Button><Button className="px-2.5 py-1.5 text-xs" type="button" variant="danger" onClick={() => openAction(table, "release")}>ปิดโต๊ะ</Button></> : null}</div></Card>;
       })}
     </div>
     {!tables.length ? <Empty>ยังไม่มีโต๊ะ กรุณาเพิ่มหมายเลขโต๊ะก่อนเปิดบิลกินที่ร้าน</Empty> : null}

@@ -61,7 +61,7 @@ export default function CashShiftDialog({ mode, shift, onClose, onSubmit }) {
             <h2 className="mt-3 text-xl font-bold text-slate-900">{isClosing ? "ปิดกะเงินสด" : "เปิดกะเงินสด"}</h2>
             <p className="mt-1 text-sm text-slate-500">{isClosing ? "ตรวจนับเงินสดจริงและบันทึกผลต่างก่อนยืนยัน" : "บันทึกเงินทอนและหมายเหตุเริ่มกะ"}</p>
           </div>
-          <button aria-label="ปิดหน้าต่าง" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-sky-200 text-lg font-bold text-sky-700 hover:bg-sky-50 disabled:opacity-50" disabled={saving} type="button" onClick={onClose}>×</button>
+          <button aria-label="ปิดหน้าต่าง" className="modal-close grid h-11 w-11 shrink-0 place-items-center rounded-full border border-rose-400 bg-rose-500 text-white transition hover:bg-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-200 disabled:opacity-50" disabled={saving} type="button" onClick={onClose}><svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.8"><path d="m6 6 12 12M18 6 6 18" strokeLinecap="round" /></svg></button>
         </div>
 
         {isClosing ? (

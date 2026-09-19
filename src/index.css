@@ -6,8 +6,8 @@
 
 :root {
   font-family: 'Kanit', sans-serif;
-  color: #1e293b;
-  background: #f0f9ff;
+  color: #e5edf8;
+  background: #0a1220;
 }
 
 * {
@@ -25,7 +25,7 @@ body,
 body {
   min-width: 320px;
   overflow-x: hidden;
-  background: #f0f9ff;
+  background: #0a1220;
 }
 
 .shop-scene {
@@ -34,9 +34,10 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   background:
-    radial-gradient(circle at 0% 0%, rgba(125, 211, 252, 0.48), transparent 32rem),
-    radial-gradient(circle at 100% 12%, rgba(103, 232, 249, 0.35), transparent 28rem),
-    linear-gradient(155deg, #f8fdff 0%, #eefaff 45%, #e0f6ff 100%);
+    radial-gradient(circle at 4% 0%, rgba(14, 165, 233, 0.18), transparent 30rem),
+    radial-gradient(circle at 100% 8%, rgba(59, 130, 246, 0.16), transparent 28rem),
+    radial-gradient(circle at 50% 100%, rgba(30, 41, 59, 0.9), transparent 40rem),
+    linear-gradient(145deg, #09111f 0%, #0d1829 48%, #0b1423 100%);
 }
 
 /* Keep the desktop application inside a familiar 16:9 working canvas.
@@ -61,31 +62,31 @@ body {
 .shop-scene::before {
   right: -12rem;
   bottom: 8%;
-  background: rgba(186, 230, 253, 0.55);
+  background: rgba(30, 64, 175, 0.16);
 }
 
 .shop-scene::after {
   left: -15rem;
   bottom: 22%;
-  background: rgba(224, 242, 254, 0.8);
+  background: rgba(14, 116, 144, 0.13);
 }
 
 .shop-topbar {
-  border-color: rgba(186, 230, 253, 0.85);
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 10px 30px rgba(14, 116, 144, 0.06);
+  border-color: rgba(148, 163, 184, 0.16);
+  background: rgba(11, 20, 35, 0.88);
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.24);
   backdrop-filter: blur(18px);
 }
 
 .shop-panel {
-  border-color: rgba(186, 230, 253, 0.9);
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 18px 45px rgba(14, 116, 144, 0.08);
+  border-color: rgba(148, 163, 184, 0.16);
+  background: rgba(19, 30, 48, 0.9);
+  box-shadow: 0 18px 45px rgba(2, 6, 23, 0.24);
   backdrop-filter: blur(12px);
 }
 
 .shop-orb {
-  box-shadow: 0 12px 28px rgba(2, 132, 199, 0.24);
+  box-shadow: 0 12px 28px rgba(2, 132, 199, 0.32);
 }
 
 .operations-room-scene {
@@ -122,4 +123,106 @@ textarea {
 
 button {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Operational dark theme: blue remains the primary brand colour; semantic
+   colours are reserved for state so busy screens can be read at a glance. */
+#root .text-slate-900,
+#root .text-slate-800,
+#root .text-slate-700 { color: #e6eef9; }
+#root .text-slate-600 { color: #bcc9d9; }
+#root .text-slate-500 { color: #91a1b5; }
+#root .text-slate-400 { color: #718198; }
+
+#root .bg-white { background-color: #17243a; }
+#root .bg-white\/70 { background-color: rgba(23, 36, 58, 0.7); }
+#root .bg-white\/90,
+#root .bg-white\/95 { background-color: rgba(23, 36, 58, 0.95); }
+#root .bg-slate-50 { background-color: #111d30; }
+#root .bg-slate-100 { background-color: #1d2a3d; }
+#root .border-slate-200,
+#root .border-slate-300 { border-color: rgba(148, 163, 184, 0.22); }
+#root .border-sky-100 { border-color: rgba(56, 189, 248, 0.16); }
+#root .border-sky-200 { border-color: rgba(56, 189, 248, 0.27); }
+#root .bg-sky-50,
+#root .bg-sky-50\/30,
+#root .bg-sky-50\/35,
+#root .bg-sky-50\/45,
+#root .bg-sky-50\/50,
+#root .bg-sky-50\/60,
+#root .bg-sky-50\/70 { background-color: rgba(14, 116, 144, 0.14); }
+#root .bg-sky-100 { background-color: rgba(14, 165, 233, 0.2); }
+#root .text-sky-700,
+#root .text-sky-800 { color: #7dd3fc; }
+
+#root .bg-amber-50,
+#root .bg-amber-50\/60,
+#root .bg-amber-100 { background-color: rgba(245, 158, 11, 0.16); }
+#root .text-amber-700,
+#root .text-amber-800,
+#root .text-amber-900,
+#root .text-amber-950 { color: #fcd34d; }
+#root .border-amber-100,
+#root .border-amber-200 { border-color: rgba(245, 158, 11, 0.28); }
+
+#root .bg-emerald-50,
+#root .bg-emerald-50\/50,
+#root .bg-emerald-100 { background-color: rgba(16, 185, 129, 0.14); }
+#root .text-emerald-700,
+#root .text-emerald-800 { color: #6ee7b7; }
+#root .border-emerald-200 { border-color: rgba(16, 185, 129, 0.3); }
+
+#root .bg-rose-50,
+#root .bg-rose-100 { background-color: rgba(244, 63, 94, 0.14); }
+#root .text-rose-600,
+#root .text-rose-700,
+#root .text-rose-800 { color: #fda4af; }
+#root .border-rose-200 { border-color: rgba(244, 63, 94, 0.3); }
+
+#root .bg-violet-50,
+#root .bg-violet-50\/60,
+#root .bg-violet-50\/70,
+#root .bg-violet-100 { background-color: rgba(99, 102, 241, 0.14); }
+#root .text-violet-700,
+#root .text-violet-800,
+#root .text-violet-900 { color: #c4b5fd; }
+#root .border-violet-100,
+#root .border-violet-200 { border-color: rgba(129, 140, 248, 0.26); }
+
+#root input,
+#root select,
+#root textarea { color: #e6eef9; background-color: #101c2f; border-color: rgba(125, 211, 252, 0.24); }
+#root input::placeholder,
+#root textarea::placeholder { color: #718198; }
+#root option { background: #101c2f; color: #e6eef9; }
+
+.pos-workspace {
+  grid-template-columns: minmax(0, 1fr) minmax(19rem, 0.44fr) !important;
+}
+.pos-menu-zone { min-width: 0; }
+.pos-cart-zone { min-width: 0; }
+.pos-cart-zone .shop-panel { border-color: rgba(56, 189, 248, 0.34); }
+
+/* Every floating dialog reserves space for its close button. */
+.modal-close {
+  box-shadow: 0 8px 18px rgba(244, 63, 94, 0.28);
+}
+.modal-content-safe > :first-child,
+.modal-header-safe { padding-right: 5rem; }
+
+.table-floor-plan {
+  padding: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 1.25rem;
+  background-color: rgba(2, 6, 23, 0.22);
+  background-image: linear-gradient(rgba(125, 211, 252, 0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(125, 211, 252, 0.045) 1px, transparent 1px);
+  background-size: 2.5rem 2.5rem;
+}
+.table-floor-card { min-height: 11.5rem; box-shadow: 0 10px 24px rgba(2, 6, 23, 0.16); }
+.table-floor-card[data-table-state="OCCUPIED"] { border-color: rgba(56, 189, 248, 0.38); background: linear-gradient(145deg, rgba(14, 116, 144, 0.22), rgba(19, 30, 48, 0.94)); }
+.table-floor-card[data-table-state="AVAILABLE"] { border-color: rgba(16, 185, 129, 0.28); }
+.table-floor-card[data-table-state="DISABLED"] { opacity: 0.62; }
+
+@media (max-width: 1279px) {
+  .pos-workspace { grid-template-columns: 1fr !important; }
 }

@@ -1,6 +1,6 @@
 export const kitchenStageMeta = {
   PENDING: { label: "รอรับงาน", className: "bg-slate-100 text-slate-700" },
-  ACCEPTED: { label: "รับออเดอร์แล้ว", className: "bg-violet-100 text-violet-700" },
+  ACCEPTED: { label: "รับออเดอร์แล้ว", className: "bg-sky-100 text-sky-700" },
   IN_PROGRESS: { label: "กำลังทำ", className: "bg-sky-100 text-sky-700" },
   READY: { label: "เสร็จสิ้น", className: "bg-emerald-100 text-emerald-700" },
 };

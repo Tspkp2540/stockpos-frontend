@@ -151,12 +151,12 @@ function KitchenQueuePanel({ orders = [], canUpdate = false, onUpdateStation }) 
       </div>
       <span className="rounded-full bg-sky-100 px-3 py-1.5 text-sm font-bold text-sky-700">{queue.filter((entry) => entry.pendingItems.length).length} งานคงค้าง</span>
     </div>
-    <div className="mt-4 grid gap-3 lg:grid-cols-2">
+    <div className="kitchen-order-grid mt-4 grid gap-3 lg:grid-cols-2">
       {queue.length ? queue.map(({ order, station, items, pendingItems }) => {
         const complete = pendingItems.length === 0;
         const stage = stageFor(items);
         const currentStage = stageMeta[stage] || stageMeta.PENDING;
-        return <article className={`rounded-2xl border p-4 ${complete ? "border-emerald-200 bg-emerald-50/50" : "border-sky-200 bg-sky-50/50"}`} key={`${order.id}-${station}`}>
+        return <article className={`min-h-[13rem] rounded-2xl border p-4 ${complete ? "border-emerald-200 bg-emerald-50/50" : "border-sky-200 bg-sky-50/50"}`} key={`${order.id}-${station}`}>
           <div className="flex items-start justify-between gap-3">
             <div><p className="font-black text-slate-900">คิว {order.queue_no || "-"} · {stations[station]}</p><p className="mt-1 text-xs text-slate-500">#{order.order_no} · {order.customer_nickname || "ไม่ระบุชื่อลูกค้า"}</p></div>
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${currentStage.className}`}>{currentStage.label}</span>
@@ -910,8 +910,8 @@ export default function StaffWorkspace({
               </fieldset>
             </div>
 
-            <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.42fr)]">
-            <div className="shop-panel rounded-2xl border p-4 sm:p-5">
+            <div className="pos-workspace grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.42fr)]">
+            <div className="pos-menu-zone shop-panel rounded-2xl border p-4 sm:p-5">
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-bold text-slate-900">เลือกเมนูขาย</h2>
@@ -1002,7 +1002,7 @@ export default function StaffWorkspace({
               </div>
               {!visibleProducts.length ? <p className="py-4 text-center text-sm text-slate-500">ไม่พบเมนูที่ตรงกับการค้นหาหรือหมวดหมู่</p> : null}
             </div>
-            <aside className="xl:sticky xl:top-24">
+            <aside className="pos-cart-zone xl:sticky xl:top-24">
               <div className="shop-panel overflow-hidden rounded-2xl border !p-0">
                 <div className="flex items-center justify-between border-b border-sky-100 bg-sky-50/70 px-4 py-3">
                   <div><h2 className="font-bold text-slate-900">รายการที่เลือก</h2><p className="text-xs text-slate-500">ตรวจสอบก่อนชำระเงิน</p></div>
@@ -1032,9 +1032,9 @@ export default function StaffWorkspace({
             <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-sm sm:p-6" onMouseDown={() => setCartOpen(false)}>
               <div className="flex min-h-full items-center justify-center">
                 <section aria-label="ตะกร้าสินค้าและยืนยันออเดอร์" aria-modal="true" className="relative w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl shadow-2xl shadow-slate-900/30" onMouseDown={(event) => event.stopPropagation()} role="dialog">
-                  <button aria-label="ปิดหน้าต่าง" className="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-xl border border-sky-200 bg-white text-lg font-bold text-sky-700 hover:bg-sky-50" type="button" onClick={() => setCartOpen(false)}>×</button>
+                  <button aria-label="ปิดหน้าต่าง" className="modal-close absolute right-5 top-5 z-10 grid h-11 w-11 place-items-center rounded-full border border-rose-400 bg-rose-500 text-white transition hover:bg-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-200" type="button" onClick={() => setCartOpen(false)}><svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.8"><path d="m6 6 12 12M18 6 6 18" strokeLinecap="round" /></svg></button>
                   <div className="shop-panel rounded-3xl border bg-white p-4 sm:p-5">
-              <div className="flex items-center justify-between">
+              <div className="modal-header-safe flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-bold text-slate-900">ตะกร้าสินค้า</h2>
                 </div>
