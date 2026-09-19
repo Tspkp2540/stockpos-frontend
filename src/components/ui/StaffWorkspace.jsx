@@ -374,18 +374,20 @@ export default function StaffWorkspace({
     ? Math.floor(loyaltyEarnMode === "CUP" ? loyaltyCupCount / loyaltyCupsPerPoint : total / loyaltySpendPerPoint)
     : 0;
   const receivedAmount = Number(amountReceived || 0);
-  const changeAmount = paymentMethod === "CASH" && receivedAmount >= total
+  const acceptsReceivedAmount = ["CASH", "QR", "TRANSFER"].includes(paymentMethod);
+  const hasEnteredReceivedAmount = String(amountReceived).trim() !== "";
+  const changeAmount = acceptsReceivedAmount && hasEnteredReceivedAmount && receivedAmount >= total
     ? receivedAmount - total
     : 0;
   const splitPaidTotal = useMemo(() => paymentRows.reduce((sum, payment) => sum + Math.max(0, Number(payment.paid_amount) || 0), 0), [paymentRows]);
   const splitRemaining = Number((total - splitPaidTotal).toFixed(2));
-  const splitCashInvalid = paymentRows.some((payment) => payment.payment_method === "CASH" && Number(payment.paid_amount || 0) > 0 && Number(payment.amount_received || payment.paid_amount || 0) < Number(payment.paid_amount || 0));
+  const splitReceivedInvalid = paymentRows.some((payment) => ["CASH", "QR", "TRANSFER"].includes(payment.payment_method) && Number(payment.paid_amount || 0) > 0 && payment.amount_received !== "" && Number(payment.amount_received || payment.paid_amount || 0) < Number(payment.paid_amount || 0));
   const updatePaymentRow = (index, field, value) => setPaymentRows((current) => current.map((payment, paymentIndex) => paymentIndex === index ? { ...payment, [field]: value } : payment));
   const addPaymentRow = () => setPaymentRows((current) => current.length >= 5 ? current : [...current, { payment_method: "QR", paid_amount: "", amount_received: "" }]);
   const removePaymentRow = (index) => setPaymentRows((current) => current.length <= 1 ? current : current.filter((_, paymentIndex) => paymentIndex !== index));
   const enableSplitPayment = (enabled) => {
     setIsSplitPayment(enabled);
-    if (enabled) setPaymentRows([{ payment_method: paymentMethod, paid_amount: total ? total.toFixed(2) : "", amount_received: paymentMethod === "CASH" ? amountReceived : "" }]);
+    if (enabled) setPaymentRows([{ payment_method: paymentMethod, paid_amount: total ? total.toFixed(2) : "", amount_received: acceptsReceivedAmount ? amountReceived : "" }]);
   };
   const cookingOrders = orders.filter((order) => order.status === "COOKING").length;
 
@@ -562,7 +564,10 @@ export default function StaffWorkspace({
   };
   const submit = async () => {
     if (!cart.length || isSubmitting) return;
-    if (!isSplitPayment && paymentMethod === "CASH" && total > 0 && receivedAmount < total) {
+    const receivedAmountInvalid = paymentMethod === "CASH"
+      ? total > 0 && receivedAmount < total
+      : acceptsReceivedAmount && hasEnteredReceivedAmount && receivedAmount < total;
+    if (!isSplitPayment && receivedAmountInvalid) {
       showMessage({
         tone: "danger",
         title: "ยังยืนยันออเดอร์ไม่ได้",
@@ -570,8 +575,8 @@ export default function StaffWorkspace({
       });
       return;
     }
-    if (isSplitPayment && (Math.abs(splitRemaining) > 0.005 || splitCashInvalid)) {
-      showMessage({ tone: "danger", title: "ยอดชำระยังไม่ครบ", message: splitCashInvalid ? "ตรวจสอบยอดเงินสดที่รับในแต่ละรายการ" : `ยอดชำระคงเหลือ ${money(Math.abs(splitRemaining))}` });
+    if (isSplitPayment && (Math.abs(splitRemaining) > 0.005 || splitReceivedInvalid)) {
+      showMessage({ tone: "danger", title: "ยอดชำระยังไม่ครบ", message: splitReceivedInvalid ? "ตรวจสอบยอดที่รับในแต่ละรายการ" : `ยอดชำระคงเหลือ ${money(Math.abs(splitRemaining))}` });
       return;
     }
     const channel = channels.find(
@@ -590,11 +595,11 @@ export default function StaffWorkspace({
         promotion_id: promotionQuote?.promotion?.id || undefined,
         loyalty_points_redeemed: loyaltyPointsRedeemed,
         payment_method: paymentMethod,
-        amount_received: paymentMethod === "CASH" ? receivedAmount : undefined,
+        amount_received: acceptsReceivedAmount && hasEnteredReceivedAmount ? receivedAmount : undefined,
         payments: isSplitPayment ? paymentRows.map((payment) => ({
           payment_method: payment.payment_method,
           paid_amount: Number(payment.paid_amount) || 0,
-          amount_received: payment.payment_method === "CASH" && payment.amount_received !== "" ? Number(payment.amount_received) : undefined,
+          amount_received: ["CASH", "QR", "TRANSFER"].includes(payment.payment_method) && payment.amount_received !== "" ? Number(payment.amount_received) : undefined,
         })) : undefined,
         items: cart.map(({ product_id, name, qty, price, base_price, modifiers }) => ({
           product_id,
@@ -1169,10 +1174,10 @@ export default function StaffWorkspace({
                       </label>
                     ))}
                   </div>
-                  {paymentMethod === "CASH" ? (
+                  {acceptsReceivedAmount ? (
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
                       <label className="grid gap-1 text-xs font-medium text-slate-600">
-                        รับเงินสด
+                        {paymentMethod === "CASH" ? "รับเงินสด" : "ยอดโอนที่ได้รับ"}
                         <input
                           className={inputClass}
                           type="number"
@@ -1185,7 +1190,7 @@ export default function StaffWorkspace({
                         />
                       </label>
                       <div className="rounded-xl bg-white/80 p-3 text-xs">
-                        <p className="text-slate-500">เงินทอน</p>
+                        <p className="text-slate-500">{paymentMethod === "CASH" ? "เงินทอน" : "เงินสดที่ต้องคืน"}</p>
                         <strong className="mt-1 block text-lg text-emerald-700">{money(changeAmount)}</strong>
                       </div>
                     </div>
@@ -1195,14 +1200,17 @@ export default function StaffWorkspace({
                       ? currentShift
                         ? `กะเปิดอยู่ · เงินทอนเริ่มกะ ${money(currentShift.opening_cash)}`
                         : "ยังไม่เปิดกะเงินสด · รับชำระและบันทึกออเดอร์ได้ตามปกติ"
+                      : changeAmount > 0
+                        ? `ต้องคืนเงินสด ${money(changeAmount)} · ระบบบันทึกหักจากกะเงินสด`
                       : "การชำระเงินแบบนี้ไม่รวมในยอดเงินสดของกะ"}
                   </p>
                   </> : <div className="mt-3 space-y-2">
                     {paymentRows.map((payment, index) => {
                       const paid = Math.max(0, Number(payment.paid_amount) || 0);
                       const received = Number(payment.amount_received || paid || 0);
-                      const rowChange = payment.payment_method === "CASH" && received >= paid ? received - paid : 0;
-                      return <div className="rounded-xl border border-amber-100 bg-white/80 p-2.5" key={index}><div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px_110px_30px]"><select aria-label={`ช่องทางชำระรายการ ${index + 1}`} className={inputClass} value={payment.payment_method} onChange={(event) => updatePaymentRow(index, "payment_method", event.target.value)}>{paymentOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select><input aria-label={`ยอดชำระรายการ ${index + 1}`} className={inputClass} type="number" min="0" step="0.01" inputMode="decimal" placeholder="ยอดชำระ" value={payment.paid_amount} onChange={(event) => updatePaymentRow(index, "paid_amount", event.target.value)} />{payment.payment_method === "CASH" ? <input aria-label={`รับเงินสดรายการ ${index + 1}`} className={inputClass} type="number" min={paid} step="0.01" inputMode="decimal" placeholder="รับเงินสด" value={payment.amount_received} onChange={(event) => updatePaymentRow(index, "amount_received", event.target.value)} /> : <span className="flex items-center justify-center rounded-xl bg-slate-50 px-2 text-xs text-slate-500">ชำระแล้ว</span>}<button aria-label={`ลบช่องทางชำระ ${index + 1}`} className="text-lg font-bold text-rose-600 disabled:text-slate-300" type="button" disabled={paymentRows.length === 1} onClick={() => removePaymentRow(index)}>×</button></div>{payment.payment_method === "CASH" && paid > 0 ? <p className={`mt-1 text-[11px] font-semibold ${received < paid ? "text-rose-600" : "text-emerald-700"}`}>{received < paid ? "รับเงินสดไม่ครบ" : `เงินทอน ${money(rowChange)}`}</p> : null}</div>;
+                      const canReceiveAmount = ["CASH", "QR", "TRANSFER"].includes(payment.payment_method);
+                      const rowChange = canReceiveAmount && payment.amount_received !== "" && received >= paid ? received - paid : 0;
+                      return <div className="rounded-xl border border-amber-100 bg-white/80 p-2.5" key={index}><div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px_110px_30px]"><select aria-label={`ช่องทางชำระรายการ ${index + 1}`} className={inputClass} value={payment.payment_method} onChange={(event) => updatePaymentRow(index, "payment_method", event.target.value)}>{paymentOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select><input aria-label={`ยอดชำระรายการ ${index + 1}`} className={inputClass} type="number" min="0" step="0.01" inputMode="decimal" placeholder="ยอดชำระ" value={payment.paid_amount} onChange={(event) => updatePaymentRow(index, "paid_amount", event.target.value)} />{canReceiveAmount ? <input aria-label={`ยอดที่รับรายการ ${index + 1}`} className={inputClass} type="number" min={paid} step="0.01" inputMode="decimal" placeholder={payment.payment_method === "CASH" ? "รับเงินสด" : "ยอดโอน"} value={payment.amount_received} onChange={(event) => updatePaymentRow(index, "amount_received", event.target.value)} /> : <span className="flex items-center justify-center rounded-xl bg-slate-50 px-2 text-xs text-slate-500">ชำระแล้ว</span>}<button aria-label={`ลบช่องทางชำระ ${index + 1}`} className="text-lg font-bold text-rose-600 disabled:text-slate-300" type="button" disabled={paymentRows.length === 1} onClick={() => removePaymentRow(index)}>×</button></div>{canReceiveAmount && paid > 0 && payment.amount_received !== "" ? <p className={`mt-1 text-[11px] font-semibold ${received < paid ? "text-rose-600" : "text-emerald-700"}`}>{received < paid ? "ยอดที่รับไม่ครบ" : rowChange > 0 ? `คืนเงินสด ${money(rowChange)}` : "ยอดรับครบ"}</p> : null}</div>;
                     })}
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><Button className="px-2.5 py-1.5 text-xs" type="button" variant="secondary" disabled={paymentRows.length >= 5} onClick={addPaymentRow}>+ เพิ่มช่องทาง</Button><strong className={Math.abs(splitRemaining) <= 0.005 ? "text-emerald-700" : "text-amber-700"}>{Math.abs(splitRemaining) <= 0.005 ? "ยอดชำระครบแล้ว" : `${splitRemaining > 0 ? "เหลือ" : "เกิน"} ${money(Math.abs(splitRemaining))}`}</strong></div>
                   </div>}
