@@ -113,6 +113,15 @@ export default function SystemAssistant({ role = "guest", view, apiBase, onNavig
     : ["เริ่มรับออเดอร์", "ออเดอร์ค้างทำอย่างไร", "ดูสต็อกใกล้หมด", "สรุปยอดขาย"];
   const canNavigate = typeof onNavigate === "function" && role === "admin";
 
+  const showGuide = (nextQuestion = question) => {
+    const prompt = String(nextQuestion || "").trim();
+    setQuestion(prompt);
+    setAskedQuestion(prompt);
+    setSelectedGuideId("");
+    setAiAnswer("");
+    setAiError("");
+  };
+
   const ask = async (nextQuestion = question) => {
     const prompt = String(nextQuestion || "").trim();
     if (!prompt) return;
@@ -143,7 +152,7 @@ export default function SystemAssistant({ role = "guest", view, apiBase, onNavig
             <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10" aria-hidden="true"><img alt="" className="h-14 w-14 max-w-none object-contain" src={assistantBarista} /></span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-extrabold">ผู้ช่วย StockPOS</p>
-              <p className="mt-0.5 text-xs text-sky-100">คู่มือสำหรับ{roleLabel[role] || "ผู้ใช้งาน"} · อธิบายตามหน้าจอที่เปิดอยู่</p>
+              <p className="mt-0.5 text-xs text-sky-100">คู่มือสำหรับ{roleLabel[role] || "ผู้ใช้งาน"} · ใช้ได้แม้ AI ไม่พร้อม</p>
             </div>
             <button aria-label="ปิดผู้ช่วย" className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-lg font-bold transition hover:bg-white/25" type="button" onClick={() => setOpen(false)}>×</button>
           </header>
@@ -151,16 +160,18 @@ export default function SystemAssistant({ role = "guest", view, apiBase, onNavig
             <label className="sr-only" htmlFor="system-assistant-question">ถามวิธีใช้งานระบบ</label>
             <div className="flex gap-2">
               <input id="system-assistant-question" className="min-w-0 flex-1 rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-400 focus:ring-4 focus:ring-sky-500/15" value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); ask(question); } }} placeholder="ถามวิธีใช้งาน เช่น รับออเดอร์อย่างไร" />
-              <button className="rounded-xl bg-sky-500 px-3 text-sm font-bold text-white transition hover:bg-sky-400" type="button" onClick={() => ask(question)}>ถาม</button>
+              <button className="rounded-xl border border-sky-300/35 bg-sky-500/10 px-3 text-sm font-bold text-sky-100 transition hover:bg-sky-500/20" type="button" onClick={() => showGuide(question)}>คู่มือ</button>
+              {role !== "guest" && apiBase ? <button className="rounded-xl bg-sky-500 px-3 text-sm font-bold text-white transition hover:bg-sky-400 disabled:cursor-wait disabled:opacity-70" disabled={isAsking} type="button" onClick={() => ask(question)}>ถาม AI</button> : null}
             </div>
+            <p className="mt-2 text-xs text-slate-400">ปุ่มคู่มือค้นหาจากข้อมูลในระบบโดยไม่เรียก AI</p>
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-              {suggestions.map((suggestion) => <button className="shrink-0 rounded-full border border-sky-400/25 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-200 transition hover:bg-sky-500/20" key={suggestion} type="button" onClick={() => ask(suggestion)}>{suggestion}</button>)}
+              {suggestions.map((suggestion) => <button className="shrink-0 rounded-full border border-sky-400/25 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-200 transition hover:bg-sky-500/20" key={suggestion} type="button" onClick={() => showGuide(suggestion)}>{suggestion}</button>)}
             </div>
             {isAsking ? <div className="mt-4 rounded-2xl border border-sky-400/30 bg-sky-500/10 p-4 text-sm font-semibold text-sky-100">ผู้ช่วยกำลังตรวจสอบคำตอบ...</div> : null}
             {aiError ? <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">{aiError}<p className="mt-1 text-xs text-amber-200/80">ด้านล่างเป็นคู่มือใช้งานพื้นฐานของหน้านี้</p></div> : null}
             {aiAnswer ? <article className="mt-4 rounded-2xl border border-sky-400/35 bg-sky-500/10 p-4"><p className="text-[11px] font-bold uppercase tracking-[0.12em] text-sky-300">คำตอบจากผู้ช่วย AI</p><p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-100">{aiAnswer}</p></article> : null}
             <article className="mt-4 rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
-              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-sky-300">คำแนะนำ</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-sky-300">คู่มือในระบบ · ไม่ใช้ AI API</p>
               <h2 className="mt-1 text-lg font-bold text-white">{selectedGuide.title}</h2>
               <p className="mt-2 text-sm leading-6 text-slate-300">{selectedGuide.summary}</p>
               <ol className="mt-4 space-y-2">
