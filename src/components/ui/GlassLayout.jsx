@@ -938,40 +938,23 @@ function PosPage({ channels, diningTables = [], products, currentShift, loyaltyS
       setPaymentRows([{ payment_method: paymentMethod, paid_amount: total ? total.toFixed(2) : "", amount_received: acceptsReceivedAmount ? amountReceived : "" }]);
     }
   };
-  const cartKeyFor = (product, modifiers = []) =>
-    `${product.id}:${modifiers
-      .map((modifier) => modifier.id)
-      .sort((a, b) => a - b)
-      .join("-") || "base"}`;
+  const createCartLineKey = () => `cart-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const addConfiguredItem = (product, modifiers = []) => {
     const modifierAdjustment = modifiers.reduce(
       (sum, modifier) => sum + Number(modifier.price_adjustment || 0),
       0,
     );
-    const cartKey = cartKeyFor(product, modifiers);
-    setCart((current) => {
-      const found = current.find((item) => item.cart_key === cartKey);
-      return found
-        ? current.map((item) =>
-            item.cart_key === cartKey
-              ? { ...item, qty: item.qty + 1 }
-              : item,
-          )
-        : [
-            ...current,
-            {
-              cart_key: cartKey,
-              product_id: product.id,
-              name: product.name,
-              base_price: Number(product.price_retail || 0),
-              counts_as_loyalty_cup: product.counts_as_loyalty_cup === true,
-              price: Number(product.price_retail || 0) + modifierAdjustment,
-              modifiers,
-              modifier_groups: product.modifier_groups || [],
-              qty: 1,
-            },
-        ];
-    });
+    setCart((current) => [...current, {
+      cart_key: createCartLineKey(),
+      product_id: product.id,
+      name: product.name,
+      base_price: Number(product.price_retail || 0),
+      counts_as_loyalty_cup: product.counts_as_loyalty_cup === true,
+      price: Number(product.price_retail || 0) + modifierAdjustment,
+      modifiers,
+      modifier_groups: product.modifier_groups || [],
+      qty: 1,
+    }]);
   };
   const addItem = (product) => {
     if (!product.channel_available || !menuAvailability(product).isAvailable) return;
@@ -1015,25 +998,13 @@ function PosPage({ channels, diningTables = [], products, currentShift, loyaltyS
       (sum, modifier) => sum + Number(modifier.price_adjustment || 0),
       0,
     );
-    const nextCartKey = cartKeyFor(product, modifiers);
     setCart((current) => {
       const previous = current.find((item) => item.cart_key === previousCartKey);
       if (!previous) return current;
-      const matching = current.find((item) => item.cart_key === nextCartKey);
-      if (matching && nextCartKey !== previousCartKey) {
-        return current
-          .filter((item) => item.cart_key !== previousCartKey)
-          .map((item) =>
-            item.cart_key === nextCartKey
-              ? { ...item, qty: Number(item.qty || 0) + Number(previous.qty || 0) }
-              : item,
-          );
-      }
       return current.map((item) =>
         item.cart_key === previousCartKey
           ? {
               ...item,
-              cart_key: nextCartKey,
               name: product.name,
               base_price: Number(product.price_retail || 0),
               counts_as_loyalty_cup: product.counts_as_loyalty_cup === true,
@@ -1354,6 +1325,7 @@ function PosPage({ channels, diningTables = [], products, currentShift, loyaltyS
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-slate-800">{item.name}</p>
                       {item.modifiers?.length ? <p className="mt-0.5 truncate text-xs text-violet-700">{item.modifiers.map((modifier) => modifier.name).join(" · ")}</p> : null}
+                      {(item.modifier_groups?.length || products.find((product) => String(product.id) === String(item.product_id))?.modifier_groups?.length) ? <button className="mt-1 text-xs font-bold text-violet-700 hover:text-violet-900" type="button" onClick={() => editCartModifiers(item.cart_key)}>แก้ไขความหวาน / ท็อปปิ้ง</button> : null}
                     </div>
                     <strong className="shrink-0 text-sm text-sky-700">{money(Number(item.price) * Number(item.qty))}</strong>
                   </div>

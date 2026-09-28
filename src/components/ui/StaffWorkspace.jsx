@@ -391,41 +391,24 @@ export default function StaffWorkspace({
   };
   const cookingOrders = orders.filter((order) => order.status === "COOKING").length;
 
-  const cartKeyFor = (product, modifiers = []) =>
-    `${product.id}:${modifiers
-      .map((modifier) => modifier.id)
-      .sort((a, b) => a - b)
-      .join("-") || "base"}`;
+  const createCartLineKey = () => `cart-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
   const addConfiguredProduct = (product, modifiers = []) => {
     const modifierAdjustment = modifiers.reduce(
       (sum, modifier) => sum + Number(modifier.price_adjustment || 0),
       0,
     );
-    const cartKey = cartKeyFor(product, modifiers);
-    setCart((current) => {
-      const existing = current.find((item) => item.cart_key === cartKey);
-      return existing
-        ? current.map((item) =>
-            item.cart_key === cartKey
-              ? { ...item, qty: item.qty + 1 }
-              : item,
-          )
-        : [
-            ...current,
-            {
-              cart_key: cartKey,
-              product_id: product.id,
-              name: product.name,
-              base_price: Number(product.price_retail || 0),
-              counts_as_loyalty_cup: product.counts_as_loyalty_cup === true,
-              price: Number(product.price_retail || 0) + modifierAdjustment,
-              modifiers,
-              modifier_groups: product.modifier_groups || [],
-              qty: 1,
-            },
-        ];
-    });
+    setCart((current) => [...current, {
+      cart_key: createCartLineKey(),
+      product_id: product.id,
+      name: product.name,
+      base_price: Number(product.price_retail || 0),
+      counts_as_loyalty_cup: product.counts_as_loyalty_cup === true,
+      price: Number(product.price_retail || 0) + modifierAdjustment,
+      modifiers,
+      modifier_groups: product.modifier_groups || [],
+      qty: 1,
+    }]);
   };
   const addProduct = (product) => {
     if (!product.channel_available || !menuAvailability(product).isAvailable) return;
@@ -469,25 +452,13 @@ export default function StaffWorkspace({
       (sum, modifier) => sum + Number(modifier.price_adjustment || 0),
       0,
     );
-    const nextCartKey = cartKeyFor(product, modifiers);
     setCart((current) => {
       const previous = current.find((item) => item.cart_key === previousCartKey);
       if (!previous) return current;
-      const matching = current.find((item) => item.cart_key === nextCartKey);
-      if (matching && nextCartKey !== previousCartKey) {
-        return current
-          .filter((item) => item.cart_key !== previousCartKey)
-          .map((item) =>
-            item.cart_key === nextCartKey
-              ? { ...item, qty: Number(item.qty || 0) + Number(previous.qty || 0) }
-              : item,
-          );
-      }
       return current.map((item) =>
         item.cart_key === previousCartKey
           ? {
               ...item,
-              cart_key: nextCartKey,
               name: product.name,
               base_price: Number(product.price_retail || 0),
               counts_as_loyalty_cup: product.counts_as_loyalty_cup === true,
@@ -1011,7 +982,7 @@ export default function StaffWorkspace({
                 <div className="max-h-[42vh] space-y-2 overflow-y-auto p-3">
                   {cart.length ? cart.map((item) => (
                     <article className="rounded-xl border border-sky-100 bg-white p-2.5" key={item.cart_key}>
-                      <div className="flex items-start gap-2"><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{item.name}</p>{item.modifiers?.length ? <p className="mt-0.5 truncate text-xs text-violet-700">{item.modifiers.map((modifier) => modifier.name).join(" · ")}</p> : null}</div><strong className="shrink-0 text-sm text-sky-700">{money(Number(item.price) * Number(item.qty))}</strong></div>
+                      <div className="flex items-start gap-2"><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{item.name}</p>{item.modifiers?.length ? <p className="mt-0.5 truncate text-xs text-violet-700">{item.modifiers.map((modifier) => modifier.name).join(" · ")}</p> : null}{(item.modifier_groups?.length || channelProducts.find((product) => String(product.id) === String(item.product_id))?.modifier_groups?.length) ? <button className="mt-1 text-xs font-bold text-violet-700 hover:text-violet-900" type="button" onClick={() => editCartModifiers(item.cart_key)}>แก้ไขความหวาน / ท็อปปิ้ง</button> : null}</div><strong className="shrink-0 text-sm text-sky-700">{money(Number(item.price) * Number(item.qty))}</strong></div>
                       <div className="mt-2 flex items-center justify-between gap-2"><div className="inline-flex items-center rounded-lg border border-sky-100 bg-sky-50"><button aria-label={`ลดจำนวน ${item.name}`} className="h-7 w-7 text-sm font-bold text-sky-700 hover:bg-sky-100" type="button" onClick={() => item.qty <= 1 ? setCart((current) => current.filter((row) => row.cart_key !== item.cart_key)) : updateQuantity(item.cart_key, item.qty - 1)}>−</button><span className="min-w-7 text-center text-xs font-bold text-slate-700">{item.qty}</span><button aria-label={`เพิ่มจำนวน ${item.name}`} className="h-7 w-7 text-sm font-bold text-sky-700 hover:bg-sky-100" type="button" onClick={() => updateQuantity(item.cart_key, Number(item.qty) + 1)}>+</button></div><button className="text-xs font-bold text-rose-600 hover:text-rose-800" type="button" onClick={() => setCart((current) => current.filter((row) => row.cart_key !== item.cart_key))}>ลบ</button></div>
                     </article>
                   )) : <p className="rounded-xl border border-dashed border-sky-200 bg-sky-50/50 p-5 text-center text-sm text-slate-500">เลือกเมนูเพื่อเริ่มรายการขาย</p>}
