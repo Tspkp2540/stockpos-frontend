@@ -203,6 +203,37 @@ button {
 .pos-cart-zone { min-width: 0; }
 .pos-cart-zone .shop-panel { border-color: rgba(56, 189, 248, 0.34); }
 
+/* Navigation colours stay within the blue family, but give each work area a
+   recognisable cue before users read the label. */
+.work-menu-card { background: rgba(19, 30, 48, 0.92); }
+.work-menu-card:hover { transform: translateY(-0.125rem); box-shadow: 0 15px 28px rgba(2, 6, 23, 0.28); }
+.work-menu-icon { border: 1px solid transparent; }
+.work-menu-link { color: #7dd3fc; }
+.work-tone-cyan { border-color: rgba(34, 211, 238, 0.25); }
+.work-tone-cyan:hover { border-color: rgba(34, 211, 238, 0.52); background: rgba(8, 145, 178, 0.14); }
+.work-tone-cyan .work-menu-icon { background: rgba(34, 211, 238, 0.14); border-color: rgba(34, 211, 238, 0.24); }
+.work-tone-cyan .work-menu-link { color: #67e8f9; }
+.work-tone-sky { border-color: rgba(56, 189, 248, 0.25); }
+.work-tone-sky:hover { border-color: rgba(56, 189, 248, 0.52); background: rgba(14, 116, 144, 0.15); }
+.work-tone-sky .work-menu-icon { background: rgba(56, 189, 248, 0.14); border-color: rgba(56, 189, 248, 0.24); }
+.work-tone-sky .work-menu-link { color: #7dd3fc; }
+.work-tone-blue { border-color: rgba(96, 165, 250, 0.25); }
+.work-tone-blue:hover { border-color: rgba(96, 165, 250, 0.52); background: rgba(37, 99, 235, 0.14); }
+.work-tone-blue .work-menu-icon { background: rgba(96, 165, 250, 0.14); border-color: rgba(96, 165, 250, 0.24); }
+.work-tone-blue .work-menu-link { color: #93c5fd; }
+.work-tone-indigo { border-color: rgba(129, 140, 248, 0.25); }
+.work-tone-indigo:hover { border-color: rgba(129, 140, 248, 0.52); background: rgba(79, 70, 229, 0.14); }
+.work-tone-indigo .work-menu-icon { background: rgba(129, 140, 248, 0.14); border-color: rgba(129, 140, 248, 0.24); }
+.work-tone-indigo .work-menu-link { color: #a5b4fc; }
+.work-tone-violet { border-color: rgba(167, 139, 250, 0.25); }
+.work-tone-violet:hover { border-color: rgba(167, 139, 250, 0.52); background: rgba(109, 40, 217, 0.14); }
+.work-tone-violet .work-menu-icon { background: rgba(167, 139, 250, 0.14); border-color: rgba(167, 139, 250, 0.24); }
+.work-tone-violet .work-menu-link { color: #c4b5fd; }
+.work-tone-teal { border-color: rgba(45, 212, 191, 0.25); }
+.work-tone-teal:hover { border-color: rgba(45, 212, 191, 0.52); background: rgba(13, 148, 136, 0.14); }
+.work-tone-teal .work-menu-icon { background: rgba(45, 212, 191, 0.14); border-color: rgba(45, 212, 191, 0.24); }
+.work-tone-teal .work-menu-link { color: #5eead4; }
+
 /* Every floating dialog reserves space for its close button. */
 .modal-close {
   box-shadow: 0 8px 18px rgba(244, 63, 94, 0.28);

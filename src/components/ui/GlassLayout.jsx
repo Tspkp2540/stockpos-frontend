@@ -25,57 +25,62 @@ const navigationGroups = [
   {
     id: "overview",
     icon: "🏪",
+    tone: "cyan",
     label: "ภาพรวมการดำเนินงาน",
     description: "ติดตามภาพรวมร้านและงานที่ต้องดูแล",
-    items: [{ id: "operations", icon: "📊", label: "ภาพรวมการดำเนินงานร้าน" }],
+    items: [{ id: "operations", icon: "📊", tone: "cyan", label: "ภาพรวมการดำเนินงานร้าน" }],
   },
   {
     id: "counter",
     icon: "🧾",
+    tone: "sky",
     label: "การขายหน้าร้าน",
     description: "ขาย รับชำระ จัดคิว และเตรียมสินค้า",
     items: [
-      { id: "pos", icon: "🛒", label: "การขายและคำสั่งซื้อ" },
-      { id: "tables", icon: "🪑", label: "จัดการโต๊ะและบิล", adminOnly: true },
-      { id: "kitchen", icon: "👨‍🍳", label: "หน้าจอเตรียมสินค้า" },
-      { id: "cash-shifts", icon: "💵", label: "จัดการกะเงินสด", adminOnly: true },
+      { id: "pos", icon: "🛒", tone: "sky", label: "การขายและคำสั่งซื้อ" },
+      { id: "tables", icon: "🪑", tone: "teal", label: "จัดการโต๊ะและบิล", adminOnly: true },
+      { id: "kitchen", icon: "👨‍🍳", tone: "indigo", label: "หน้าจอเตรียมสินค้า" },
+      { id: "cash-shifts", icon: "💵", tone: "blue", label: "จัดการกะเงินสด", adminOnly: true },
     ],
   },
   {
     id: "stock",
     icon: "📦",
+    tone: "indigo",
     label: "สินค้าและสินค้าคงคลัง",
     description: "จัดการเมนู วัตถุดิบ และการจัดซื้อ",
     items: [
-      { id: "alerts", icon: "🔔", label: "การแจ้งเตือน" },
-      { id: "inventory", icon: "🧺", label: "จัดการวัตถุดิบ" },
-      { id: "menu", icon: "☕", label: "จัดการเมนูสินค้า" },
-      { id: "procurement", icon: "🚚", label: "การจัดซื้อ", adminOnly: true },
+      { id: "alerts", icon: "🔔", tone: "violet", label: "การแจ้งเตือน" },
+      { id: "inventory", icon: "🧺", tone: "cyan", label: "จัดการวัตถุดิบ" },
+      { id: "menu", icon: "☕", tone: "indigo", label: "จัดการเมนูสินค้า" },
+      { id: "procurement", icon: "🚚", tone: "blue", label: "การจัดซื้อ", adminOnly: true },
     ],
   },
   {
     id: "settings",
     icon: "⚙️",
+    tone: "violet",
     label: "การตั้งค่าร้าน",
     description: "กำหนดช่องทางขาย สมาชิก สิทธิ์ และการพิมพ์",
     items: [
-      { id: "sales-channels", icon: "📱", label: "จัดการช่องทางการขาย", adminOnly: true },
-      { id: "coupons", icon: "🎟️", label: "จัดการคูปอง", adminOnly: true },
-      { id: "loyalty-settings", icon: "⭐", label: "ตั้งค่าคะแนนสะสม", adminOnly: true },
-      { id: "loyalty-members", icon: "👥", label: "จัดการสมาชิก", adminOnly: true },
-      { id: "role-permissions", icon: "🔐", label: "จัดการสิทธิ์บทบาท", adminOnly: true },
-      { id: "audit-logs", icon: "🕘", label: "ประวัติการแก้ไข", adminOnly: true },
-      { id: "printing", icon: "🖨️", label: "ตั้งค่าการพิมพ์", adminOnly: true },
+      { id: "sales-channels", icon: "📱", tone: "sky", label: "จัดการช่องทางการขาย", adminOnly: true },
+      { id: "coupons", icon: "🎟️", tone: "violet", label: "จัดการคูปอง", adminOnly: true },
+      { id: "loyalty-settings", icon: "⭐", tone: "indigo", label: "ตั้งค่าคะแนนสะสม", adminOnly: true },
+      { id: "loyalty-members", icon: "👥", tone: "teal", label: "จัดการสมาชิก", adminOnly: true },
+      { id: "role-permissions", icon: "🔐", tone: "blue", label: "จัดการสิทธิ์บทบาท", adminOnly: true },
+      { id: "audit-logs", icon: "🕘", tone: "cyan", label: "ประวัติการแก้ไข", adminOnly: true },
+      { id: "printing", icon: "🖨️", tone: "sky", label: "ตั้งค่าการพิมพ์", adminOnly: true },
     ],
   },
   {
     id: "finance",
     icon: "💰",
+    tone: "teal",
     label: "การเงินและรายงาน",
     description: "ติดตามยอดขาย ค่าใช้จ่าย และผลประกอบการ",
     items: [
-      { id: "finance", icon: "💳", label: "ข้อมูลการเงิน" },
-      { id: "business-reports", icon: "📈", label: "รายงานเชิงธุรกิจ", adminOnly: true },
+      { id: "finance", icon: "💳", tone: "teal", label: "ข้อมูลการเงิน" },
+      { id: "business-reports", icon: "📈", tone: "cyan", label: "รายงานเชิงธุรกิจ", adminOnly: true },
     ],
   },
 ];
@@ -303,18 +308,18 @@ function AdminHomePage({ groups, summary, onNavigate }) {
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {groups.map((group) => (
           <button
-            className="group rounded-2xl border border-sky-100 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-sky-100"
+            className={`work-menu-card work-tone-${group.tone || "sky"} group rounded-2xl border p-4 text-left shadow-sm transition focus:outline-none`}
             key={group.id}
             type="button"
             onClick={() => onNavigate(categoryViewId(group.id))}
           >
             <div className="flex items-start justify-between gap-3">
-              <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-sky-100 text-3xl shadow-sm ring-1 ring-sky-200/70" aria-hidden="true">{group.icon}</span>
-              <span className="text-sm font-bold text-sky-700 transition group-hover:translate-x-0.5">เปิด →</span>
+              <span className="work-menu-icon grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-3xl shadow-sm" aria-hidden="true">{group.icon}</span>
+              <span className="work-menu-link text-sm font-bold transition group-hover:translate-x-0.5">เปิด →</span>
             </div>
             <h2 className="mt-4 text-base font-bold text-slate-900">{group.label}</h2>
             <p className="mt-1 text-xs leading-5 text-slate-500">{group.description}</p>
-            <p className="mt-3 text-xs font-semibold text-sky-700">{group.items.length} เมนู</p>
+            <p className="work-menu-link mt-3 text-xs font-semibold">{group.items.length} เมนู</p>
           </button>
         ))}
       </section>
@@ -332,14 +337,14 @@ function CategoryHubPage({ group, onNavigate }) {
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {group.items.map((item) => (
           <button
-            className="group rounded-2xl border border-sky-100 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-sky-100"
+            className={`work-menu-card work-tone-${item.tone || group.tone || "sky"} group rounded-2xl border p-4 text-left shadow-sm transition focus:outline-none`}
             key={item.id}
             type="button"
             onClick={() => onNavigate(item.id)}
           >
             <div className="flex items-center justify-between gap-3">
-              <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-sky-100 text-3xl shadow-sm ring-1 ring-sky-200/70" aria-hidden="true">{item.icon}</span>
-              <span className="text-sm font-bold text-sky-700 transition group-hover:translate-x-0.5">เปิด →</span>
+              <span className="work-menu-icon grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-3xl shadow-sm" aria-hidden="true">{item.icon}</span>
+              <span className="work-menu-link text-sm font-bold transition group-hover:translate-x-0.5">เปิด →</span>
             </div>
             <h2 className="mt-4 text-base font-bold text-slate-900">{item.label}</h2>
           </button>
